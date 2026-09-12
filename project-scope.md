@@ -46,16 +46,19 @@ Two roles for MVP:
   - **Individual entry** — fecal score, food (dry amount + free-fed flag; wet amount + wet food brand, defaulting to Hill's and only requiring a pick when it's different), snack/treat (Churu, Greenies, other + note), medical section (general medical notes, plus a "dewormer given" action when one is due), play/behavior notes, nail trim flag, photo(s).
   - **Group entry** — for cats housed/fostered together (e.g. "Sprite/Pepsi/Nehi"), since some things can't be attributed to one cat in the group:
     - Shared across the group: fecal score, dry food amount, water. (Dry food is always the same brand, so brand isn't tracked for dry.)
-    - Individual per cat in the group: wet food amount + brand (default Hill's), snack/treat, medical section (notes + dewormer given), behavior/play notes, photo(s).
+    - Individual per cat in the group: wet food amount + brand (default Hill's), snack/treat, medical section (notes + dewormer given), behavior/play notes, nail trim flag, photo(s).
 - A cat entry's medical section flags when a dewormer is due (see Cat & kennel roster below); marking it "given" during a shift clears the flag. Dewormer is a one-time treatment — once given, there's no future due date to track.
-- Shift-level fields (not tied to one cat): cleaning performed, supplies restocked, meet-and-greets (which cat, context), general "other" notes.
-- Fecal score and food amount use structured pickers (e.g. a scale for fecal score; none/some/most/all + free-fed flag for food) with an optional free-text note for anything unusual — keeps data consistent while still allowing detail.
+- Shift-level fields (not tied to one cat): cleaning performed, supplies restocked, general "other" notes.
+- Repeatable meet-and-greet entry: one or more cats (a family may meet more than one cat in a visit) + a free-text note on context/outcome. Multiple meet-and-greets can be logged in one shift.
+- Fecal score and food amount use structured pickers (fecal score: 1–7 scale; food amount: none/some/all + free-fed flag), plus an optional free-text note for anything unusual — keeps data consistent while still allowing detail.
 - Photo upload attached to a cat entry (individual or per-cat within a group).
 
 ### Roles & permissions
-- **Volunteer**: create/edit own reports only.
-- **Admin**: edit/delete any report; manage the cat/kennel roster (add cats, assign/retire kennels, intake); post status changes and announcements; manage volunteer/admin user accounts.
+- **Volunteer**: create/edit own reports only — cannot delete their own reports; only an Admin can delete a report.
+- **Admin**: edit/delete any report; manage the cat/kennel roster (add cats, assign kennels, intake); post status changes and announcements; manage volunteer/admin user accounts.
 - Each user has an active/inactive status, set by an Admin. An inactive user cannot log in — used for volunteers who have left, without deleting their account or their past reports.
+- New volunteers self-register; their account starts inactive/pending until an Admin approves and activates it. This is the same active/inactive flag used elsewhere, just defaulted to inactive on signup instead of set by an Admin after the fact.
+- No roles beyond Volunteer/Admin in MVP — anyone with in-app access is one or the other; people outside those roles (e.g. fosters, front-desk staff) who need visibility are reached via the existing Google Group email notifications, not in-app accounts.
 
 ### Cat & kennel roster
 - Persistent cat profile that shift reports reference, instead of free-typing a cat's name each time — avoids inconsistency (e.g. name spelling/aliases) and enables per-cat history and reporting.
@@ -65,13 +68,14 @@ Two roles for MVP:
 
 ### Status & announcements
 Replaces the other ad hoc email threads (new-cat, adoption, sick-return, kennel-prep) with structured, in-app notifications tied to the cat/kennel roster.
-- Cat status field (`available` → `pending adoption` → `adopted`), updated by Admins. A cat is `available` as soon as it's added to the roster — there's no separate "new arrival" status, just an announcement posted at intake. `pending adoption` can revert back to `available` if an application falls through (e.g. it doesn't work out) — this posts a new "back available" announcement and resolves the earlier pending-adoption one.
+- Cat status field (`available` → `pending adoption` → `adopted`), updated by Admins. A cat is `available` as soon as it's added to the roster — there's no separate "new arrival" status, just an announcement posted at intake. `pending adoption` can revert back to `available` if an application falls through (e.g. it doesn't work out) — this posts a new "back available" announcement and resolves the earlier pending-adoption one. Status changes are always a manual Admin action — a meet-and-greet outcome is logged as a note only and never automatically changes a cat's status.
 - **Returned to RCC** is an action, not an ongoing status: it removes the cat from the active roster entirely (no further tracking at this location — if it comes back later it's re-entered like a new arrival) and marks its kennel `needs reset`. An optional free-text reason (e.g. "for observation") can be logged for the record, but volunteers only see that the kennel needs a reset, not the reason.
 - Announcement types, visible to all volunteers, separate from a shift report:
   - New cat arrival
   - Pending adoption / adopted (with pickup date/time when scheduled) / back available (after a fallthrough)
   - Cat returned to RCC (kennel-needs-reset notice only; no reason shown)
-- **Kennel prep checklist** — an Admin creates a short ordered list of kennel actions (reset a kennel, move a cat into a kennel) tied to an expected arrival or pickup, e.g. "reset kennel 5 → move Pepsi to kennel 5 → reset kennel 6." Volunteers see the checklist during their shift and check off each action as completed; the roster updates as actions are completed.
+  - Kennel prep checklist assigned
+- **Kennel prep checklist** — an Admin creates a short ordered list of kennel actions (reset a kennel, move a cat into a kennel) tied to an expected arrival or pickup, e.g. "reset kennel 5 → move Pepsi to kennel 5 → reset kennel 6." Checklist creation is Admin-only in MVP — a Volunteer cannot create or flag one themselves, only check off actions during their shift; the roster updates as actions are completed. Order is enforced — a Volunteer can only check off the next incomplete action in sequence, so a cat can't be moved into a kennel before its reset step is checked off.
 - **Default announcement view** shows only the last 24 hours, with a "view all" option to see everything. That 24-hour default only applies to purely informational announcements — new cat arrival and returned-to-RCC. Anything with an open action stays in the default view regardless of age until it's resolved:
   - Pending adoption / adopted: stays visible until the cat is marked adopted **and** its kennel is marked reset — both conditions required.
   - Kennel prep checklist: stays visible until every action on it is checked off.
@@ -80,34 +84,37 @@ Replaces the other ad hoc email threads (new-cat, adoption, sick-return, kennel-
 
 ### Reporting / lookup
 - View/search past shift reports by cat, date, or kennel, so the next shift can catch up without reading an email chain.
-- View a single cat's report history in one place (fecal/food/behavior/medical over recent shifts).
+- View a single cat's report history in one place (fecal/food/behavior/medical/meet-and-greets over recent shifts).
 
 ### Email notifications
 Sent to the existing Google Group already used for these communications today (not per-user addresses), individually per event (not batched), for:
 - New cat arrival
 - Status change to pending adoption / adopted (including a scheduled pickup date/time, when set)
+- Back available (after a pending adoption falls through)
 - Returned to RCC (surfaces as a "kennel needs reset" notification)
 - A new kennel prep checklist assigned
 
-Whoever is a member of the Google Group receives these — membership, not an in-app preference, is what controls who gets notified for MVP. The email contains the full detail of the event, same as the in-app announcement. No push notifications, and no per-user opt-in/opt-out, in MVP.
+All five notification types go to the same single existing Google Group. Whoever is a member of the Google Group receives these — membership, not an in-app preference, is what controls who gets notified for MVP. Group membership is managed entirely outside the app (in Google Groups/Workspace admin); the app just sends to the group address and doesn't need to read or display who's in it. The email contains the full detail of the event, same as the in-app announcement. No push notifications, and no per-user opt-in/opt-out, in MVP.
 
 ## Data model / entities
 
-- **User** — name, role (`Volunteer` | `Admin`), active/inactive status (inactive users cannot log in).
+- **User** — name, role (`Volunteer` | `Admin`), active/inactive status (inactive users cannot log in; new self-registered accounts default to inactive until an Admin approves them).
 
-- **Cat** — name, age (at intake), sex, color/pattern, collar color, current kennel or group, status (`available` | `pending adoption` | `adopted` — `pending adoption` can revert to `available` on a fallthrough; a cat is `available` as soon as it's added to the roster, no separate "new arrival" status), scheduled pickup date/time (optional, set when pending adoption), dewormer status (`due` | `given`, set at intake from the cat's existing paper notebook; one-time, no recurring date), active flag. Set inactive (not deleted) when returned to RCC, with an optional Admin-only reason note; a re-admitted cat is entered again like a new arrival rather than reactivated.
+- **Cat** — name, age (at intake), sex, color/pattern, collar color, current kennel or group, status (`available` | `pending adoption` | `adopted` — `pending adoption` can revert to `available` on a fallthrough; a cat is `available` as soon as it's added to the roster, no separate "new arrival" status), scheduled pickup date/time (optional, set when pending adoption), dewormer status (`due` | `given`, set at intake from the cat's existing paper notebook; one-time, no recurring date), active flag. Set inactive (not deleted) when returned to RCC, with an optional Admin-only reason note; a re-admitted cat is entered again like a new arrival rather than reactivated. Past shift reports referencing an inactive cat remain fully viewable in history/search — going inactive removes it from the active roster, not from the record.
 
-- **Group** — a set of Cats housed/fostered together (e.g. "Sprite/Pepsi/Nehi"); shares one kennel and is the target of shared fields on a shift report entry. Used both for arrivals (a pair intake into one kennel) and shift reporting.
+- **Group** — a set of Cats housed/fostered together (e.g. "Sprite/Pepsi/Nehi"); shares one kennel and is the target of shared fields on a shift report entry. Used both for arrivals (a pair intake into one kennel) and shift reporting. When a Cat leaves a Group (adopted or returned to RCC), it's removed from the Group; if only one Cat remains, the Group dissolves and that Cat becomes an Individual in the shared kennel, otherwise the remaining Cats stay a (smaller) Group.
 
 - **Kennel** — number, current occupant (a Cat, a Group, or empty), state (`occupied` | `needs reset` | `ready`).
 
-- **ShiftReport** — author (User), shift type (`Morning` | `Mid-day` | `Evening`), date, kennels reset list, cleaning notes, supplies notes, meet-and-greet notes, other notes, created/edited timestamps. Editable only by its author, or by an Admin.
+- **ShiftReport** — author (User), shift type (`Morning` | `Mid-day` | `Evening`), date, kennels reset list, cleaning notes, supplies notes, other notes, created/edited timestamps. Editable only by its author, or by an Admin.
 
 - **CatEntry** — belongs to a ShiftReport; references either one Cat (individual) or one Group.
   - Individual: fecal score, dry food amount + free-fed flag, wet food amount + brand (default Hill's), snack/treat, medical notes, dewormer-given flag (only relevant while the Cat's dewormer status is `due`), behavior/play notes, nail trim flag, photo(s).
-  - Group: fecal score, dry food amount, and water logged once for the group (dry food brand is not tracked — always the same); wet food amount + brand, snack/treat, medical notes, dewormer-given flag, and behavior/play notes and photo(s) logged per Cat within the group.
+  - Group: fecal score, dry food amount, and water logged once for the group (dry food brand is not tracked — always the same); wet food amount + brand, snack/treat, medical notes, dewormer-given flag, behavior/play notes, nail trim flag, and photo(s) logged per Cat within the group.
 
-- **KennelPrepChecklist** — created by an Admin, tied to an expected arrival or pickup; an ordered list of **ChecklistAction**s (`reset kennel` | `move cat to kennel`, target Kennel, target Cat/Group when moving, completed flag, completed by/at). Volunteers check actions off during a shift.
+- **MeetAndGreet** — belongs to a ShiftReport; references one or more Cats, plus a free-text note on context/outcome. Surfaces on each referenced Cat's report history.
+
+- **KennelPrepChecklist** — created by an Admin, tied to an expected arrival or pickup; an ordered list of **ChecklistAction**s (`reset kennel` | `move cat to kennel`, target Kennel, target Cat/Group when moving, completed flag, completed by/at). Volunteers check actions off during a shift, strictly in order — only the next incomplete action can be marked done.
 
 - **Announcement** — type (`new arrival` | `pending adoption` | `adopted` | `back available` | `returned to RCC` | `checklist assigned`), reference to the related Cat/Kennel/Checklist, timestamp, resolved flag, and whether a notification email was sent for it. `new arrival` and `returned to RCC` age out of the default view after 24 hours regardless of the resolved flag; `pending adoption`/`adopted` and `checklist assigned` stay in the default view until resolved (adopted + kennel reset, or all checklist actions complete) no matter how old they are. All types remain available via "view all."
 
@@ -115,10 +122,12 @@ Whoever is a member of the Google Group receives these — membership, not an in
 
 Mobile-first web app (PWA) — installable to the home screen, works in the phone browser, no app-store submission required. Fastest path to MVP and easiest to iterate on; a native app can be revisited later if offline support or app-store presence becomes a priority.
 
+Scoped to a single site (one PetSmart location) for MVP — one kennel-numbering scheme, no Site entity. Multi-site support is a backlog item if the rescue expands to satellite locations.
+
 ## Out of scope for MVP (backlog)
 
 - Native iOS/Android apps
-- Full adoption application intake/CRM (meet-and-greets are logged as a note, not a full workflow)
+- Full adoption application intake/CRM (meet-and-greets are logged as a simple cats + note entry, not a full workflow)
 - Push notifications (MVP uses email instead)
 - Per-user notification preferences (opt-in/opt-out) — MVP sends to the existing Google Group for everyone; individual control is a future enhancement
 - Per-shift-targeted notifications (e.g. only notify the next shift) — MVP notifies the whole Google Group
@@ -129,15 +138,5 @@ Mobile-first web app (PWA) — installable to the home screen, works in the phon
 - Structured end-of-shift checklist (e.g. cleaning tasks, "check locks before leaving") — MVP keeps cleaning as a free-text field on the shift report
 - A standing list of reminders/guidelines shown to volunteers (e.g. "no toys in the kennel") — not part of MVP's shift-report flow
 - Ad-hoc announcements — a free-form announcement an Admin (or volunteer) posts outside the fixed MVP types, with an expiration date the creator sets themselves, after which it drops out of the default view like the other announcement types
-
-## Open questions
-
-- Exact scale/values for fecal score and food-amount pickers (need real examples from more reports to nail down the options).
-- Should meet-and-greet outcomes ever feed into adoption status automatically, or always stay a manual Admin update?
-- Is this scoped to a single site's kennels (e.g. one PetSmart location), or does it need to support multiple satellite sites each with their own kennel numbering?
-- Any volunteers without smartphones who still need a way to submit a report?
-- Can a Volunteer flag a kennel-move need themselves, or is the kennel prep checklist always created by an Admin?
-- Once a cat is returned to RCC and removed from the roster, should past shift reports that mention it remain viewable, or does it disappear from history too?
-- Are there people outside the Volunteer/Admin roles (e.g. fosters, front-desk staff) who need to see these announcements/status changes?
-- Does every notification type (new arrival, status change, RCC return, checklist assigned) go to the same Google Group, or do some already use a different list today?
-- Who manages membership of the Google Group, and does the app need to know/display that list, or is it entirely external to the app?
+- Multi-site support (Site entity, per-site kennel numbering) — MVP assumes a single location
+- A fallback shift-report path for volunteers without a smartphone — MVP assumes all active volunteers can access the PWA on a phone browser
