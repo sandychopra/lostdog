@@ -25,6 +25,8 @@ bun run dev:frontend       # start the React dev server with HMR (http://localho
 
 Each can also be run directly from its own directory: `cd backend && bun run dev`.
 
+- Health status: frontend at `http://localhost:3000`, backend healthcheck at `http://localhost:4000/api/health`.
+
 - `frontend` has a `build` script (`bun build ./src/index.html --outdir ./dist`) that produces static output; `backend` has no build step since Bun runs the TypeScript directly (`bun src/index.ts`).
 - No lint, typecheck, or test scripts are configured yet in either workspace.
 
