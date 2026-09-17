@@ -19,8 +19,11 @@ This is a Bun workspace monorepo (`backend/`, `frontend/`), not npm/yarn/pnpm.
 ```bash
 bun install                # install all workspace deps, from repo root
 
-bun run dev:backend        # start the Express API with watch mode (http://localhost:4000)
-bun run dev:frontend       # start the React dev server with HMR (http://localhost:3000)
+bun run dev:backend &       # start the Express API with watch mode (http://localhost:4000)
+bun run dev:frontend &      # start the React dev server with HMR (http://localhost:3000)
+
+kill $(lsof -t -i :4000)   # backend
+kill $(lsof -t -i :3000)   # frontend
 ```
 
 Each can also be run directly from its own directory: `cd backend && bun run dev`.
