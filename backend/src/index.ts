@@ -1,8 +1,9 @@
 import express from "express";
 import cors from "cors";
-import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
+import { toNodeHandler } from "better-auth/node";
 import { auth } from "./lib/auth.ts";
 import { prisma } from "./lib/prisma.ts";
+import { requireAuth, type AuthedRequest } from "./middleware/requireAuth.ts";
 
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
@@ -18,17 +19,8 @@ app.all("/api/auth/*splat", toNodeHandler(auth));
 
 app.use(express.json());
 
-app.get("/api/me", async (req, res) => {
-  const session = await auth.api.getSession({
-    headers: fromNodeHeaders(req.headers),
-  });
-
-  if (!session) {
-    res.status(401).json({ error: "Not authenticated" });
-    return;
-  }
-
-  res.json(session);
+app.get("/api/me", requireAuth, (req, res) => {
+  res.json((req as AuthedRequest).session);
 });
 
 app.get("/api/health", async (_req, res) => {
