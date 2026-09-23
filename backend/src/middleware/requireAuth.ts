@@ -14,6 +14,11 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return;
   }
 
+  if (session.user.deletedAt) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
   (req as AuthedRequest).session = session;
   next();
 }

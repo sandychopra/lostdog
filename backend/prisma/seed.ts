@@ -18,7 +18,6 @@ async function seedAdmin() {
     where: { email },
     update: {
       role: Role.Admin,
-      active: true,
     },
     create: {
       id: crypto.randomUUID(),
@@ -26,7 +25,6 @@ async function seedAdmin() {
       email,
       emailVerified: true,
       role: Role.Admin,
-      active: true,
     },
   });
 

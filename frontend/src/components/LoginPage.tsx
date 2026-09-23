@@ -1,14 +1,29 @@
-import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Navigate, useNavigate } from "react-router";
 import { authClient } from "../lib/auth-client";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import ErrorMessage from "./ErrorMessage";
+
+const loginSchema = z.object({
+  email: z.email("Enter a valid email"),
+  password: z.string().min(1, "Password is required"),
+});
+
+type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { data: session, isPending } = authClient.useSession();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const {
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginFormValues>({ resolver: zodResolver(loginSchema) });
 
   if (isPending) {
     return null;
@@ -18,20 +33,11 @@ export default function LoginPage() {
     return <Navigate to="/" replace />;
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSubmitting(true);
-
-    const { error: signInError } = await authClient.signIn.email({
-      email,
-      password,
-    });
-
-    setSubmitting(false);
+  const onSubmit = async (values: LoginFormValues) => {
+    const { error: signInError } = await authClient.signIn.email(values);
 
     if (signInError) {
-      setError(signInError.message ?? "Unable to sign in.");
+      setError("root", { message: signInError.message ?? "Unable to sign in." });
       return;
     }
 
@@ -39,33 +45,28 @@ export default function LoginPage() {
   };
 
   return (
-    <main style={{ fontFamily: "sans-serif", padding: "2rem", maxWidth: 320 }}>
-      <h1>Sign in</h1>
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-        <label>
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            style={{ display: "block", width: "100%" }}
-          />
-        </label>
-        <label>
-          Password
-          <input
+    <main className="mx-auto max-w-sm px-6 py-16">
+      <h1 className="mb-6 text-2xl font-semibold">Sign in</h1>
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="email">Email</Label>
+          <Input id="email" type="email" aria-invalid={!!errors.email} {...register("email")} />
+          <ErrorMessage message={errors.email?.message} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
             type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            style={{ display: "block", width: "100%" }}
+            aria-invalid={!!errors.password}
+            {...register("password")}
           />
-        </label>
-        {error && <p style={{ color: "crimson" }}>{error}</p>}
-        <button type="submit" disabled={submitting}>
-          {submitting ? "Signing in..." : "Sign in"}
-        </button>
+          <ErrorMessage message={errors.password?.message} />
+        </div>
+        <ErrorMessage message={errors.root?.message} />
+        <Button type="submit" disabled={isSubmitting} className="w-full">
+          {isSubmitting ? "Signing in..." : "Sign in"}
+        </Button>
       </form>
     </main>
   );

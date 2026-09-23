@@ -1,4 +1,5 @@
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
+import { Role } from "shared/constants/role.ts";
 import { authClient } from "../lib/auth-client";
 
 export default function Navbar() {
@@ -21,8 +22,17 @@ export default function Navbar() {
         fontFamily: "sans-serif",
       }}
     >
-      <span>{session?.user.name}</span>
-      <button onClick={handleSignOut}>Sign out</button>
+      <div className="flex items-center gap-4">
+        {session?.user.role === Role.Admin && (
+          <Link to="/users" className="text-sm font-medium text-blue hover:underline">
+            Users
+          </Link>
+        )}
+      </div>
+      <div className="flex items-center gap-3">
+        <span>{session?.user.name}</span>
+        <button onClick={handleSignOut}>Sign out</button>
+      </div>
     </nav>
   );
 }

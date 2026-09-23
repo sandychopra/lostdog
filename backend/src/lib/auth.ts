@@ -14,10 +14,9 @@ export const auth = betterAuth({
         defaultValue: "Volunteer",
         input: false,
       },
-      active: {
-        type: "boolean",
+      deletedAt: {
+        type: "date",
         required: false,
-        defaultValue: false,
         input: false,
       },
     },

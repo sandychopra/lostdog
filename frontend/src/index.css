@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "League Spartan", ui-sans-serif, system-ui, sans-serif;
+
+  --color-navy: #001f70;
+  --color-blue: #0c4ac5;
+  --color-cream: #f6f5f4;
+  --color-gray: #62646a;
+  --color-gold: #f0b429;
+
+  --color-background: var(--color-cream);
+  --color-foreground: var(--color-gray);
+  --color-primary: var(--color-blue);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #e7e6e4;
+  --color-secondary-foreground: var(--color-navy);
+  --color-muted: #e7e6e4;
+  --color-muted-foreground: var(--color-gray);
+  --color-accent: var(--color-gold);
+  --color-accent-foreground: var(--color-navy);
+  --color-destructive: #c0392b;
+  --color-border: #d8d6d3;
+  --color-input: #d8d6d3;
+  --color-ring: var(--color-blue);
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-full: 9999px;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+  }
+  h1,
+  h2,
+  h3 {
+    color: var(--color-navy);
+  }
+}
