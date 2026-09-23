@@ -3,6 +3,7 @@ import index from "./index.html";
 const server = Bun.serve({
   routes: {
     "/": index,
+    "/*": index,
   },
   development: true,
 });

@@ -1,21 +1,20 @@
-import { useEffect, useState } from "react";
-
-const API_BASE = "http://localhost:4000";
+import { Route, Routes } from "react-router";
+import LoginPage from "./components/LoginPage";
+import HomePage from "./components/HomePage";
+import RequireAuth from "./components/RequireAuth";
 
 export default function App() {
-  const [status, setStatus] = useState("checking...");
-
-  useEffect(() => {
-    fetch(`${API_BASE}/api/health`)
-      .then((res) => res.json())
-      .then((data) => setStatus(data.status))
-      .catch(() => setStatus("unreachable"));
-  }, []);
-
   return (
-    <main style={{ fontFamily: "sans-serif", padding: "2rem" }}>
-      <h1>Lost Dog and Cat Rescue</h1>
-      <p>Backend status: {status}</p>
-    </main>
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/"
+        element={
+          <RequireAuth>
+            <HomePage />
+          </RequireAuth>
+        }
+      />
+    </Routes>
   );
 }
