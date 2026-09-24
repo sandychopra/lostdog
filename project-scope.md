@@ -58,9 +58,9 @@ Two roles for MVP:
 
 ### Roles & permissions
 - **Volunteer**: create/edit own reports only — cannot delete their own reports; only an Admin can delete a report.
-- **Admin**: edit/delete any report; manage the cat/kennel roster (add cats, assign kennels, intake); post status changes and announcements; manage volunteer/admin user accounts.
-- Each user has an active/inactive status, set by an Admin. An inactive user cannot log in — used for volunteers who have left, without deleting their account or their past reports.
-- New volunteers self-register; their account starts inactive/pending until an Admin approves and activates it. This is the same active/inactive flag used elsewhere, just defaulted to inactive on signup instead of set by an Admin after the fact.
+- **Admin**: edit/delete any report; manage the cat/kennel roster (add cats, assign kennels, intake); post status changes and announcements; create and manage volunteer/admin user accounts.
+- Self-registration is disabled — an Admin creates every user account (Volunteer or Admin) directly; there is no public sign-up flow.
+- Deleting a user is a soft delete: an Admin can delete a Volunteer or Admin who has left, which blocks that user from logging in but keeps their account and past shift reports intact (still fully viewable/attributed to them). It is not a destructive/permanent delete.
 - No roles beyond Volunteer/Admin in MVP — anyone with in-app access is one or the other; people outside those roles (e.g. fosters, front-desk staff) who need visibility are reached via the existing Google Group email notifications, not in-app accounts.
 
 ### Cat & kennel roster
@@ -103,7 +103,7 @@ All six notification types go to the same single existing Google Group. Whoever 
 
 ## Data model / entities
 
-- **User** — name, role (`Volunteer` | `Admin`), active/inactive status (inactive users cannot log in; new self-registered accounts default to inactive until an Admin approves them).
+- **User** — name, email, role (`Volunteer` | `Admin`), password (credential-based auth), soft-delete timestamp (a deleted user cannot log in, but their account and past reports remain intact). Created only by an Admin — no self-registration.
 
 - **Cat** — name, age (at intake), sex, color/pattern, collar color, current kennel or group, status (`available` | `pending adoption` | `adopted` — `pending adoption` can revert to `available` on a fallthrough; a cat is `available` as soon as it's added to the roster, no separate "new arrival" status), scheduled pickup date/time (optional, set when pending adoption), dewormer status (`due` | `given`, set at intake from the cat's existing paper notebook; one-time, no recurring date), needs-proviable flag (boolean, set manually by an Admin after diarrhea is reported — not tied to intake — and cleared manually by an Admin once resolved; unlike dewormer it is not cleared by logging a dose), active flag. Set inactive (not deleted) when returned to RCC, with an optional Admin-only reason note; a re-admitted cat is entered again like a new arrival rather than reactivated. Past shift reports referencing an inactive cat remain fully viewable in history/search — going inactive removes it from the active roster, not from the record.
 

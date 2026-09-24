@@ -41,16 +41,16 @@ Goal: the full schema exists and is migratable; no UI yet.
 - [ ] Seed script with representative dev data (a few cats, a group, kennels, one admin/one volunteer user)
 
 ## Phase 2 — Authentication & user management
-Goal: users can register, log in, and are gated by role and active status.
+Goal: users can log in, are gated by role, and Admins manage the full user lifecycle.
 
 - [ ] Password hashing + credentials login endpoint
 - [ ] Database-backed session creation/validation/expiry middleware
 - [ ] Logout (session invalidation)
-- [ ] Self-registration flow — new accounts default to `inactive`
-- [ ] Admin: list users, approve/activate pending volunteers, deactivate users
+- [ ] Admin: create user (Volunteer or Admin), list users, edit user, soft-delete user
 - [ ] Role-based route/middleware guards (Volunteer vs Admin)
-- [ ] Inactive-user login rejection
-- [ ] Frontend: login, register, and "pending approval" screens
+- [ ] Deleted-user login rejection
+- [ ] Frontend: login screen
+- [ ] Frontend: Admin user-management screens (list, create, edit, delete)
 - [ ] Frontend: route guarding by auth state and role
 
 ## Phase 3 — Cat & Kennel roster

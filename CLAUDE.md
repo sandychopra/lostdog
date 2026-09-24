@@ -34,6 +34,19 @@ Each can also be run directly from its own directory: `cd backend && bun run dev
 - `frontend` has a `build` script (`bun build ./src/index.html --outdir ./dist`) that produces static output; `backend` has no build step since Bun runs the TypeScript directly (`bun src/index.ts`).
 - No lint, typecheck, or test scripts are configured yet in either workspace.
 
+### Syncing your local database
+
+Each developer runs their own local Postgres, so after pulling changes that include new Prisma migrations, sync your database with:
+
+```bash
+cd backend
+bunx prisma migrate deploy   # apply any pending migrations from prisma/migrations/
+bunx prisma generate         # regenerate the Prisma client (Bun doesn't auto-run postinstall scripts)
+bun run seed                 # create/update your local admin user from .env's SEED_ADMIN_EMAIL/PASSWORD
+```
+
+First-time setup also needs a `backend/.env` (copy `backend/.env.example` and fill in your own `DATABASE_URL`, `BETTER_AUTH_SECRET`, etc.) before running the above.
+
 ## Architecture
 
 - **Monorepo**: Bun workspaces defined in the root `package.json` (`backend`, `frontend`). A shared `tsconfig.base.json` at the root holds Bun's recommended compiler options; each workspace's `tsconfig.json` extends it.
