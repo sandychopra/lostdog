@@ -111,7 +111,10 @@ export default function UserForm({ user, onSuccess }: UserFormProps) {
         <ErrorMessage message={form.formState.errors.role?.message} />
       </div>
       {mutation.error && (
-        <ErrorAlert error={mutation.error} fallback={`Failed to ${isEdit ? "update" : "create"} user`} />
+        <ErrorAlert
+          error={mutation.error}
+          fallback={`Failed to ${isEdit ? "update" : "create"} user`}
+        />
       )}
       <div className="flex justify-end">
         <Button type="submit" disabled={mutation.isPending}>

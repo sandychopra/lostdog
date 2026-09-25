@@ -22,7 +22,11 @@ interface UsersTableProps {
 }
 
 export default function UsersTable({ onEdit, onDelete }: UsersTableProps) {
-  const { data: users, isLoading, error } = useQuery({
+  const {
+    data: users,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["users"],
     queryFn: async () => {
       const { data } = await api.get<{ users: User[] }>("/api/users");
@@ -71,7 +75,9 @@ export default function UsersTable({ onEdit, onDelete }: UsersTableProps) {
                 <TableCell>{user.name}</TableCell>
                 <TableCell>{user.email}</TableCell>
                 <TableCell>
-                  <Badge variant={user.role === Role.Admin ? "default" : "secondary"}>{user.role}</Badge>
+                  <Badge variant={user.role === Role.Admin ? "default" : "secondary"}>
+                    {user.role}
+                  </Badge>
                 </TableCell>
                 <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
                 <TableCell>

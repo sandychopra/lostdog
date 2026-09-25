@@ -1,7 +1,11 @@
 import type { Response } from "express";
 import { z, type ZodType } from "zod";
 
-export function validate<S extends ZodType>(schema: S, body: unknown, res: Response): z.infer<S> | undefined {
+export function validate<S extends ZodType>(
+  schema: S,
+  body: unknown,
+  res: Response,
+): z.infer<S> | undefined {
   const result = schema.safeParse(body);
 
   if (!result.success) {
