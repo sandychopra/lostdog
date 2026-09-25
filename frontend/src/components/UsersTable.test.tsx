@@ -3,8 +3,20 @@ import { screen, waitFor } from "@testing-library/react";
 import { renderWithQuery } from "../test/render";
 
 const users = [
-  { id: "1", name: "Vera Volunteer", email: "vera@example.com", role: "Volunteer", createdAt: new Date().toISOString() },
-  { id: "2", name: "Ann Admin", email: "ann@example.com", role: "Admin", createdAt: new Date().toISOString() },
+  {
+    id: "1",
+    name: "Vera Volunteer",
+    email: "vera@example.com",
+    role: "Volunteer",
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: "2",
+    name: "Ann Admin",
+    email: "ann@example.com",
+    role: "Admin",
+    createdAt: new Date().toISOString(),
+  },
 ];
 
 const get = mock(async () => ({ data: { users } }));

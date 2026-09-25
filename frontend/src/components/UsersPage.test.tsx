@@ -4,7 +4,13 @@ import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "../test/render";
 
 const users = [
-  { id: "1", name: "Vera Volunteer", email: "vera@example.com", role: "Volunteer", createdAt: new Date().toISOString() },
+  {
+    id: "1",
+    name: "Vera Volunteer",
+    email: "vera@example.com",
+    role: "Volunteer",
+    createdAt: new Date().toISOString(),
+  },
 ];
 
 const get = mock(async () => ({ data: { users } }));

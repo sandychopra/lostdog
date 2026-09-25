@@ -2,13 +2,21 @@
 
 Each developer runs their own local Postgres. Follow these steps to get your database in sync with the latest schema and migrations.
 
+You can either install Postgres natively, or run it via the `docker-compose.yml` at the repo root:
+
+```bash
+docker compose up -d postgres
+```
+
+This starts a Postgres 17 container on `localhost:5432` with a `lostdog_app` user, `changeme` password, and `lostdog` database — matching `backend/.env.example`'s defaults exactly, so no `.env` changes are needed if you use them as-is. Data persists in a named Docker volume (`postgres-data`) across restarts; `docker compose down -v` wipes it if you want a clean slate. Only Postgres is containerized — the backend and frontend still run natively via `bun run dev:backend`/`dev:frontend`, per the root `CLAUDE.md`.
+
 ## 1. Pull the latest changes
 
 Make sure you have the branch/commits containing the migration(s) you need, in particular anything under `backend/prisma/migrations/`.
 
 ## 2. Point your `.env` at your own database
 
-Copy `backend/.env.example` to `backend/.env` and fill in your own values:
+Copy `backend/.env.example` to `backend/.env` and fill in your own values (the defaults below already match the `docker-compose.yml` Postgres service):
 
 ```
 DATABASE_URL="postgresql://<user>:<password>@localhost:5432/<your-db-name>?schema=public"

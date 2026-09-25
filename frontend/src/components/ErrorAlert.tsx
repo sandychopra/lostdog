@@ -6,7 +6,11 @@ interface ErrorAlertProps {
   fallback?: string;
 }
 
-export default function ErrorAlert({ message, error, fallback = "Something went wrong" }: ErrorAlertProps) {
+export default function ErrorAlert({
+  message,
+  error,
+  fallback = "Something went wrong",
+}: ErrorAlertProps) {
   const text =
     message ??
     (isAxiosError(error) && typeof error.response?.data?.error === "string"

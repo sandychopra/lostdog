@@ -22,11 +22,11 @@ Goal: a running local dev environment, empty but wired end-to-end.
 - [ ] Scaffold repo structure (`/frontend`, `/backend` or equivalent)
 - [ ] Initialize React + TypeScript app (Vite) with Tailwind CSS and React Router
 - [ ] Initialize Node.js + Express backend project
-- [ ] Set up local `docker-compose` (Postgres + backend + frontend) for development
+- [x] Set up local `docker-compose` (Postgres + backend + frontend) for development — scoped to Postgres only; backend/frontend keep running natively via `bun run dev:*`, per `DATABASE_SETUP.md`. Full containerization is deferred to Phase 9 per the ordering rationale.
 - [ ] Initialize Prisma, connect to local Postgres
 - [ ] Set up environment variable handling (`.env`, `.env.example`) for both apps
 - [ ] Basic health-check endpoint (backend) and confirm frontend can call it
-- [ ] Linting/formatting config (ESLint, Prettier) for both apps
+- [x] Linting/formatting config (ESLint, Prettier) for both apps
 
 ## Phase 1 — Data model
 Goal: the full schema exists and is migratable; no UI yet.

@@ -74,7 +74,11 @@ describe("UserForm", () => {
     await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
     expect(put).toHaveBeenCalledWith(
       "/api/users/1",
-      expect.objectContaining({ name: "Existing User", email: "existing@example.com", password: "" }),
+      expect.objectContaining({
+        name: "Existing User",
+        email: "existing@example.com",
+        password: "",
+      }),
     );
     await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
   });

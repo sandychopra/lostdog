@@ -94,14 +94,16 @@ export default function UsersPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Delete User</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to delete {deletingUser?.name}? They will no longer be able to log
-                in, but their account and past shift reports will be kept.
+                Are you sure you want to delete {deletingUser?.name}? They will no longer be able to
+                log in, but their account and past shift reports will be kept.
               </AlertDialogDescription>
             </AlertDialogHeader>
             {deleteMutation.isError && <ErrorAlert message="Failed to delete user" />}
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => deletingUser && deleteMutation.mutate(deletingUser.id)}>
+              <AlertDialogAction
+                onClick={() => deletingUser && deleteMutation.mutate(deletingUser.id)}
+              >
                 Confirm
               </AlertDialogAction>
             </AlertDialogFooter>

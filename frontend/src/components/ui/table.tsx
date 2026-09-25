@@ -22,12 +22,7 @@ export function TableRow({ className, ...props }: HTMLAttributes<HTMLTableRowEle
 }
 
 export function TableHead({ className, ...props }: ThHTMLAttributes<HTMLTableCellElement>) {
-  return (
-    <th
-      className={cn("px-4 py-3 text-left font-semibold text-navy", className)}
-      {...props}
-    />
-  );
+  return <th className={cn("px-4 py-3 text-left font-semibold text-navy", className)} {...props} />;
 }
 
 export function TableCell({ className, ...props }: TdHTMLAttributes<HTMLTableCellElement>) {

@@ -6,7 +6,11 @@ import { cn } from "../../lib/utils";
 export const Dialog = DialogPrimitive.Root;
 export const DialogTrigger = DialogPrimitive.Trigger;
 
-export function DialogContent({ className, children, ...props }: ComponentProps<typeof DialogPrimitive.Content>) {
+export function DialogContent({
+  className,
+  children,
+  ...props
+}: ComponentProps<typeof DialogPrimitive.Content>) {
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className="fixed inset-0 bg-navy/40 data-[state=open]:animate-in data-[state=open]:fade-in" />
@@ -31,5 +35,10 @@ export function DialogHeader({ className, ...props }: HTMLAttributes<HTMLDivElem
 }
 
 export function DialogTitle({ className, ...props }: ComponentProps<typeof DialogPrimitive.Title>) {
-  return <DialogPrimitive.Title className={cn("text-lg font-semibold text-navy", className)} {...props} />;
+  return (
+    <DialogPrimitive.Title
+      className={cn("text-lg font-semibold text-navy", className)}
+      {...props}
+    />
+  );
 }
