@@ -61,6 +61,35 @@ async function seedUsers() {
   await seedUser(volunteerEmail, volunteerPassword, Role.Volunteer, "Volunteer");
 }
 
+// Cat has no natural unique field, so re-running the seed looks the cat up by
+// name and leaves it alone if found — unlike a real upsert, this won't update
+// an existing row's other fields on a later run, which is fine for dev fixtures.
+async function findOrCreateCat(data: {
+  name: string;
+  age?: number;
+  sex: string;
+  colorPattern: string;
+  collarColor?: string;
+  kennelId?: number;
+  groupId?: number;
+  status?: CatStatus;
+  pickupAt?: Date;
+  dewormerStatus?: DewormerStatus;
+  needsProviable?: boolean;
+}) {
+  const existing = await prisma.cat.findFirst({ where: { name: data.name } });
+  if (existing) return existing;
+  return prisma.cat.create({ data });
+}
+
+// Group has no distinguishing scalar field at all, so its identity for seeding
+// purposes is "the group occupying this kennel."
+async function findOrCreateGroupByKennel(kennelId: number, bonded: boolean) {
+  const existing = await prisma.group.findFirst({ where: { kennelId } });
+  if (existing) return existing;
+  return prisma.group.create({ data: { kennelId, bonded } });
+}
+
 async function seedRoster() {
   // Empty, ready kennels — representative of open capacity.
   await Promise.all(
@@ -89,77 +118,49 @@ async function seedRoster() {
     create: { number: 4, state: KennelState.Occupied },
   });
 
-  await prisma.cat.upsert({
-    where: { id: "seed-cat-whiskers" },
-    update: {},
-    create: {
-      id: "seed-cat-whiskers",
-      name: "Whiskers",
-      age: 3,
-      sex: "Female",
-      colorPattern: "Black and white",
-      kennelId: kennel2.id,
-      status: CatStatus.Available,
-      dewormerStatus: DewormerStatus.Given,
-    },
+  await findOrCreateCat({
+    name: "Whiskers",
+    age: 3,
+    sex: "Female",
+    colorPattern: "Black and white",
+    kennelId: kennel2.id,
+    status: CatStatus.Available,
+    dewormerStatus: DewormerStatus.Given,
   });
 
-  await prisma.cat.upsert({
-    where: { id: "seed-cat-pepsi" },
-    update: {},
-    create: {
-      id: "seed-cat-pepsi",
-      name: "Pepsi",
-      age: 2,
-      sex: "Male",
-      colorPattern: "Orange tabby",
-      collarColor: "Blue",
-      kennelId: kennel3.id,
-      status: CatStatus.PendingAdoption,
-      pickupAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-      dewormerStatus: DewormerStatus.Due,
-      needsProviable: true,
-    },
+  await findOrCreateCat({
+    name: "Pepsi",
+    age: 2,
+    sex: "Male",
+    colorPattern: "Orange tabby",
+    collarColor: "Blue",
+    kennelId: kennel3.id,
+    status: CatStatus.PendingAdoption,
+    pickupAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+    dewormerStatus: DewormerStatus.Due,
+    needsProviable: true,
   });
 
-  const group = await prisma.group.upsert({
-    where: { id: "seed-group-sprite-nehi" },
-    update: {},
-    create: {
-      id: "seed-group-sprite-nehi",
-      bonded: true,
-      kennelId: kennel4.id,
-    },
+  const group = await findOrCreateGroupByKennel(kennel4.id, true);
+
+  await findOrCreateCat({
+    name: "Sprite",
+    age: 1,
+    sex: "Female",
+    colorPattern: "Calico",
+    groupId: group.id,
+    status: CatStatus.Available,
+    dewormerStatus: DewormerStatus.Given,
   });
 
-  await prisma.cat.upsert({
-    where: { id: "seed-cat-sprite" },
-    update: {},
-    create: {
-      id: "seed-cat-sprite",
-      name: "Sprite",
-      age: 1,
-      sex: "Female",
-      colorPattern: "Calico",
-      groupId: group.id,
-      status: CatStatus.Available,
-      dewormerStatus: DewormerStatus.Given,
-    },
-  });
-
-  await prisma.cat.upsert({
-    where: { id: "seed-cat-nehi" },
-    update: {},
-    create: {
-      id: "seed-cat-nehi",
-      name: "Nehi",
-      age: 1,
-      sex: "Male",
-      colorPattern: "Tuxedo",
-      groupId: group.id,
-      status: CatStatus.Available,
-      dewormerStatus: DewormerStatus.Given,
-    },
+  await findOrCreateCat({
+    name: "Nehi",
+    age: 1,
+    sex: "Male",
+    colorPattern: "Tuxedo",
+    groupId: group.id,
+    status: CatStatus.Available,
+    dewormerStatus: DewormerStatus.Given,
   });
 
   console.log("Seeded roster: 5 kennels, 4 cats, 1 bonded group");

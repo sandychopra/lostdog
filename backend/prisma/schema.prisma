@@ -171,22 +171,22 @@ model Verification {
 // --- Roster ---
 
 model Cat {
-  id              String         @id @default(cuid())
+  id              Int            @id @default(autoincrement())
   name            String
   age             Int?
   sex             String
   colorPattern    String         @map("color_pattern")
   collarColor     String?        @map("collar_color")
   microchipNumber String?        @map("microchip_number")
-  kennelId        String?        @map("kennel_id")
+  kennelId        Int?           @map("kennel_id")
   kennel          Kennel?        @relation(fields: [kennelId], references: [id])
-  groupId         String?        @map("group_id")
+  groupId         Int?           @map("group_id")
   group           Group?         @relation(fields: [groupId], references: [id])
   status          CatStatus      @default(Available)
   pickupAt        DateTime?      @map("pickup_at")
   dewormerStatus  DewormerStatus @default(Due) @map("dewormer_status")
   needsProviable  Boolean        @default(false) @map("needs_proviable")
-  litterId        String?        @map("litter_id")
+  litterId        Int?           @map("litter_id")
   litter          Litter?        @relation(fields: [litterId], references: [id])
   active          Boolean        @default(true)
   inactiveReason  String?        @map("inactive_reason")
@@ -210,9 +210,9 @@ model Cat {
 }
 
 model Group {
-  id        String   @id @default(cuid())
+  id        Int      @id @default(autoincrement())
   bonded    Boolean  @default(false)
-  kennelId  String?  @map("kennel_id")
+  kennelId  Int?     @map("kennel_id")
   kennel    Kennel?  @relation(fields: [kennelId], references: [id])
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -228,7 +228,7 @@ model Group {
 
 // Membership is entirely via Cat.litterId — no scalar fields of its own.
 model Litter {
-  id        String   @id @default(cuid())
+  id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now()) @map("created_at")
 
   cats Cat[]
@@ -239,7 +239,7 @@ model Litter {
 // No occupant column: occupancy is derived from the Cat.kennelId / Group.kennelId
 // reverse relations below, rather than a polymorphic "occupant" column.
 model Kennel {
-  id     String      @id @default(cuid())
+  id     Int         @id @default(autoincrement())
   number Int         @unique
   state  KennelState @default(Ready)
 
@@ -257,7 +257,7 @@ model Kennel {
 // --- Shift reports ---
 
 model ShiftReport {
-  id            String    @id @default(cuid())
+  id            Int       @id @default(autoincrement())
   authorId      String    @map("author_id")
   author        User      @relation(fields: [authorId], references: [id])
   shiftType     ShiftType @map("shift_type")
@@ -286,9 +286,9 @@ model ShiftReport {
 // Join table for the "kennels ready/reset for a new occupant" shift-level field —
 // references real Kennel rows (not raw numbers) so Phase 6's "search by kennel" works.
 model ShiftReportKennelReset {
-  shiftReportId String      @map("shift_report_id")
+  shiftReportId Int         @map("shift_report_id")
   shiftReport   ShiftReport @relation(fields: [shiftReportId], references: [id], onDelete: Cascade)
-  kennelId      String      @map("kennel_id")
+  kennelId      Int         @map("kennel_id")
   kennel        Kennel      @relation(fields: [kennelId], references: [id])
 
   @@id([shiftReportId, kennelId])
@@ -301,13 +301,13 @@ model ShiftReportKennelReset {
 // matching entryType. Per-cat fields for a Group entry live on
 // GroupEntryCatDetail instead.
 model CatEntry {
-  id            String       @id @default(cuid())
-  shiftReportId String       @map("shift_report_id")
+  id            Int          @id @default(autoincrement())
+  shiftReportId Int          @map("shift_report_id")
   shiftReport   ShiftReport  @relation(fields: [shiftReportId], references: [id], onDelete: Cascade)
   entryType     CatEntryType @map("entry_type")
-  catId         String?      @map("cat_id")
+  catId         Int?         @map("cat_id")
   cat           Cat?         @relation(fields: [catId], references: [id])
-  groupId       String?      @map("group_id")
+  groupId       Int?         @map("group_id")
   group         Group?       @relation(fields: [groupId], references: [id])
 
   // Shared by both variants
@@ -346,10 +346,10 @@ model CatEntry {
 // Per-cat fields for a Group-variant CatEntry — one row per cat in the group
 // for that entry. Not named as its own entity in project-scope.md.
 model GroupEntryCatDetail {
-  id         String   @id @default(cuid())
-  catEntryId String   @map("cat_entry_id")
+  id         Int      @id @default(autoincrement())
+  catEntryId Int      @map("cat_entry_id")
   catEntry   CatEntry @relation(fields: [catEntryId], references: [id], onDelete: Cascade)
-  catId      String   @map("cat_id")
+  catId      Int      @map("cat_id")
   cat        Cat      @relation(fields: [catId], references: [id])
 
   wetFoodAmount  FoodAmount? @map("wet_food_amount")
@@ -369,14 +369,14 @@ model GroupEntryCatDetail {
 }
 
 model Photo {
-  id            String      @id @default(cuid())
-  shiftReportId String      @map("shift_report_id")
+  id            Int         @id @default(autoincrement())
+  shiftReportId Int         @map("shift_report_id")
   shiftReport   ShiftReport @relation(fields: [shiftReportId], references: [id], onDelete: Cascade)
   uploadedById  String      @map("uploaded_by_id")
   uploadedBy    User        @relation(fields: [uploadedById], references: [id])
   storageKey    String      @map("storage_key")
   uploadedAt    DateTime    @default(now()) @map("uploaded_at")
-  catEntryId    String?     @map("cat_entry_id")
+  catEntryId    Int?        @map("cat_entry_id")
   catEntry      CatEntry?   @relation(fields: [catEntryId], references: [id])
 
   tags PhotoCatTag[]
@@ -388,18 +388,18 @@ model Photo {
 
 // A photo with no rows here is "unassigned".
 model PhotoCatTag {
-  photoId String @map("photo_id")
-  photo   Photo  @relation(fields: [photoId], references: [id], onDelete: Cascade)
-  catId   String @map("cat_id")
-  cat     Cat    @relation(fields: [catId], references: [id])
+  photoId Int   @map("photo_id")
+  photo   Photo @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  catId   Int   @map("cat_id")
+  cat     Cat   @relation(fields: [catId], references: [id])
 
   @@id([photoId, catId])
   @@map("photo_cat_tag")
 }
 
 model MeetAndGreet {
-  id            String      @id @default(cuid())
-  shiftReportId String      @map("shift_report_id")
+  id            Int         @id @default(autoincrement())
+  shiftReportId Int         @map("shift_report_id")
   shiftReport   ShiftReport @relation(fields: [shiftReportId], references: [id], onDelete: Cascade)
   note          String
   createdAt     DateTime    @default(now()) @map("created_at")
@@ -411,9 +411,9 @@ model MeetAndGreet {
 }
 
 model MeetAndGreetCat {
-  meetAndGreetId String       @map("meet_and_greet_id")
+  meetAndGreetId Int          @map("meet_and_greet_id")
   meetAndGreet   MeetAndGreet @relation(fields: [meetAndGreetId], references: [id], onDelete: Cascade)
-  catId          String       @map("cat_id")
+  catId          Int          @map("cat_id")
   cat            Cat          @relation(fields: [catId], references: [id])
 
   @@id([meetAndGreetId, catId])
@@ -422,9 +422,9 @@ model MeetAndGreetCat {
 
 // Tagged cats for a ShiftReport's shift-level "Play" free-text field.
 model ShiftReportPlayCat {
-  shiftReportId String      @map("shift_report_id")
+  shiftReportId Int         @map("shift_report_id")
   shiftReport   ShiftReport @relation(fields: [shiftReportId], references: [id], onDelete: Cascade)
-  catId         String      @map("cat_id")
+  catId         Int         @map("cat_id")
   cat           Cat         @relation(fields: [catId], references: [id])
 
   @@id([shiftReportId, catId])
@@ -434,7 +434,7 @@ model ShiftReportPlayCat {
 // --- Status & announcements ---
 
 model KennelPrepChecklist {
-  id          String   @id @default(cuid())
+  id          Int      @id @default(autoincrement())
   createdById String   @map("created_by_id")
   createdBy   User     @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now()) @map("created_at")
@@ -448,16 +448,16 @@ model KennelPrepChecklist {
 // A CHECK constraint (added by hand to the generated migration) enforces
 // catId/groupId are only set for MoveCat actions, and at most one is set.
 model ChecklistAction {
-  id            String              @id @default(cuid())
-  checklistId   String              @map("checklist_id")
+  id            Int                 @id @default(autoincrement())
+  checklistId   Int                 @map("checklist_id")
   checklist     KennelPrepChecklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
   order         Int
   actionType    ChecklistActionType @map("action_type")
-  kennelId      String              @map("kennel_id")
+  kennelId      Int                 @map("kennel_id")
   kennel        Kennel              @relation(fields: [kennelId], references: [id])
-  catId         String?             @map("cat_id")
+  catId         Int?                @map("cat_id")
   cat           Cat?                @relation(fields: [catId], references: [id])
-  groupId       String?             @map("group_id")
+  groupId       Int?                @map("group_id")
   group         Group?              @relation(fields: [groupId], references: [id])
   completed     Boolean             @default(false)
   completedById String?             @map("completed_by_id")
@@ -472,11 +472,11 @@ model ChecklistAction {
 // related Cat/Kennel/Checklist" wording — every current type resolves to a
 // Cat or a Checklist (or transitively a KennelMoveRequest via its own relation).
 model Announcement {
-  id          String               @id @default(cuid())
+  id          Int                  @id @default(autoincrement())
   type        AnnouncementType
-  catId       String?              @map("cat_id")
+  catId       Int?                 @map("cat_id")
   cat         Cat?                 @relation(fields: [catId], references: [id])
-  checklistId String?              @map("checklist_id")
+  checklistId Int?                 @map("checklist_id")
   checklist   KennelPrepChecklist? @relation(fields: [checklistId], references: [id])
   resolved    Boolean              @default(false)
   emailSent   Boolean              @default(false) @map("email_sent")
@@ -491,19 +491,19 @@ model Announcement {
 }
 
 model SignTask {
-  id                  String       @id @default(cuid())
-  catId               String       @map("cat_id")
+  id                  Int          @id @default(autoincrement())
+  catId               Int          @map("cat_id")
   cat                 Cat          @relation(fields: [catId], references: [id])
-  kennelId            String       @map("kennel_id")
+  kennelId            Int          @map("kennel_id")
   kennel              Kennel       @relation(fields: [kennelId], references: [id])
   action              SignAction
-  announcementId      String       @map("announcement_id")
+  announcementId      Int          @map("announcement_id")
   announcement        Announcement @relation(fields: [announcementId], references: [id])
   state               TaskState    @default(Open)
   completedById       String?      @map("completed_by_id")
   completedBy         User?        @relation(fields: [completedById], references: [id])
   completedAt         DateTime?    @map("completed_at")
-  completedOnReportId String?      @map("completed_on_report_id")
+  completedOnReportId Int?         @map("completed_on_report_id")
   completedOnReport   ShiftReport? @relation(fields: [completedOnReportId], references: [id])
 
   @@index([catId])
@@ -514,14 +514,14 @@ model SignTask {
 // A CHECK constraint (added by hand to the generated migration) enforces
 // exactly one of catId/groupId is set — the occupant being moved.
 model KennelMoveRequest {
-  id                  String        @id @default(cuid())
-  catId               String?       @map("cat_id")
+  id                  Int           @id @default(autoincrement())
+  catId               Int?          @map("cat_id")
   cat                 Cat?          @relation(fields: [catId], references: [id])
-  groupId             String?       @map("group_id")
+  groupId             Int?          @map("group_id")
   group               Group?        @relation(fields: [groupId], references: [id])
-  fromKennelId        String        @map("from_kennel_id")
+  fromKennelId        Int           @map("from_kennel_id")
   fromKennel          Kennel        @relation("KennelMoveRequestFromKennel", fields: [fromKennelId], references: [id])
-  toKennelId          String        @map("to_kennel_id")
+  toKennelId          Int           @map("to_kennel_id")
   toKennel            Kennel        @relation("KennelMoveRequestToKennel", fields: [toKennelId], references: [id])
   requestedById       String        @map("requested_by_id")
   requestedBy         User          @relation("KennelMoveRequestRequestedBy", fields: [requestedById], references: [id])
@@ -530,9 +530,9 @@ model KennelMoveRequest {
   completedById       String?       @map("completed_by_id")
   completedBy         User?         @relation("KennelMoveRequestCompletedBy", fields: [completedById], references: [id])
   completedAt         DateTime?     @map("completed_at")
-  completedOnReportId String?       @map("completed_on_report_id")
+  completedOnReportId Int?          @map("completed_on_report_id")
   completedOnReport   ShiftReport?  @relation(fields: [completedOnReportId], references: [id])
-  announcementId      String?       @map("announcement_id")
+  announcementId      Int?          @map("announcement_id")
   announcement        Announcement? @relation(fields: [announcementId], references: [id])
   createdAt           DateTime      @default(now()) @map("created_at")
 

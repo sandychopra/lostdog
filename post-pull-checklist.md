@@ -73,7 +73,7 @@ bunx prisma migrate deploy
 
 This applies every migration in `prisma/migrations/` in order against your database, non-interactively. Use this whenever you've pulled new migrations and just need your database to catch up.
 
-> **One-time note:** the migration history was rewritten on 2026-09-26 (the Better Auth tables were retrofitted with `snake_case` columns, via a migration-history reset rather than an additive rename migration — see `CLAUDE.md`). If your database was last synced before that and `migrate deploy` fails with a history-mismatch error, run `bunx prisma migrate reset --force` instead — **this drops your local database** — then continue with `prisma generate` and `bun run seed` below. This note only applies to that one sync; once everyone's past it, it can be deleted.
+> **One-time note:** the migration history was rewritten twice on 2026-09-26 — once to retrofit the Better Auth tables with `snake_case` columns, and again to convert the Phase 1 domain tables' IDs from `String`/cuid to `Int`/autoincrement (see `CLAUDE.md`) — in both cases via a migration-history reset rather than an additive migration. If your database was last synced before that and `migrate deploy` fails with a history-mismatch error, run `bunx prisma migrate reset --force` instead — **this drops your local database** — then continue with `prisma generate` and `bun run seed` below. This note only applies to that one sync; once everyone's past it, it can be deleted.
 
 ```bash
 bunx prisma generate

@@ -1,4 +1,7 @@
 -- CreateEnum
+CREATE TYPE "Role" AS ENUM ('Volunteer', 'Admin');
+
+-- CreateEnum
 CREATE TYPE "CatStatus" AS ENUM ('Available', 'PendingAdoption', 'Adopted');
 
 -- CreateEnum
@@ -32,21 +35,81 @@ CREATE TYPE "AnnouncementType" AS ENUM ('NewArrival', 'PendingAdoption', 'Adopte
 CREATE TYPE "TaskState" AS ENUM ('Open', 'Done', 'Cancelled');
 
 -- CreateTable
-CREATE TABLE "cat" (
+CREATE TABLE "user" (
     "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "email_verified" BOOLEAN NOT NULL DEFAULT false,
+    "image" TEXT,
+    "role" "Role" NOT NULL DEFAULT 'Volunteer',
+    "deleted_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "user_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "session" (
+    "id" TEXT NOT NULL,
+    "expires_at" TIMESTAMP(3) NOT NULL,
+    "token" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "ip_address" TEXT,
+    "user_agent" TEXT,
+    "user_id" TEXT NOT NULL,
+
+    CONSTRAINT "session_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "account" (
+    "id" TEXT NOT NULL,
+    "account_id" TEXT NOT NULL,
+    "provider_id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "access_token" TEXT,
+    "refresh_token" TEXT,
+    "id_token" TEXT,
+    "access_token_expires_at" TIMESTAMP(3),
+    "refresh_token_expires_at" TIMESTAMP(3),
+    "scope" TEXT,
+    "password" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "account_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "verification" (
+    "id" TEXT NOT NULL,
+    "identifier" TEXT NOT NULL,
+    "value" TEXT NOT NULL,
+    "expires_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "verification_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "cat" (
+    "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
     "age" INTEGER,
     "sex" TEXT NOT NULL,
     "color_pattern" TEXT NOT NULL,
     "collar_color" TEXT,
     "microchip_number" TEXT,
-    "kennel_id" TEXT,
-    "group_id" TEXT,
+    "kennel_id" INTEGER,
+    "group_id" INTEGER,
     "status" "CatStatus" NOT NULL DEFAULT 'Available',
     "pickup_at" TIMESTAMP(3),
     "dewormer_status" "DewormerStatus" NOT NULL DEFAULT 'Due',
     "needs_proviable" BOOLEAN NOT NULL DEFAULT false,
-    "litter_id" TEXT,
+    "litter_id" INTEGER,
     "active" BOOLEAN NOT NULL DEFAULT true,
     "inactive_reason" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -57,9 +120,9 @@ CREATE TABLE "cat" (
 
 -- CreateTable
 CREATE TABLE "group" (
-    "id" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
     "bonded" BOOLEAN NOT NULL DEFAULT false,
-    "kennel_id" TEXT,
+    "kennel_id" INTEGER,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -68,7 +131,7 @@ CREATE TABLE "group" (
 
 -- CreateTable
 CREATE TABLE "litter" (
-    "id" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "litter_pkey" PRIMARY KEY ("id")
@@ -76,7 +139,7 @@ CREATE TABLE "litter" (
 
 -- CreateTable
 CREATE TABLE "kennel" (
-    "id" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
     "number" INTEGER NOT NULL,
     "state" "KennelState" NOT NULL DEFAULT 'Ready',
 
@@ -85,7 +148,7 @@ CREATE TABLE "kennel" (
 
 -- CreateTable
 CREATE TABLE "shift_report" (
-    "id" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
     "author_id" TEXT NOT NULL,
     "shift_type" "ShiftType" NOT NULL,
     "date" DATE NOT NULL,
@@ -102,19 +165,19 @@ CREATE TABLE "shift_report" (
 
 -- CreateTable
 CREATE TABLE "shift_report_kennel_reset" (
-    "shift_report_id" TEXT NOT NULL,
-    "kennel_id" TEXT NOT NULL,
+    "shift_report_id" INTEGER NOT NULL,
+    "kennel_id" INTEGER NOT NULL,
 
     CONSTRAINT "shift_report_kennel_reset_pkey" PRIMARY KEY ("shift_report_id","kennel_id")
 );
 
 -- CreateTable
 CREATE TABLE "cat_entry" (
-    "id" TEXT NOT NULL,
-    "shift_report_id" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
+    "shift_report_id" INTEGER NOT NULL,
     "entry_type" "CatEntryType" NOT NULL,
-    "cat_id" TEXT,
-    "group_id" TEXT,
+    "cat_id" INTEGER,
+    "group_id" INTEGER,
     "fecal_score" INTEGER,
     "pee" BOOLEAN NOT NULL DEFAULT false,
     "pee_poo_notes" TEXT,
@@ -140,9 +203,9 @@ CREATE TABLE "cat_entry" (
 
 -- CreateTable
 CREATE TABLE "group_entry_cat_detail" (
-    "id" TEXT NOT NULL,
-    "cat_entry_id" TEXT NOT NULL,
-    "cat_id" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
+    "cat_entry_id" INTEGER NOT NULL,
+    "cat_id" INTEGER NOT NULL,
     "wet_food_amount" "FoodAmount",
     "wet_food_brand" TEXT,
     "snack_treat" "SnackTreat",
@@ -160,28 +223,28 @@ CREATE TABLE "group_entry_cat_detail" (
 
 -- CreateTable
 CREATE TABLE "photo" (
-    "id" TEXT NOT NULL,
-    "shift_report_id" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
+    "shift_report_id" INTEGER NOT NULL,
     "uploaded_by_id" TEXT NOT NULL,
     "storage_key" TEXT NOT NULL,
     "uploaded_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "cat_entry_id" TEXT,
+    "cat_entry_id" INTEGER,
 
     CONSTRAINT "photo_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "photo_cat_tag" (
-    "photo_id" TEXT NOT NULL,
-    "cat_id" TEXT NOT NULL,
+    "photo_id" INTEGER NOT NULL,
+    "cat_id" INTEGER NOT NULL,
 
     CONSTRAINT "photo_cat_tag_pkey" PRIMARY KEY ("photo_id","cat_id")
 );
 
 -- CreateTable
 CREATE TABLE "meet_and_greet" (
-    "id" TEXT NOT NULL,
-    "shift_report_id" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
+    "shift_report_id" INTEGER NOT NULL,
     "note" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -190,23 +253,23 @@ CREATE TABLE "meet_and_greet" (
 
 -- CreateTable
 CREATE TABLE "meet_and_greet_cat" (
-    "meet_and_greet_id" TEXT NOT NULL,
-    "cat_id" TEXT NOT NULL,
+    "meet_and_greet_id" INTEGER NOT NULL,
+    "cat_id" INTEGER NOT NULL,
 
     CONSTRAINT "meet_and_greet_cat_pkey" PRIMARY KEY ("meet_and_greet_id","cat_id")
 );
 
 -- CreateTable
 CREATE TABLE "shift_report_play_cat" (
-    "shift_report_id" TEXT NOT NULL,
-    "cat_id" TEXT NOT NULL,
+    "shift_report_id" INTEGER NOT NULL,
+    "cat_id" INTEGER NOT NULL,
 
     CONSTRAINT "shift_report_play_cat_pkey" PRIMARY KEY ("shift_report_id","cat_id")
 );
 
 -- CreateTable
 CREATE TABLE "kennel_prep_checklist" (
-    "id" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
     "created_by_id" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -215,13 +278,13 @@ CREATE TABLE "kennel_prep_checklist" (
 
 -- CreateTable
 CREATE TABLE "checklist_action" (
-    "id" TEXT NOT NULL,
-    "checklist_id" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
+    "checklist_id" INTEGER NOT NULL,
     "order" INTEGER NOT NULL,
     "action_type" "ChecklistActionType" NOT NULL,
-    "kennel_id" TEXT NOT NULL,
-    "cat_id" TEXT,
-    "group_id" TEXT,
+    "kennel_id" INTEGER NOT NULL,
+    "cat_id" INTEGER,
+    "group_id" INTEGER,
     "completed" BOOLEAN NOT NULL DEFAULT false,
     "completed_by_id" TEXT,
     "completed_at" TIMESTAMP(3),
@@ -231,10 +294,10 @@ CREATE TABLE "checklist_action" (
 
 -- CreateTable
 CREATE TABLE "announcement" (
-    "id" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
     "type" "AnnouncementType" NOT NULL,
-    "cat_id" TEXT,
-    "checklist_id" TEXT,
+    "cat_id" INTEGER,
+    "checklist_id" INTEGER,
     "resolved" BOOLEAN NOT NULL DEFAULT false,
     "email_sent" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -244,37 +307,52 @@ CREATE TABLE "announcement" (
 
 -- CreateTable
 CREATE TABLE "sign_task" (
-    "id" TEXT NOT NULL,
-    "cat_id" TEXT NOT NULL,
-    "kennel_id" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
+    "cat_id" INTEGER NOT NULL,
+    "kennel_id" INTEGER NOT NULL,
     "action" "SignAction" NOT NULL,
-    "announcement_id" TEXT NOT NULL,
+    "announcement_id" INTEGER NOT NULL,
     "state" "TaskState" NOT NULL DEFAULT 'Open',
     "completed_by_id" TEXT,
     "completed_at" TIMESTAMP(3),
-    "completed_on_report_id" TEXT,
+    "completed_on_report_id" INTEGER,
 
     CONSTRAINT "sign_task_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "kennel_move_request" (
-    "id" TEXT NOT NULL,
-    "cat_id" TEXT,
-    "group_id" TEXT,
-    "from_kennel_id" TEXT NOT NULL,
-    "to_kennel_id" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
+    "cat_id" INTEGER,
+    "group_id" INTEGER,
+    "from_kennel_id" INTEGER NOT NULL,
+    "to_kennel_id" INTEGER NOT NULL,
     "requested_by_id" TEXT NOT NULL,
     "reason" TEXT,
     "state" "TaskState" NOT NULL DEFAULT 'Open',
     "completed_by_id" TEXT,
     "completed_at" TIMESTAMP(3),
-    "completed_on_report_id" TEXT,
-    "announcement_id" TEXT,
+    "completed_on_report_id" INTEGER,
+    "announcement_id" INTEGER,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "kennel_move_request_pkey" PRIMARY KEY ("id")
 );
+
+-- CreateIndex
+CREATE UNIQUE INDEX "user_email_key" ON "user"("email");
+
+-- CreateIndex
+CREATE INDEX "session_user_id_idx" ON "session"("user_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "session_token_key" ON "session"("token");
+
+-- CreateIndex
+CREATE INDEX "account_user_id_idx" ON "account"("user_id");
+
+-- CreateIndex
+CREATE INDEX "verification_identifier_idx" ON "verification"("identifier");
 
 -- CreateIndex
 CREATE INDEX "cat_kennel_id_idx" ON "cat"("kennel_id");
@@ -338,6 +416,12 @@ CREATE INDEX "kennel_move_request_cat_id_idx" ON "kennel_move_request"("cat_id")
 
 -- CreateIndex
 CREATE INDEX "kennel_move_request_group_id_idx" ON "kennel_move_request"("group_id");
+
+-- AddForeignKey
+ALTER TABLE "session" ADD CONSTRAINT "session_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "account" ADD CONSTRAINT "account_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "cat" ADD CONSTRAINT "cat_kennel_id_fkey" FOREIGN KEY ("kennel_id") REFERENCES "kennel"("id") ON DELETE SET NULL ON UPDATE CASCADE;

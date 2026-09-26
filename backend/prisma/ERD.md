@@ -54,20 +54,20 @@ erDiagram
   
 
   "cat" {
-    String id "🗝️"
+    Int id "🗝️"
     String name 
     Int age "❓"
     String sex 
     String color_pattern 
     String collar_color "❓"
     String microchip_number "❓"
-    String kennel_id "❓"
-    String group_id "❓"
+    Int kennel_id "❓"
+    Int group_id "❓"
     CatStatus status 
     DateTime pickup_at "❓"
     DewormerStatus dewormer_status 
     Boolean needs_proviable 
-    String litter_id "❓"
+    Int litter_id "❓"
     Boolean active 
     String inactive_reason "❓"
     DateTime created_at 
@@ -76,29 +76,29 @@ erDiagram
   
 
   "group" {
-    String id "🗝️"
+    Int id "🗝️"
     Boolean bonded 
-    String kennel_id "❓"
+    Int kennel_id "❓"
     DateTime created_at 
     DateTime updated_at 
     }
   
 
   "litter" {
-    String id "🗝️"
+    Int id "🗝️"
     DateTime created_at 
     }
   
 
   "kennel" {
-    String id "🗝️"
+    Int id "🗝️"
     Int number 
     KennelState state 
     }
   
 
   "shift_report" {
-    String id "🗝️"
+    Int id "🗝️"
     String author_id 
     ShiftType shift_type 
     DateTime date 
@@ -113,17 +113,17 @@ erDiagram
   
 
   "shift_report_kennel_reset" {
-    String shift_report_id 
-    String kennel_id 
+    Int shift_report_id 
+    Int kennel_id 
     }
   
 
   "cat_entry" {
-    String id "🗝️"
-    String shift_report_id 
+    Int id "🗝️"
+    Int shift_report_id 
     CatEntryType entry_type 
-    String cat_id "❓"
-    String group_id "❓"
+    Int cat_id "❓"
+    Int group_id "❓"
     Int fecal_score "❓"
     Boolean pee 
     String pee_poo_notes "❓"
@@ -147,9 +147,9 @@ erDiagram
   
 
   "group_entry_cat_detail" {
-    String id "🗝️"
-    String cat_entry_id 
-    String cat_id 
+    Int id "🗝️"
+    Int cat_entry_id 
+    Int cat_id 
     FoodAmount wet_food_amount "❓"
     String wet_food_brand "❓"
     SnackTreat snack_treat "❓"
@@ -165,56 +165,56 @@ erDiagram
   
 
   "photo" {
-    String id "🗝️"
-    String shift_report_id 
+    Int id "🗝️"
+    Int shift_report_id 
     String uploaded_by_id 
     String storage_key 
     DateTime uploaded_at 
-    String cat_entry_id "❓"
+    Int cat_entry_id "❓"
     }
   
 
   "photo_cat_tag" {
-    String photo_id 
-    String cat_id 
+    Int photo_id 
+    Int cat_id 
     }
   
 
   "meet_and_greet" {
-    String id "🗝️"
-    String shift_report_id 
+    Int id "🗝️"
+    Int shift_report_id 
     String note 
     DateTime created_at 
     }
   
 
   "meet_and_greet_cat" {
-    String meet_and_greet_id 
-    String cat_id 
+    Int meet_and_greet_id 
+    Int cat_id 
     }
   
 
   "shift_report_play_cat" {
-    String shift_report_id 
-    String cat_id 
+    Int shift_report_id 
+    Int cat_id 
     }
   
 
   "kennel_prep_checklist" {
-    String id "🗝️"
+    Int id "🗝️"
     String created_by_id 
     DateTime created_at 
     }
   
 
   "checklist_action" {
-    String id "🗝️"
-    String checklist_id 
+    Int id "🗝️"
+    Int checklist_id 
     Int order 
     ChecklistActionType action_type 
-    String kennel_id 
-    String cat_id "❓"
-    String group_id "❓"
+    Int kennel_id 
+    Int cat_id "❓"
+    Int group_id "❓"
     Boolean completed 
     String completed_by_id "❓"
     DateTime completed_at "❓"
@@ -222,10 +222,10 @@ erDiagram
   
 
   "announcement" {
-    String id "🗝️"
+    Int id "🗝️"
     AnnouncementType type 
-    String cat_id "❓"
-    String checklist_id "❓"
+    Int cat_id "❓"
+    Int checklist_id "❓"
     Boolean resolved 
     Boolean email_sent 
     DateTime created_at 
@@ -233,31 +233,31 @@ erDiagram
   
 
   "sign_task" {
-    String id "🗝️"
-    String cat_id 
-    String kennel_id 
+    Int id "🗝️"
+    Int cat_id 
+    Int kennel_id 
     SignAction action 
-    String announcement_id 
+    Int announcement_id 
     TaskState state 
     String completed_by_id "❓"
     DateTime completed_at "❓"
-    String completed_on_report_id "❓"
+    Int completed_on_report_id "❓"
     }
   
 
   "kennel_move_request" {
-    String id "🗝️"
-    String cat_id "❓"
-    String group_id "❓"
-    String from_kennel_id 
-    String to_kennel_id 
+    Int id "🗝️"
+    Int cat_id "❓"
+    Int group_id "❓"
+    Int from_kennel_id 
+    Int to_kennel_id 
     String requested_by_id 
     String reason "❓"
     TaskState state 
     String completed_by_id "❓"
     DateTime completed_at "❓"
-    String completed_on_report_id "❓"
-    String announcement_id "❓"
+    Int completed_on_report_id "❓"
+    Int announcement_id "❓"
     DateTime created_at 
     }
   
