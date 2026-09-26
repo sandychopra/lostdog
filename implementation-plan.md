@@ -31,14 +31,15 @@ Goal: a running local dev environment, empty but wired end-to-end.
 ## Phase 1 — Data model
 Goal: the full schema exists and is migratable; no UI yet.
 
-- [ ] Prisma schema: `User`, `Cat`, `Group`, `Kennel`, `Litter`
-- [ ] Prisma schema: `ShiftReport`, `CatEntry`, `Photo`
-- [ ] Prisma schema: `MeetAndGreet`
-- [ ] Prisma schema: `KennelPrepChecklist`, `ChecklistAction`
-- [ ] Prisma schema: `Announcement`, `SignTask`
-- [ ] Prisma schema: `Session` table (for database-backed auth sessions)
-- [ ] Write and run initial migration
-- [ ] Seed script with representative dev data (a few cats, a group, kennels, one admin/one volunteer user)
+- [x] Naming convention fix: existing Better-Auth tables (`User`, `Session`, `Account`, `Verification`) retrofitted with explicit `@map` for `snake_case` columns (native Postgres convention), keeping `camelCase` in the Prisma schema/client (Prisma/JS convention) — table names were already lowercase. Applied via a migration-history reset (`prisma migrate reset` + a fresh `init` migration), since the project is pre-launch with only local dev/seed data. All new Phase 1 tables below follow the same convention from the start.
+- [x] Prisma schema: `User`, `Cat`, `Group`, `Kennel`, `Litter`
+- [x] Prisma schema: `ShiftReport`, `CatEntry`, `Photo`
+- [x] Prisma schema: `MeetAndGreet`
+- [x] Prisma schema: `KennelPrepChecklist`, `ChecklistAction`
+- [x] Prisma schema: `Announcement`, `SignTask`, `KennelMoveRequest`
+- [x] Prisma schema: `Session` table (for database-backed auth sessions) — done in Phase 2 via Better Auth.
+- [x] Write and run initial migration
+- [x] Seed script with representative dev data (a few cats, a group, kennels, one admin/one volunteer user)
 
 ## Phase 2 — Authentication & user management
 Goal: users can log in, are gated by role, and Admins manage the full user lifecycle.
@@ -95,10 +96,13 @@ Goal: cat/kennel state transitions are structured, not free text, and surface as
 - [ ] Backend: Announcement creation on each triggering event (new arrival, pending/adopted, back available, returned to RCC)
 - [ ] Backend: KennelPrepChecklist + ordered ChecklistAction creation (Admin-only)
 - [ ] Backend: checklist action check-off enforcing in-order completion, updating roster state as actions complete
-- [ ] Backend: announcement resolution rules (24h default for informational types; open-until-resolved for pending adoption/adopted, back available with a remove-sign task, and checklists; includes SignTask completion)
-- [ ] Frontend: Admin controls for status changes, return-to-RCC, and checklist creation
+- [ ] Backend: announcement resolution rules (24h default for informational types; open-until-resolved for pending adoption/adopted, back available with a remove-sign task, checklists, and kennel move requests; includes SignTask completion)
+- [ ] Backend: KennelMoveRequest creation (Admin-only, independent of a checklist) + triggering Announcement
+- [ ] Backend: check off a KennelMoveRequest from a shift report (performs the move — updates the Cat/Group's kennel — marks the vacated kennel `needs reset`, and resolves the announcement)
+- [ ] Frontend: Admin controls for status changes, return-to-RCC, checklist creation, and kennel move requests
 - [ ] Frontend: Volunteer checklist check-off UI (next-action-only enabled)
 - [ ] Frontend: "Signs to post" section in the shift report form — open sign tasks with checkboxes; hidden when none
+- [ ] Frontend: "Kennel moves" section in the shift report form — open move requests with checkboxes; hidden when none
 - [ ] Frontend: announcement feed — default (24h/unresolved) view + "view all"
 
 ## Phase 6 — Reporting & lookup
@@ -116,10 +120,10 @@ Goal: past data is easy to find without reading an inbox.
 ## Phase 7 — Email notifications
 Goal: the Google Group keeps receiving what it receives today, without anyone re-typing it.
 
-- [ ] Integrate chosen provider (SendGrid or Mailgun) in backend
-- [ ] Email templates for the five Announcement-triggered event types (new arrival, pending/adopted incl. pickup time, back available, returned to RCC, checklist assigned)
+- [ ] Integrate SendGrid in backend
+- [ ] Email templates for the six Announcement-triggered event types (new arrival, pending/adopted incl. pickup time, back available, returned to RCC, checklist assigned, kennel move requested)
 - [ ] Hook email send into the same Announcement-creation events from Phase 5 (single trigger point)
-- [ ] Email template + trigger for the sixth type, "shift report submitted" (full outline of the report's fields, mirroring the in-app content in plain text, no photos) — sent directly on ShiftReport creation rather than via Announcement, since submitting a report doesn't create one; for a split-shift report, this email covers only the cats that volunteer logged
+- [ ] Email template + trigger for the seventh type, "shift report submitted" (full outline of the report's fields, mirroring the in-app content in plain text, no photos) — sent directly on ShiftReport creation rather than via Announcement, since submitting a report doesn't create one; for a split-shift report, this email covers only the cats that volunteer logged
 - [ ] Send-failure handling/logging (so a bounced email doesn't silently fail)
 
 ## Phase 8 — PWA, mobile & desktop polish
