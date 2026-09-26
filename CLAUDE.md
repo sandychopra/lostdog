@@ -31,27 +31,18 @@ Each can also be run directly from its own directory: `cd backend && bun run dev
 
 - Health status: frontend at `http://localhost:3000`, backend healthcheck at `http://localhost:4000/api/health`.
 
-- `frontend` has a `build` script (`bun build.ts`, a small `Bun.build()` script with the Tailwind plugin, `PUBLIC_*` env inlining, and minification) that produces static output in `frontend/dist/`; `backend` has no build step since Bun runs the TypeScript directly (`bun src/index.ts`).
+- `frontend` has a `build` script (`vite build`, producing static output in `frontend/dist/`, including the `vite-plugin-pwa`-generated service worker/manifest); `backend` has no build step since Bun runs the TypeScript directly (`bun src/index.ts`).
 - `bun run lint` / `bun run format` / `bun run format:check` (from repo root) run ESLint/Prettier across both workspaces via the root `eslint.config.mjs` and `.prettierrc.json`. No typecheck script is configured yet.
 - `frontend` has Bun-native tests (`*.test.tsx`, using `@testing-library/react`) but no `test` script wired up yet — run with `cd frontend && bun test`.
 
-### Syncing your local database
+### After pulling changes
 
-Each developer runs their own local Postgres, so after pulling changes that include new Prisma migrations, sync your database with:
-
-```bash
-cd backend
-bunx prisma migrate deploy   # apply any pending migrations from prisma/migrations/
-bunx prisma generate         # regenerate the Prisma client (Bun doesn't auto-run postinstall scripts)
-bun run seed                 # create/update your local admin user from .env's SEED_ADMIN_EMAIL/PASSWORD
-```
-
-First-time setup also needs a `backend/.env` (copy `backend/.env.example` and fill in your own `DATABASE_URL`, `BETTER_AUTH_SECRET`, etc.) before running the above, and a `frontend/.env` (copy `frontend/.env.example`; the default `PUBLIC_API_URL=http://localhost:4000` works for local dev).
+See `post-pull-checklist.md` for the full checklist (installing new dependencies, backend/frontend env vars, database migrations). First-time setup follows the same steps.
 
 ## Architecture
 
 - **Monorepo**: Bun workspaces defined in the root `package.json` (`backend`, `frontend`). A shared `tsconfig.base.json` at the root holds Bun's recommended compiler options; each workspace's `tsconfig.json` extends it.
 - **Backend** (`backend/src/index.ts`): a plain Express app run directly by the Bun runtime — no transpile/build step, no nodemon (Bun's own `--watch` flag handles reload). CORS is enabled since the frontend calls it from a different origin/port in dev.
-- **Frontend** (`frontend/src/`): React + TypeScript, but bundled and hot-reloaded natively by Bun rather than Vite/webpack. The entrypoint is `index.ts`, a small `Bun.serve()` script whose `routes` map `"/"` to an imported `index.html` file — Bun's bundler transforms the `<script src="./frontend.tsx">` tag referenced from that HTML on the fly, with HMR built in via `development: true`. The dev server's bundler config lives in `frontend/bunfig.toml` (`[serve.static]`); production builds use `frontend/build.ts`, since the `bun build` CLI doesn't load `[serve.static]` plugins.
-- The frontend calls the backend via an absolute URL from `PUBLIC_API_URL` in `frontend/.env`, exposed as `API_BASE` in `frontend/src/lib/config.ts`. Bun inlines `process.env.PUBLIC_*` references into the browser bundle at bundle time (`env = "PUBLIC_*"` in `frontend/bunfig.toml` for the dev server, `env: "PUBLIC_*"` in `frontend/build.ts` for production builds), so changing the value needs a frontend restart/rebuild, and only `PUBLIC_`-prefixed vars ever reach the browser. There's no dev proxy configured, so CORS on the backend (`FRONTEND_URL`) is what makes this work locally.
-- The backend and frontend aren't containerized; only Postgres is, via the root `docker-compose.yml` (`docker compose up -d postgres`), as an opt-in alternative to installing Postgres natively — see `DATABASE_SETUP.md`. `Tech-Stack.md` specifies Docker + a managed container platform for eventual production deployment, which is separate, later work (Phase 9).
+- **Frontend** (`frontend/src/`): React + TypeScript, bundled and hot-reloaded by **Vite** (`frontend/vite.config.ts`) — `@vitejs/plugin-react` for Fast Refresh, `@tailwindcss/vite` for Tailwind v4, and `vite-plugin-pwa` for the installable-app manifest/service worker (icons are still pending brand assets from the org, per `project-scope.md`'s Design/Branding section). The entrypoint is `frontend/index.html`, which loads `src/frontend.tsx`. Bun still runs the dev/build/test *commands* (`bun run dev` invokes the `vite` binary, `bun test` runs Bun's own test runner independently of Vite), but bundling itself is Vite's, not Bun's.
+- The frontend calls the backend via an absolute URL from `PUBLIC_API_URL` in `frontend/.env`, exposed as `API_BASE` in `frontend/src/lib/config.ts`. Vite inlines `import.meta.env.PUBLIC_*` references into the browser bundle at build time (`envPrefix: "PUBLIC_"` in `vite.config.ts`), so changing the value needs a frontend restart/rebuild, and only `PUBLIC_`-prefixed vars ever reach the browser. There's no dev proxy configured, so CORS on the backend (`FRONTEND_URL`) is what makes this work locally.
+- The backend and frontend aren't containerized; only Postgres is, via the root `docker-compose.yml` (`docker compose up -d postgres`), as an opt-in alternative to installing Postgres natively — see `post-pull-checklist.md`. `Tech-Stack.md` specifies Docker + a managed container platform for eventual production deployment, which is separate, later work (Phase 9).

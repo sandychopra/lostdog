@@ -1,7 +1,2 @@
-[serve.static]
-plugins = ["bun-plugin-tailwind"]
-# Inline process.env.PUBLIC_* references into the browser bundle (see src/lib/config.ts).
-env = "PUBLIC_*"
-
 [test]
 preload = ["./src/test/setup.ts"]

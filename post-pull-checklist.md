@@ -1,22 +1,20 @@
-# Database setup for a new developer
+# Post-pull checklist
 
-Each developer runs their own local Postgres. Follow these steps to get your database in sync with the latest schema and migrations.
+Run through these steps after pulling changes from `main` to keep your local setup in sync — new dependencies, environment variables, and database migrations don't apply themselves. The same steps also work for first-time setup.
 
-You can either install Postgres natively, or run it via the `docker-compose.yml` at the repo root:
+## 1. Install dependencies
+
+From the repo root:
 
 ```bash
-docker compose up -d postgres
+bun install
 ```
 
-This starts a Postgres 17 container on `localhost:5432` with a `lostdog_app` user, `changeme` password, and `lostdog` database — matching `backend/.env.example`'s defaults exactly, so no `.env` changes are needed if you use them as-is. Data persists in a named Docker volume (`postgres-data`) across restarts; `docker compose down -v` wipes it if you want a clean slate. Only Postgres is containerized — the backend and frontend still run natively via `bun run dev:backend`/`dev:frontend`, per the root `CLAUDE.md`.
+This installs all workspace dependencies — `backend`, `frontend`, and the shared `shared` workspace — picking up anything newly added since your last pull.
 
-## 1. Pull the latest changes
+## 2. Backend environment variables
 
-Make sure you have the branch/commits containing the migration(s) you need, in particular anything under `backend/prisma/migrations/`.
-
-## 2. Point your `.env` at your own database
-
-Copy `backend/.env.example` to `backend/.env` and fill in your own values (the defaults below already match the `docker-compose.yml` Postgres service):
+Copy `backend/.env.example` to `backend/.env` if you don't already have one, and fill in your own values (the defaults below already match the `docker-compose.yml` Postgres service):
 
 ```
 DATABASE_URL="postgresql://<user>:<password>@localhost:5432/<your-db-name>?schema=public"
@@ -27,21 +25,45 @@ SEED_ADMIN_EMAIL="admin@example.com"
 SEED_ADMIN_PASSWORD="changeme"
 ```
 
-`backend/.env` is untracked/local, so each developer's credentials stay separate.
+`backend/.env` is untracked/local, so each developer's credentials stay separate. After a pull, diff your `.env` against `backend/.env.example` — a new variable can land there without an announcement, and a missing value fails silently or falls back to a default you didn't expect.
 
-## 3. Install dependencies
+## 3. Frontend environment variables
 
-From the repo root:
+Copy `frontend/.env.example` to `frontend/.env` if you don't already have one:
 
-```bash
-bun install
+```
+PUBLIC_API_URL=http://localhost:4000
 ```
 
-This installs all workspace dependencies, including the shared `shared` workspace.
+This step is optional for the default local setup — `frontend/src/lib/config.ts` already falls back to `http://localhost:4000` if `PUBLIC_API_URL` is unset — but is required if your backend runs on a different port/host. As with the backend, diff your `.env` against `frontend/.env.example` after a pull to catch newly added vars; only `PUBLIC_`-prefixed vars are ever exposed to the browser bundle (see `Tech-Stack.md` / `CLAUDE.md`).
 
-## 4. Apply migrations
+## 4. Database sync
 
-From `backend/`:
+Each developer runs their own local Postgres — a native install (Postgres 17) is recommended over Docker, since you're already managing an isolated, per-developer database either way and a native install avoids an extra layer.
+
+**First-time only:** create a role and database matching `backend/.env.example`'s defaults, so no `.env` changes are needed:
+
+```bash
+psql postgres -c "CREATE ROLE lostdog_app WITH LOGIN PASSWORD 'changeme';"
+psql postgres -c "CREATE DATABASE lostdog OWNER lostdog_app;"
+```
+
+If you'd rather use your own role/database name or password, just point `DATABASE_URL` in `backend/.env` at them instead (see step 2) — nothing else in this checklist depends on the exact values.
+
+<details>
+<summary>Alternative: run Postgres via Docker instead</summary>
+
+If you'd rather not install Postgres natively, `docker-compose.yml` at the repo root spins up a matching instance:
+
+```bash
+docker compose up -d postgres
+```
+
+This starts a Postgres 17 container on `localhost:5432` with a `lostdog_app` user, `changeme` password, and `lostdog` database — matching `backend/.env.example`'s defaults exactly, so no `.env` changes are needed if you use them as-is. Data persists in a named Docker volume (`postgres-data`) across restarts; `docker compose down -v` wipes it if you want a clean slate. Only Postgres is containerized — the backend and frontend still run natively via `bun run dev:backend`/`dev:frontend`, per the root `CLAUDE.md`.
+
+</details>
+
+From `backend/`, apply migrations and sync the schema (needed every time you pull new migrations, not just first-time):
 
 ```bash
 bunx prisma migrate deploy
@@ -49,15 +71,11 @@ bunx prisma migrate deploy
 
 This applies every migration in `prisma/migrations/` in order against your database, non-interactively. Use this whenever you've pulled new migrations and just need your database to catch up.
 
-## 5. Regenerate the Prisma client
-
 ```bash
 bunx prisma generate
 ```
 
 Bun doesn't automatically run package postinstall scripts, so this step doesn't happen for you automatically — run it manually after every `migrate deploy` or schema change.
-
-## 6. Seed your local admin user
 
 ```bash
 bun run seed
@@ -65,9 +83,7 @@ bun run seed
 
 Creates (or updates) an admin user using the `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` values from your own `.env`.
 
----
-
-After these steps, start the dev servers as usual from the repo root:
+## 5. Start the dev servers
 
 ```bash
 bun run dev:backend &
