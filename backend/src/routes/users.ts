@@ -1,8 +1,7 @@
 import { Router, type Response } from "express";
 import { hashPassword } from "better-auth/crypto";
 import { createUserSchema, updateUserSchema } from "shared/schemas/users.ts";
-import { Role } from "shared/constants/role.ts";
-import { requireAuth } from "../middleware/requireAuth.ts";
+import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
@@ -108,8 +107,8 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
     return;
   }
 
-  if (user.role === Role.Admin) {
-    res.status(403).json({ error: "Admin users cannot be deleted" });
+  if (user.id === (req as AuthedRequest).session.user.id) {
+    res.status(403).json({ error: "You cannot delete your own account" });
     return;
   }
 

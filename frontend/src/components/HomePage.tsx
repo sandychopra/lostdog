@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
+import { API_BASE } from "../lib/config";
 import Navbar from "./Navbar";
-
-const API_BASE = "http://localhost:4000";
 
 export default function HomePage() {
   const [status, setStatus] = useState("checking...");
