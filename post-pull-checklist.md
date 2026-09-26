@@ -73,17 +73,19 @@ bunx prisma migrate deploy
 
 This applies every migration in `prisma/migrations/` in order against your database, non-interactively. Use this whenever you've pulled new migrations and just need your database to catch up.
 
+> **One-time note:** the migration history was rewritten on 2026-09-26 (the Better Auth tables were retrofitted with `snake_case` columns, via a migration-history reset rather than an additive rename migration — see `CLAUDE.md`). If your database was last synced before that and `migrate deploy` fails with a history-mismatch error, run `bunx prisma migrate reset --force` instead — **this drops your local database** — then continue with `prisma generate` and `bun run seed` below. This note only applies to that one sync; once everyone's past it, it can be deleted.
+
 ```bash
 bunx prisma generate
 ```
 
-Bun doesn't automatically run package postinstall scripts, so this step doesn't happen for you automatically — run it manually after every `migrate deploy` or schema change.
+Bun doesn't automatically run package postinstall scripts, so this step doesn't happen for you automatically — run it manually after every `migrate deploy` or schema change. This also regenerates `backend/prisma/ERD.md`, a Mermaid entity-relationship diagram of the full schema, kept in sync automatically via the `erd` generator in `schema.prisma`.
 
 ```bash
 bun run seed
 ```
 
-Creates (or updates) an admin user using the `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` values from your own `.env`.
+Creates (or updates) an admin user and a volunteer user (`SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` and `SEED_VOLUNTEER_EMAIL`/`SEED_VOLUNTEER_PASSWORD` from your own `.env`), plus representative roster dev data (a few cats, a kennel, a bonded group).
 
 ## 5. Start the dev servers
 
