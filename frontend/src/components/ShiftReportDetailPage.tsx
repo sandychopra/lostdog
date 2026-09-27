@@ -274,6 +274,16 @@ export default function ShiftReportDetailPage() {
               </section>
             )}
 
+            <section className="mt-6 space-y-3">
+              <h2 className="text-lg font-semibold">Cat Entries</h2>
+              {report.catEntries.length === 0 && (
+                <p className="text-sm text-muted-foreground">No cat entries logged.</p>
+              )}
+              {report.catEntries.map((entry) => (
+                <CatEntrySummary key={entry.id} entry={entry} />
+              ))}
+            </section>
+
             {report.playGroups.length > 0 && (
               <section className="mt-6 space-y-2">
                 <h2 className="text-lg font-semibold">Play Groups</h2>
@@ -287,16 +297,6 @@ export default function ShiftReportDetailPage() {
                 ))}
               </section>
             )}
-
-            <section className="mt-6 space-y-3">
-              <h2 className="text-lg font-semibold">Cat Entries</h2>
-              {report.catEntries.length === 0 && (
-                <p className="text-sm text-muted-foreground">No cat entries logged.</p>
-              )}
-              {report.catEntries.map((entry) => (
-                <CatEntrySummary key={entry.id} entry={entry} />
-              ))}
-            </section>
 
             {report.meetAndGreets.length > 0 && (
               <section className="mt-6 space-y-2">
