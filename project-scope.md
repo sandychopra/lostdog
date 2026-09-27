@@ -1,3 +1,5 @@
+> This is the narrative problem/solution/rationale doc. For the formal, numbered "shall"-statement spec derived from it (with implementation-status tags), see `requirements.md`.
+
 ## Problem
 
 Lost Dog and Cat Rescue Foundation runs its day-to-day PetSmart adoption-site operations almost entirely over email. Shift reports, new-cat arrival announcements, adoption status updates, return-to-RCC notices, and kennel-prep instructions all arrive as separate, ad hoc email threads. There's no single place to check "what's the current state of this cat / this kennel" — the truth is scattered across whichever inbox happened to receive the most recent relevant email, formatted a little differently each time, and easy to lose track of as threads pile up. That fragmentation and lack of a central source of truth is the real problem; the shift report is just its biggest, most frequent example.
