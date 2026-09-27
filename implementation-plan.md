@@ -118,10 +118,13 @@ Goal: past data is easy to find without reading an inbox.
 - [ ] Backend: per-cat aggregated history endpoint (fecal/pee/food + their notes, behavior, medical, other notes, meet-and-greets, tagged play notes, tagged photos over time)
 - [ ] Backend: photo query endpoint — filter by cat or unassigned (no tags), newest first
 - [ ] Backend: Admin-only photo download — single original file (named by date, shift type, and tagged cat name(s) or "unassigned"), and bulk zip of a filtered set (by cat / unassigned)
+- [ ] Backend: `ActivityLog` model (entity type, entity id, action, actor, timestamp, description) + write hooks in the Cat and Kennel routes (`backend/src/routes/cats.ts`, `kennels.ts`) so every create/edit/delete on those two gets recorded going forward (mutations made before this lands aren't backfilled — there's nothing to reconstruct them from beyond each row's own `updatedAt`)
+- [ ] Backend: Admin-only per-cat / per-kennel activity-history endpoint
 - [ ] Frontend: shift report search/browse UI
 - [ ] Frontend: cat history/profile view combining roster info (incl. bonded-pair and sibling/Litter info) + report history
 - [ ] Frontend: photo browse view — cat filter + unassigned filter, link to source report, inline tag editing
 - [ ] Frontend: Admin download controls in photo browse — per-photo download + "download all (zip)" for the current filter
+- [ ] Frontend: Admin-only activity-history view on the cat/kennel detail views (from Phase 3)
 
 ## Phase 7 — Email notifications
 Goal: the Google Group keeps receiving what it receives today, without anyone re-typing it.

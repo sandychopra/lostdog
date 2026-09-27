@@ -65,7 +65,7 @@ Two roles for MVP:
 
 ### Roles & permissions
 - **Volunteer**: create/edit own reports only — cannot delete their own reports; only an Admin can delete a report. Can add/change/remove cat tags on photos they uploaded. Can view photos but not download them. Can check off any open sign task (see Signs to post) from their report.
-- **Admin**: edit/delete any report; add/change/remove cat tags on any photo; download photos (single or bulk zip); manage the cat/kennel roster (add cats, assign kennels, intake); post status changes and announcements; create and manage volunteer/admin user accounts.
+- **Admin**: edit/delete any report; add/change/remove cat tags on any photo; download photos (single or bulk zip); manage the cat/kennel roster (add cats, assign kennels, intake); post status changes and announcements; create and manage volunteer/admin user accounts; view the Cat/Kennel activity history (see Reporting/lookup below).
 - Self-registration is disabled — an Admin creates every user account (Volunteer or Admin) directly; there is no public sign-up flow.
 - Deleting a user is a soft delete: an Admin can delete a Volunteer or Admin who has left, which blocks that user from logging in but keeps their account and past shift reports intact (still fully viewable/attributed to them). It is not a destructive/permanent delete.
 - No roles beyond Volunteer/Admin in MVP — anyone with in-app access is one or the other; people outside those roles (e.g. fosters, front-desk staff) who need visibility are reached via the existing Google Group email notifications, not in-app accounts.
@@ -115,6 +115,7 @@ Replaces the other ad hoc email threads (new-cat, adoption, sick-return, kennel-
   - **Unassigned** — photos with no cat tags, so they can be found and tagged.
   - Each photo links back to its shift report (date, shift type, uploader), and the uploader or an Admin can edit its tags inline from this view.
   - **Download (Admin only)** — an Admin can download any single photo at its original full resolution, or download every photo matching the current filter (a cat, or unassigned) as a single zip. Downloaded files are named for easy identification: date, shift type, and tagged cat name(s), or "unassigned". Volunteers can view photos in the app but not download them.
+- **Cat & Kennel activity history (Admin only)** — every create, edit, and delete on a Cat or a Kennel is recorded (who, when, what changed), viewable as an audit trail — e.g. "kennel 3: Admin X moved Pepsi in, Sept 20," "kennel 3: Admin Y changed state to needs reset, Sept 22." This is a debugging/accountability tool for Admins, not a volunteer-facing feature, and is separate from the Announcement feed (which is about a handful of structured, volunteer-relevant status events) and from shift-report-derived per-cat history above (which is about a cat's condition/care, not roster edits). Backed by a generic activity-log record (entity type, entity id, action, actor, timestamp, description) so later entities (Group, Litter, etc.) can reuse the same mechanism rather than each getting a bespoke history table.
 
 ### Email notifications
 Sent to the existing Google Group already used for these communications today (not per-user addresses), individually per event (not batched), for:
@@ -157,6 +158,8 @@ All seven notification types go to the same single existing Google Group. Whoeve
 - **SignTask** — auto-created when a Cat's status changes (not user-created): Cat, Kennel at time of creation, action (`post pending` | `post adopted` | `remove pending`), triggering Announcement, state (`open` | `done` | `cancelled`), completed by (User) / completed at / ShiftReport it was checked off on. Open tasks appear in the Signs to post section of every shift report until done; a later status change or Returned to RCC cancels any open task for that Cat. Any Volunteer or Admin can complete one.
 
 - **KennelMoveRequest** — created by an Admin (not auto-created), independent of a KennelPrepChecklist: references one Cat or Group (the occupant to move), the source Kennel (captured at creation time, like SignTask's kennel snapshot) and destination Kennel, an optional reason note, state (`open` | `done` | `cancelled`), completed by (User) / completed at / ShiftReport it was checked off on, and the Announcement it triggered. Open requests appear in the Kennel moves section of every shift report until done. Completing it moves the Cat/Group to the destination Kennel and marks the source Kennel `needs reset`.
+
+- **ActivityLog** — a generic audit-trail record, one row per create/edit/delete on a tracked entity: entity type (`Cat` | `Kennel`, extensible to others later), entity id, action (`create` | `update` | `delete`), actor (User), timestamp, and a description of what changed. Written automatically by the Cat and Kennel routes on every mutation — not user-created, and (per Announcement/SignTask/etc.) not something a Volunteer can see or write to. Admin-only, viewable as a per-cat or per-kennel history list. See Reporting/lookup above.
 
 ## Platform
 
