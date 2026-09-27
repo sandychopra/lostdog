@@ -78,60 +78,67 @@ export default function CreateGroupForm({ onSuccess }: CreateGroupFormProps) {
   });
 
   return (
-    <form onSubmit={form.handleSubmit((data) => mutation.mutate(data))} className="space-y-4">
-      <div className="space-y-2">
-        <Label>Cats (select 2 or more)</Label>
-        <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-input p-2">
-          {eligibleCats.length === 0 && (
-            <p className="text-sm text-muted-foreground">No ungrouped cats available.</p>
-          )}
-          {eligibleCats.map((cat) => (
-            <label key={cat.id} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="h-4 w-4"
-                checked={catIds.includes(cat.id)}
-                onChange={() => toggleCat(cat.id)}
-              />
-              {cat.name}
-            </label>
-          ))}
+    <form
+      onSubmit={form.handleSubmit((data) => mutation.mutate(data))}
+      className="flex h-full min-h-0 flex-col"
+    >
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+        <div className="space-y-2">
+          <Label>Cats (select 2 or more)</Label>
+          <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-input p-2">
+            {eligibleCats.length === 0 && (
+              <p className="text-sm text-muted-foreground">No ungrouped cats available.</p>
+            )}
+            {eligibleCats.map((cat) => (
+              <label key={cat.id} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={catIds.includes(cat.id)}
+                  onChange={() => toggleCat(cat.id)}
+                />
+                {cat.name}
+              </label>
+            ))}
+          </div>
+          <ErrorMessage message={form.formState.errors.catIds?.message} />
         </div>
-        <ErrorMessage message={form.formState.errors.catIds?.message} />
+        <div className="space-y-2">
+          <Label htmlFor="kennelId">Kennel</Label>
+          <select
+            id="kennelId"
+            className={selectClassName}
+            aria-invalid={!!form.formState.errors.kennelId}
+            {...form.register("kennelId")}
+          >
+            <option value="">Select a kennel</option>
+            {availableKennels.map((k) => (
+              <option key={k.id} value={k.id}>
+                {k.number}
+              </option>
+            ))}
+          </select>
+          <ErrorMessage message={form.formState.errors.kennelId?.message} />
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            id="bonded"
+            type="checkbox"
+            className="h-4 w-4"
+            disabled={catIds.length !== 2}
+            {...form.register("bonded")}
+          />
+          <Label htmlFor="bonded">Bonded pair (only settable for exactly 2 cats)</Label>
+        </div>
+        <ErrorMessage message={form.formState.errors.bonded?.message} />
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="kennelId">Kennel</Label>
-        <select
-          id="kennelId"
-          className={selectClassName}
-          aria-invalid={!!form.formState.errors.kennelId}
-          {...form.register("kennelId")}
-        >
-          <option value="">Select a kennel</option>
-          {availableKennels.map((k) => (
-            <option key={k.id} value={k.id}>
-              {k.number}
-            </option>
-          ))}
-        </select>
-        <ErrorMessage message={form.formState.errors.kennelId?.message} />
-      </div>
-      <div className="flex items-center gap-2">
-        <input
-          id="bonded"
-          type="checkbox"
-          className="h-4 w-4"
-          disabled={catIds.length !== 2}
-          {...form.register("bonded")}
-        />
-        <Label htmlFor="bonded">Bonded pair (only settable for exactly 2 cats)</Label>
-      </div>
-      <ErrorMessage message={form.formState.errors.bonded?.message} />
-      {mutation.error && <ErrorAlert error={mutation.error} fallback="Failed to create group" />}
-      <div className="flex justify-end">
-        <Button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? "Creating..." : "Create Group"}
-        </Button>
+      <div className="shrink-0 space-y-4 pt-4">
+        {mutation.error && <ErrorAlert error={mutation.error} fallback="Failed to create group" />}
+        <div className="flex justify-end">
+          <Button type="submit" disabled={mutation.isPending}>
+            {mutation.isPending ? "Creating..." : "Create Group"}
+          </Button>
+        </div>
       </div>
     </form>
   );

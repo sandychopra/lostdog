@@ -102,167 +102,178 @@ export default function CatForm({ cat, onSuccess }: CatFormProps) {
   });
 
   return (
-    <form onSubmit={form.handleSubmit((data) => mutation.mutate(data))} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="name">Name</Label>
-        <Input
-          id="name"
-          placeholder="Cat's name"
-          aria-invalid={!!form.formState.errors.name}
-          {...form.register("name")}
-        />
-        <ErrorMessage message={form.formState.errors.name?.message} />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
+    <form
+      onSubmit={form.handleSubmit((data) => mutation.mutate(data))}
+      className="flex h-full min-h-0 flex-col"
+    >
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
         <div className="space-y-2">
-          <Label htmlFor="ageYears">Age (years)</Label>
+          <Label htmlFor="name">Name</Label>
           <Input
-            id="ageYears"
-            type="number"
+            id="name"
+            placeholder="Cat's name"
+            aria-invalid={!!form.formState.errors.name}
+            {...form.register("name")}
+          />
+          <ErrorMessage message={form.formState.errors.name?.message} />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="ageYears">Age (years)</Label>
+            <Input
+              id="ageYears"
+              type="number"
+              placeholder="Optional"
+              aria-invalid={!!form.formState.errors.ageYears}
+              {...form.register("ageYears")}
+            />
+            <ErrorMessage message={form.formState.errors.ageYears?.message} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ageMonths">Age (months)</Label>
+            <Input
+              id="ageMonths"
+              type="number"
+              placeholder="Optional, 0–11"
+              aria-invalid={!!form.formState.errors.ageMonths}
+              {...form.register("ageMonths")}
+            />
+            <ErrorMessage message={form.formState.errors.ageMonths?.message} />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="sex">Sex</Label>
+          <select id="sex" className={selectClassName} {...form.register("sex")}>
+            <option value={CatSex.Male}>Male</option>
+            <option value={CatSex.Female}>Female</option>
+            <option value={CatSex.Unknown}>Unknown</option>
+          </select>
+          <ErrorMessage message={form.formState.errors.sex?.message} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="colorPatternSelect">Color/Pattern</Label>
+          <select
+            id="colorPatternSelect"
+            className={selectClassName}
+            value={isOtherColor ? OTHER_COLOR : colorPattern}
+            onChange={(e) => {
+              if (e.target.value === OTHER_COLOR) {
+                setIsOtherColor(true);
+                form.setValue("colorPattern", "", { shouldValidate: true });
+              } else {
+                setIsOtherColor(false);
+                form.setValue("colorPattern", e.target.value, { shouldValidate: true });
+              }
+            }}
+          >
+            <option value="">Select a color/pattern</option>
+            {CAT_COLOR_PATTERNS.map((pattern) => (
+              <option key={pattern} value={pattern}>
+                {pattern}
+              </option>
+            ))}
+            <option value={OTHER_COLOR}>Other</option>
+          </select>
+          {isOtherColor && (
+            <Input
+              placeholder="Describe the color/pattern"
+              aria-invalid={!!form.formState.errors.colorPattern}
+              {...form.register("colorPattern")}
+            />
+          )}
+          <ErrorMessage message={form.formState.errors.colorPattern?.message} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="collarColor">Collar Color</Label>
+          <Input id="collarColor" placeholder="Optional" {...form.register("collarColor")} />
+          <ErrorMessage message={form.formState.errors.collarColor?.message} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="microchipNumber">Microchip Number</Label>
+          <Input
+            id="microchipNumber"
             placeholder="Optional"
-            aria-invalid={!!form.formState.errors.ageYears}
-            {...form.register("ageYears")}
+            {...form.register("microchipNumber")}
           />
-          <ErrorMessage message={form.formState.errors.ageYears?.message} />
+          <ErrorMessage message={form.formState.errors.microchipNumber?.message} />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="ageMonths">Age (months)</Label>
+          <Label htmlFor="kennelId">Kennel</Label>
+          <select
+            id="kennelId"
+            className={selectClassName}
+            aria-invalid={!!form.formState.errors.kennelId}
+            {...form.register("kennelId")}
+          >
+            <option value="">Select a kennel</option>
+            {availableKennels.map((k) => (
+              <option key={k.id} value={k.id}>
+                {k.number}
+              </option>
+            ))}
+          </select>
+          <ErrorMessage message={form.formState.errors.kennelId?.message} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="dewormerStatus">Dewormer</Label>
+          <select
+            id="dewormerStatus"
+            className={selectClassName}
+            {...form.register("dewormerStatus")}
+          >
+            <option value={DewormerStatus.Due}>Due</option>
+            <option value={DewormerStatus.Given}>Given</option>
+          </select>
+          <ErrorMessage message={form.formState.errors.dewormerStatus?.message} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="dewormerDueDate">Dewormer Due Date</Label>
           <Input
-            id="ageMonths"
-            type="number"
-            placeholder="Optional, 0–11"
-            aria-invalid={!!form.formState.errors.ageMonths}
-            {...form.register("ageMonths")}
+            id="dewormerDueDate"
+            type="date"
+            aria-invalid={!!form.formState.errors.dewormerDueDate}
+            {...form.register("dewormerDueDate")}
           />
-          <ErrorMessage message={form.formState.errors.ageMonths?.message} />
+          <ErrorMessage message={form.formState.errors.dewormerDueDate?.message} />
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            id="needsProbiotic"
+            type="checkbox"
+            className="h-4 w-4"
+            {...form.register("needsProbiotic")}
+          />
+          <Label htmlFor="needsProbiotic">Needs Probiotic</Label>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="pickupAt">Pickup Date/Time</Label>
+          <Input
+            id="pickupAt"
+            type="datetime-local"
+            aria-invalid={!!form.formState.errors.pickupAt}
+            {...form.register("pickupAt")}
+          />
+          <ErrorMessage message={form.formState.errors.pickupAt?.message} />
         </div>
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="sex">Sex</Label>
-        <select id="sex" className={selectClassName} {...form.register("sex")}>
-          <option value={CatSex.Male}>Male</option>
-          <option value={CatSex.Female}>Female</option>
-          <option value={CatSex.Unknown}>Unknown</option>
-        </select>
-        <ErrorMessage message={form.formState.errors.sex?.message} />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="colorPatternSelect">Color/Pattern</Label>
-        <select
-          id="colorPatternSelect"
-          className={selectClassName}
-          value={isOtherColor ? OTHER_COLOR : colorPattern}
-          onChange={(e) => {
-            if (e.target.value === OTHER_COLOR) {
-              setIsOtherColor(true);
-              form.setValue("colorPattern", "", { shouldValidate: true });
-            } else {
-              setIsOtherColor(false);
-              form.setValue("colorPattern", e.target.value, { shouldValidate: true });
-            }
-          }}
-        >
-          <option value="">Select a color/pattern</option>
-          {CAT_COLOR_PATTERNS.map((pattern) => (
-            <option key={pattern} value={pattern}>
-              {pattern}
-            </option>
-          ))}
-          <option value={OTHER_COLOR}>Other</option>
-        </select>
-        {isOtherColor && (
-          <Input
-            placeholder="Describe the color/pattern"
-            aria-invalid={!!form.formState.errors.colorPattern}
-            {...form.register("colorPattern")}
+      <div className="shrink-0 space-y-4 pt-4">
+        {mutation.error && (
+          <ErrorAlert
+            error={mutation.error}
+            fallback={`Failed to ${isEdit ? "update" : "create"} cat`}
           />
         )}
-        <ErrorMessage message={form.formState.errors.colorPattern?.message} />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="collarColor">Collar Color</Label>
-        <Input id="collarColor" placeholder="Optional" {...form.register("collarColor")} />
-        <ErrorMessage message={form.formState.errors.collarColor?.message} />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="microchipNumber">Microchip Number</Label>
-        <Input id="microchipNumber" placeholder="Optional" {...form.register("microchipNumber")} />
-        <ErrorMessage message={form.formState.errors.microchipNumber?.message} />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="kennelId">Kennel</Label>
-        <select
-          id="kennelId"
-          className={selectClassName}
-          aria-invalid={!!form.formState.errors.kennelId}
-          {...form.register("kennelId")}
-        >
-          <option value="">Select a kennel</option>
-          {availableKennels.map((k) => (
-            <option key={k.id} value={k.id}>
-              {k.number}
-            </option>
-          ))}
-        </select>
-        <ErrorMessage message={form.formState.errors.kennelId?.message} />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="dewormerStatus">Dewormer</Label>
-        <select
-          id="dewormerStatus"
-          className={selectClassName}
-          {...form.register("dewormerStatus")}
-        >
-          <option value={DewormerStatus.Due}>Due</option>
-          <option value={DewormerStatus.Given}>Given</option>
-        </select>
-        <ErrorMessage message={form.formState.errors.dewormerStatus?.message} />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="dewormerDueDate">Dewormer Due Date</Label>
-        <Input
-          id="dewormerDueDate"
-          type="date"
-          aria-invalid={!!form.formState.errors.dewormerDueDate}
-          {...form.register("dewormerDueDate")}
-        />
-        <ErrorMessage message={form.formState.errors.dewormerDueDate?.message} />
-      </div>
-      <div className="flex items-center gap-2">
-        <input
-          id="needsProbiotic"
-          type="checkbox"
-          className="h-4 w-4"
-          {...form.register("needsProbiotic")}
-        />
-        <Label htmlFor="needsProbiotic">Needs Probiotic</Label>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="pickupAt">Pickup Date/Time</Label>
-        <Input
-          id="pickupAt"
-          type="datetime-local"
-          aria-invalid={!!form.formState.errors.pickupAt}
-          {...form.register("pickupAt")}
-        />
-        <ErrorMessage message={form.formState.errors.pickupAt?.message} />
-      </div>
-      {mutation.error && (
-        <ErrorAlert
-          error={mutation.error}
-          fallback={`Failed to ${isEdit ? "update" : "create"} cat`}
-        />
-      )}
-      <div className="flex justify-end">
-        <Button type="submit" disabled={mutation.isPending}>
-          {isEdit
-            ? mutation.isPending
-              ? "Saving..."
-              : "Save Changes"
-            : mutation.isPending
-              ? "Creating..."
-              : "Create Cat"}
-        </Button>
+        <div className="flex justify-end">
+          <Button type="submit" disabled={mutation.isPending}>
+            {isEdit
+              ? mutation.isPending
+                ? "Saving..."
+                : "Save Changes"
+              : mutation.isPending
+                ? "Creating..."
+                : "Create Cat"}
+          </Button>
+        </div>
       </div>
     </form>
   );
