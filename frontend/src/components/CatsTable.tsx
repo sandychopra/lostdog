@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Users2, UserMinus } from "lucide-react";
 import { Role } from "shared/constants/role.ts";
 import { DewormerStatus } from "shared/constants/dewormerStatus.ts";
 import { api } from "../lib/api";
@@ -24,13 +24,17 @@ export interface Cat {
   dewormerStatus: DewormerStatus;
   dewormerDueDate: string | null;
   needsProbiotic: boolean;
+  pickupAt: string | null;
   kennel: { id: number; number: number } | null;
-  group: { id: number; kennel: { id: number; number: number } | null } | null;
+  group: { id: number; bonded: boolean; kennel: { id: number; number: number } | null } | null;
+  litter: { id: number; cats: { id: number; name: string }[] } | null;
 }
 
 interface CatsTableProps {
   onEdit: (cat: Cat) => void;
   onDelete: (cat: Cat) => void;
+  onRemoveFromGroup: (cat: Cat) => void;
+  onManageSiblings: (cat: Cat) => void;
 }
 
 function kennelLabel(cat: Cat): string {
@@ -50,7 +54,17 @@ function isOverdue(cat: Cat): boolean {
   return new Date(cat.dewormerDueDate) < new Date();
 }
 
-export default function CatsTable({ onEdit, onDelete }: CatsTableProps) {
+function siblingsLabel(cat: Cat): string {
+  const names = cat.litter?.cats.filter((c) => c.id !== cat.id).map((c) => c.name) ?? [];
+  return names.length > 0 ? names.join(", ") : "—";
+}
+
+export default function CatsTable({
+  onEdit,
+  onDelete,
+  onRemoveFromGroup,
+  onManageSiblings,
+}: CatsTableProps) {
   const { data: session } = authClient.useSession();
   const isAdmin = session?.user.role === Role.Admin;
   const queryClient = useQueryClient();
@@ -89,6 +103,8 @@ export default function CatsTable({ onEdit, onDelete }: CatsTableProps) {
           <TableHead>Kennel</TableHead>
           <TableHead>Dewormer</TableHead>
           <TableHead>Probiotic</TableHead>
+          <TableHead>Pickup</TableHead>
+          <TableHead>Siblings</TableHead>
           {isAdmin && <TableHead>Actions</TableHead>}
         </TableRow>
       </TableHeader>
@@ -116,6 +132,12 @@ export default function CatsTable({ onEdit, onDelete }: CatsTableProps) {
                 </TableCell>
                 <TableCell>
                   <Skeleton className="h-5 w-20 rounded-full" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-24" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-24" />
                 </TableCell>
                 {isAdmin && (
                   <TableCell>
@@ -164,10 +186,39 @@ export default function CatsTable({ onEdit, onDelete }: CatsTableProps) {
                 <TableCell>
                   {cat.needsProbiotic ? <Badge variant="default">Needs Probiotic</Badge> : "—"}
                 </TableCell>
+                <TableCell>
+                  {cat.pickupAt ? new Date(cat.pickupAt).toLocaleString() : "—"}
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <span>{siblingsLabel(cat)}</span>
+                    {isAdmin && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onManageSiblings(cat)}
+                        aria-label={`Manage siblings for ${cat.name}`}
+                      >
+                        <Users2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </TableCell>
                 {isAdmin && (
                   <TableCell>
                     {cat.groupId !== null ? (
-                      <span className="text-sm text-muted-foreground">In Group</span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm text-muted-foreground">In Group</span>
+                        {cat.group?.bonded && <Badge variant="secondary">Bonded</Badge>}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onRemoveFromGroup(cat)}
+                          aria-label={`Remove ${cat.name} from group`}
+                        >
+                          <UserMinus className="h-4 w-4" />
+                        </Button>
+                      </div>
                     ) : (
                       <>
                         <Button

@@ -34,6 +34,7 @@ const catFields = {
   dewormerStatus: z.enum(DewormerStatus),
   dewormerDueDate: z.preprocess(emptyToUndefined, z.coerce.date("Invalid date").optional()),
   needsProbiotic: z.boolean(),
+  pickupAt: z.preprocess(emptyToUndefined, z.coerce.date("Invalid date").optional()),
 };
 
 export const createCatSchema = z.object(catFields);

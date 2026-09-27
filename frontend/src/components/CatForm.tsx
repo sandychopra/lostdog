@@ -29,6 +29,13 @@ function toDateInputValue(value: string | null | undefined): string {
   return value ? value.slice(0, 10) : "";
 }
 
+function toDateTimeInputValue(value: string | null | undefined): string {
+  if (!value) return "";
+  const date = new Date(value);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 interface CatFormProps {
   cat?: Cat;
   onSuccess: () => void;
@@ -70,6 +77,7 @@ export default function CatForm({ cat, onSuccess }: CatFormProps) {
       dewormerStatus: cat?.dewormerStatus ?? DewormerStatus.Due,
       dewormerDueDate: toDateInputValue(cat?.dewormerDueDate) as unknown as Date | undefined,
       needsProbiotic: cat?.needsProbiotic ?? false,
+      pickupAt: toDateTimeInputValue(cat?.pickupAt) as unknown as Date | undefined,
     },
   });
 
@@ -228,6 +236,16 @@ export default function CatForm({ cat, onSuccess }: CatFormProps) {
           {...form.register("needsProbiotic")}
         />
         <Label htmlFor="needsProbiotic">Needs Probiotic</Label>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="pickupAt">Pickup Date/Time</Label>
+        <Input
+          id="pickupAt"
+          type="datetime-local"
+          aria-invalid={!!form.formState.errors.pickupAt}
+          {...form.register("pickupAt")}
+        />
+        <ErrorMessage message={form.formState.errors.pickupAt?.message} />
       </div>
       {mutation.error && (
         <ErrorAlert

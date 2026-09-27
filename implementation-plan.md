@@ -58,14 +58,14 @@ Goal: users can log in, are gated by role, and Admins manage the full user lifec
 Goal: Admins can manage the roster that everything else references.
 
 - [x] Backend: Kennel CRUD + state (`ready` / `occupied` / `needs reset`) — `backend/src/routes/kennels.ts`; Volunteer-readable, Admin-only writes; assigning/vacating a Cat auto-transitions state (`Occupied`/`NeedsReset`).
-- [x] Backend: Cat CRUD (intake fields: name, age in years+months, sex, color/pattern (picklist + free-text "Other"), collar color, microchip number (optional), kennel, dewormer due + due date, needs-probiotic) — `backend/src/routes/cats.ts`; a Cat with a `groupId` can't be edited/deleted here (409) until Group dissolve logic exists.
-- [ ] Backend: Group creation (paired/multi-cat intake into one kennel)
-- [ ] Backend: Group dissolve logic (cat leaves group → remaining cat becomes Individual if only one left)
-- [ ] Backend: Group bonded-pair flag (Admin-set, only settable on a Group of exactly two Cats, informational only; cleared automatically when the Group dissolves or resizes)
-- [ ] Backend: Litter/siblings tagging (Admin tags two or more Cats as siblings, independent of Group/kennel)
+- [x] Backend: Cat CRUD (intake fields: name, age in years+months, sex, color/pattern (picklist + free-text "Other"), collar color, microchip number (optional), kennel, dewormer due + due date, needs-probiotic, pickup date/time) — `backend/src/routes/cats.ts`; a Cat with a `groupId` can't be edited/deleted here (409).
+- [x] Backend: Group creation (paired/multi-cat intake into one kennel) — `backend/src/routes/groups.ts`; destination Kennel must be unoccupied or already one of the selected Cats' own kennel; every other vacated Kennel flips to `NeedsReset`.
+- [x] Backend: Group dissolve logic (cat leaves group → remaining cat becomes Individual if only one left) — `DELETE /api/groups/:id/cats/:catId`; the removed Cat comes out with no Group/Kennel (an Admin gives it a new one via Cat edit); no Kennel-state changes either way, since the shared Kennel stays occupied throughout.
+- [x] Backend: Group bonded-pair flag (Admin-set, only settable on a Group of exactly two Cats, informational only; cleared automatically when the Group dissolves or resizes) — `PUT /api/groups/:id`; "cleared on resize" turned out to need no extra code, since dissolving is the only way a bonded Group's membership ever changes, and that deletes the Group entirely.
+- [x] Backend: Litter/siblings tagging (Admin tags two or more Cats as siblings, independent of Group/kennel) — `backend/src/routes/litters.ts`; same create/add/remove-with-dissolve shape as Group, minus any Kennel interaction.
 - [x] Backend: dewormer due/given toggle on Cat, from the roster — Admin sets due date at intake/edit; any user can mark "given" via `PATCH /api/cats/:id/dewormer`, matching the scope doc's "from a shift report or the cat's profile."
-- [x] Frontend: Admin roster views — cat list, kennel list/grid, intake form — `CatsPage`/`CatsTable`/`CatForm`, `KennelsPage`/`KennelsTable`/`KennelForm`.
-- [x] Frontend: cat/kennel detail views (current state, dewormer flag) — surfaced inline on each roster table row (kennel/dewormer/probiotic columns) rather than a separate per-cat page.
+- [x] Frontend: Admin roster views — cat list, kennel list/grid, intake form — `CatsPage`/`CatsTable`/`CatForm`, `KennelsPage`/`KennelsTable`/`KennelForm`, plus `CreateGroupForm`/`SiblingsForm` for Group/Litter management.
+- [x] Frontend: cat/kennel detail views (current state, dewormer flag) — surfaced inline on each roster table row (kennel/dewormer/probiotic/pickup/siblings columns) rather than a separate per-cat page.
 
 ## Phase 4 — Shift reports (core feature)
 Goal: volunteers can fully replace the shift-report email.
@@ -93,8 +93,11 @@ Goal: volunteers can fully replace the shift-report email.
 ## Phase 5 — Status & announcements
 Goal: cat/kennel state transitions are structured, not free text, and surface as announcements.
 
-- [ ] Backend: Cat status transitions (`available` → `pending adoption` → `adopted`, fallthrough back to `available`)
-- [ ] Backend: pickup date/time field on pending adoption
+- [ ] Backend: Cat status transitions (`available` → `pending adoption` → `adopted` → `picked up`, fallthrough `pending adoption` → back to `available`)
+- [ ] Backend: pickup date/time field on pending adoption — the raw `pickupAt` field itself was exposed early, in Phase 3's `CatForm`/`CatsTable` (editable regardless of status, since status transitions don't exist yet); this bullet is about gating/using it properly once they do
+- [ ] Backend: `adopted` → `picked up` transition — the one status change a Volunteer can also make (not just Admin), via Confirm pickup below; marks the cat's kennel `needs reset` and resolves the pending-adoption/adopted Announcement
+- [ ] Backend: Confirm pickup — a SignTask-like open/done/cancelled record (exact shape TBD; likely extends SignTask or mirrors KennelMoveRequest) surfaced per shift report for every `adopted` cat with a scheduled pickup; completing it performs the `picked up` transition above
+- [ ] Backend: Kennel `planned` state — a 4th, plain Admin-settable `KennelState` value (no linked data), alongside the existing Ready/Occupied/NeedsReset CRUD from Phase 3
 - [ ] Backend: SignTask auto-created on status change (pending → post pending, adopted → post adopted, back available → remove pending), with superseding/cancel rules (incl. Returned to RCC)
 - [ ] Backend: check off a SignTask from a shift report (records user/time/report)
 - [ ] Backend: "Returned to RCC" action (deactivate cat, mark kennel `needs reset`, optional Admin-only reason)
@@ -109,6 +112,8 @@ Goal: cat/kennel state transitions are structured, not free text, and surface as
 - [ ] Frontend: Volunteer checklist check-off UI (next-action-only enabled)
 - [ ] Frontend: "Signs to post" section in the shift report form — open sign tasks with checkboxes; hidden when none
 - [ ] Frontend: "Kennel moves" section in the shift report form — open move requests with checkboxes; hidden when none
+- [ ] Frontend: "Confirm pickup" section in the shift report form — scheduled pickups with checkboxes; hidden when none
+- [ ] Frontend: `planned` as a selectable Kennel state in `KennelForm`
 - [ ] Frontend: announcement feed — default (24h/unresolved) view + "view all"
 
 ## Phase 6 — Reporting & lookup

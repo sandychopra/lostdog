@@ -8,6 +8,8 @@ import { requireAuth, type AuthedRequest } from "./middleware/requireAuth.ts";
 import usersRouter from "./routes/users.ts";
 import kennelsRouter from "./routes/kennels.ts";
 import catsRouter from "./routes/cats.ts";
+import groupsRouter from "./routes/groups.ts";
+import littersRouter from "./routes/litters.ts";
 
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
@@ -37,6 +39,8 @@ app.get("/api/me", requireAuth, (req, res) => {
 app.use("/api/users", usersRouter);
 app.use("/api/kennels", kennelsRouter);
 app.use("/api/cats", catsRouter);
+app.use("/api/groups", groupsRouter);
+app.use("/api/litters", littersRouter);
 
 app.get("/api/health", async (_req, res) => {
   try {
