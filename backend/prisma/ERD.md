@@ -105,9 +105,10 @@ erDiagram
     ShiftType shift_type 
     DateTime date 
     Boolean is_split_shift 
+    SplitShiftPosition split_shift_position "❓"
     String cleaning_notes "❓"
     String supplies_notes "❓"
-    String play_notes "❓"
+    String kennel_notes "❓"
     String other_notes "❓"
     DateTime created_at 
     DateTime updated_at 
@@ -115,6 +116,12 @@ erDiagram
   
 
   "shift_report_kennel_reset" {
+    Int shift_report_id 
+    Int kennel_id 
+    }
+  
+
+  "shift_report_kennel_flag" {
     Int shift_report_id 
     Int kennel_id 
     }
@@ -132,8 +139,6 @@ erDiagram
     FoodAmount dry_food_amount "❓"
     String food_notes "❓"
     String other_notes "❓"
-    Boolean free_fed "❓"
-    Boolean water_noted "❓"
     FoodAmount wet_food_amount "❓"
     String wet_food_brand "❓"
     SnackTreat snack_treat "❓"
@@ -196,8 +201,16 @@ erDiagram
     }
   
 
-  "shift_report_play_cat" {
+  "play_group" {
+    Int id "🗝️"
     Int shift_report_id 
+    String note 
+    DateTime created_at 
+    }
+  
+
+  "play_group_cat" {
+    Int play_group_id 
     Int cat_id 
     }
   
@@ -272,6 +285,8 @@ erDiagram
     "shift_report" }o--|| "user" : "author"
     "shift_report_kennel_reset" }o--|| "shift_report" : "shiftReport"
     "shift_report_kennel_reset" }o--|| "kennel" : "kennel"
+    "shift_report_kennel_flag" }o--|| "shift_report" : "shiftReport"
+    "shift_report_kennel_flag" }o--|| "kennel" : "kennel"
     "cat_entry" }o--|| "shift_report" : "shiftReport"
     "cat_entry" }o--|o "cat" : "cat"
     "cat_entry" }o--|o "group" : "group"
@@ -285,8 +300,9 @@ erDiagram
     "meet_and_greet" }o--|| "shift_report" : "shiftReport"
     "meet_and_greet_cat" }o--|| "meet_and_greet" : "meetAndGreet"
     "meet_and_greet_cat" }o--|| "cat" : "cat"
-    "shift_report_play_cat" }o--|| "shift_report" : "shiftReport"
-    "shift_report_play_cat" }o--|| "cat" : "cat"
+    "play_group" }o--|| "shift_report" : "shiftReport"
+    "play_group_cat" }o--|| "play_group" : "playGroup"
+    "play_group_cat" }o--|| "cat" : "cat"
     "kennel_prep_checklist" }o--|| "user" : "createdBy"
     "checklist_action" }o--|| "kennel_prep_checklist" : "checklist"
     "checklist_action" }o--|| "kennel" : "kennel"

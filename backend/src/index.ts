@@ -10,6 +10,8 @@ import kennelsRouter from "./routes/kennels.ts";
 import catsRouter from "./routes/cats.ts";
 import groupsRouter from "./routes/groups.ts";
 import littersRouter from "./routes/litters.ts";
+import shiftReportsRouter from "./routes/shiftReports.ts";
+import photosRouter from "./routes/photos.ts";
 
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
@@ -41,6 +43,8 @@ app.use("/api/kennels", kennelsRouter);
 app.use("/api/cats", catsRouter);
 app.use("/api/groups", groupsRouter);
 app.use("/api/litters", littersRouter);
+app.use("/api/shift-reports", shiftReportsRouter);
+app.use("/api/photos", photosRouter);
 
 app.get("/api/health", async (_req, res) => {
   try {

@@ -34,7 +34,7 @@ interface KennelsTableProps {
   onDelete: (kennel: Kennel) => void;
 }
 
-function occupantLabel(kennel: Kennel): string {
+export function occupantLabel(kennel: Kennel): string {
   const names = [
     ...kennel.cats.map((c) => c.name),
     ...kennel.groups.flatMap((g) => g.cats.map((c) => c.name)),

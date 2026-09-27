@@ -70,25 +70,25 @@ Goal: Admins can manage the roster that everything else references.
 ## Phase 4 — Shift reports (core feature)
 Goal: volunteers can fully replace the shift-report email.
 
-- [ ] Backend: ShiftReport CRUD (author, shift type, date, split-shift flag (Morning/Evening only), shift-level fields: cleaning, supplies, other notes, play notes with optional cat tags)
-- [ ] Backend: CatEntry — individual variant (fecal score, pee, pee/poo notes, dry/wet food + brand default, snack/treat, food notes, medical notes, dewormer-given, probiotic-given (any shift, while the Cat's needs-probiotic flag is set), behavior notes, other notes, nail trim flag)
-- [ ] Backend: CatEntry — group variant (shared fields incl. shared pee/poo, food + other notes vs. per-cat fields incl. per-cat food + other notes and probiotic-given (any shift), per the scope doc)
-- [ ] Backend: probiotic "last given" derived from the most recent CatEntry/GroupEntryCatDetail with probiotic-given checked for that Cat (no separate dose-log entity) — feeds the roster's 24h Overdue indicator
-- [ ] Backend: Photo upload to S3-compatible storage, attached to a ShiftReport (optionally a CatEntry, auto-tagged with that entry's cat), with zero-or-more cat tags; always keep the original full-resolution file (for Admin download)
-- [ ] Backend: edit a Photo's cat tags (uploader or Admin only)
-- [ ] Backend: MeetAndGreet CRUD (multi-cat reference + note), repeatable within a report
-- [ ] Backend: edit/delete permissions (author-only edit, Admin-only delete)
-- [ ] Backend: kennels-reset list on ShiftReport submit → sets each listed Kennel to `ready`
-- [ ] Backend: kennels-flagged list on ShiftReport submit (the reverse of reset) → sets each listed Kennel to `needs reset`; open to Volunteers, not Admin-gated, same as the reset list
-- [ ] Frontend: shift report creation flow — shift-level fields, repeatable cat entry, repeatable meet-and-greet
-- [ ] Frontend: structured pickers for fecal score (1–7) and food amount (none/some/all + free-fed)
-- [ ] Frontend: photo capture/upload UI (mobile camera-friendly; file picker on desktop) — inside cat entries and in the report-level Photos section, with an optional multi-cat tag picker
-- [ ] Frontend: read-only kennel-status summary shown in the report (all kennels, current state)
-- [ ] Frontend: "kennels reset" multi-select tied to Kennel state
-- [ ] Frontend: "kennels flagged" multi-select (reverse of reset) tied to Kennel state
-- [ ] Frontend: Play section — free-text notes with optional multi-cat tag picker (same picker as photo tags / meet-and-greet)
-- [ ] Wire dewormer-given in a CatEntry to clear the Cat's dewormer-due flag
-- [ ] Frontend: roster "Overdue" indicator on the Probiotic column once 24h pass since the last logged probiotic-given entry (same pattern as Phase 3's dewormer Overdue badge, now backed by real CatEntry data)
+- [x] Backend: ShiftReport CRUD (author, shift type, date, split-shift flag (Morning/Evening only), shift-level fields: cleaning, supplies, other notes, play notes with optional cat tags) — `backend/src/routes/shiftReports.ts`; a small additive migration (`ShiftReportKennelFlag`) was needed to mirror `ShiftReportKennelReset`, since Phase 1's schema only built the "reset" half of the reset/flagged pair.
+- [x] Backend: CatEntry — individual variant (fecal score, pee, pee/poo notes, dry/wet food + brand default, snack/treat, food notes, medical notes, dewormer-given, probiotic-given (any shift, while the Cat's needs-probiotic flag is set), behavior notes, other notes, nail trim flag)
+- [x] Backend: CatEntry — group variant (shared fields incl. shared pee/poo, food + other notes vs. per-cat fields incl. per-cat food + other notes and probiotic-given (any shift), per the scope doc)
+- [x] Backend: probiotic "last given" derived from the most recent CatEntry/GroupEntryCatDetail with probiotic-given checked for that Cat (no separate dose-log entity) — feeds the roster's 24h Overdue indicator — raw-SQL `UNION ALL` merge in `GET /api/cats`, `lastProbioticGivenAt` per cat.
+- [x] Backend: Photo upload to S3-compatible storage, attached to a ShiftReport (optionally a CatEntry, auto-tagged with that entry's cat), with zero-or-more cat tags; always keep the original full-resolution file (for Admin download) — `backend/src/lib/storage.ts` defines a small `PhotoStorage` interface backed by local disk for dev (`backend/uploads/`, gitignored); swapping in real Cloudflare R2 later is a drop-in behind the same interface, no calling-code changes.
+- [x] Backend: edit a Photo's cat tags (uploader or Admin only)
+- [x] Backend: MeetAndGreet CRUD (multi-cat reference + note), repeatable within a report
+- [x] Backend: edit/delete permissions (author-only edit, Admin-only delete)
+- [x] Backend: kennels-reset list on ShiftReport submit → sets each listed Kennel to `ready`
+- [x] Backend: kennels-flagged list on ShiftReport submit (the reverse of reset) → sets each listed Kennel to `needs reset`; open to Volunteers, not Admin-gated, same as the reset list
+- [x] Frontend: shift report creation flow — shift-level fields, repeatable cat entry, repeatable meet-and-greet — dedicated pages (`/shift-reports`, `/new`, `/:id`, `/:id/edit`) rather than a modal, given the form's size.
+- [x] Frontend: structured pickers for fecal score (1–7) and food amount (none/some/all + free-fed) — `FecalScorePicker.tsx`, `FoodAmountPicker.tsx`.
+- [x] Frontend: photo capture/upload UI (mobile camera-friendly; file picker on desktop) — inside cat entries and in the report-level Photos section, with an optional multi-cat tag picker — `PhotoUploadSection.tsx`; two-phase submit (JSON save, then per-file multipart upload) since photos need a real `shiftReportId`/`catEntryId` to attach to.
+- [x] Frontend: read-only kennel-status summary shown in the report (all kennels, current state)
+- [x] Frontend: "kennels reset" multi-select tied to Kennel state
+- [x] Frontend: "kennels flagged" multi-select (reverse of reset) tied to Kennel state
+- [x] Frontend: Play section — evolved from a single free-text note into repeatable "Play Groups" (cats + a note per group, ≥1 cat required), per a post-launch UI refinement request; `CatMultiSelect.tsx` extracted from `CreateGroupForm.tsx`'s inline pattern, and `CatNoteGroupList.tsx` extracted to drive both Play Groups and Meet & Greets from one component once their shapes matched exactly.
+- [x] Wire dewormer-given in a CatEntry to clear the Cat's dewormer-due flag
+- [x] Frontend: roster "Overdue" indicator on the Probiotic column once 24h pass since the last logged probiotic-given entry (same pattern as Phase 3's dewormer Overdue badge, now backed by real CatEntry data)
 
 ## Phase 5 — Status & announcements
 Goal: cat/kennel state transitions are structured, not free text, and surface as announcements.

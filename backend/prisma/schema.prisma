@@ -57,7 +57,13 @@ enum CatEntryType {
 enum FoodAmount {
   None
   Some
+  Most
   All
+}
+
+enum SplitShiftPosition {
+  First
+  Second
 }
 
 enum SnackTreat {
@@ -199,7 +205,7 @@ model Cat {
   groupEntryDetails  GroupEntryCatDetail[]
   photoTags          PhotoCatTag[]
   meetAndGreetTags   MeetAndGreetCat[]
-  playTags           ShiftReportPlayCat[]
+  playGroupTags      PlayGroupCat[]
   announcements      Announcement[]
   signTasks          SignTask[]
   checklistActions   ChecklistAction[]
@@ -252,6 +258,7 @@ model Kennel {
   kennelMoveRequestsFrom KennelMoveRequest[]      @relation("KennelMoveRequestFromKennel")
   kennelMoveRequestsTo   KennelMoveRequest[]      @relation("KennelMoveRequestToKennel")
   kennelResets           ShiftReportKennelReset[]
+  kennelFlags            ShiftReportKennelFlag[]
 
   @@map("kennel")
 }
@@ -259,24 +266,26 @@ model Kennel {
 // --- Shift reports ---
 
 model ShiftReport {
-  id            Int       @id @default(autoincrement())
-  authorId      String    @map("author_id")
-  author        User      @relation(fields: [authorId], references: [id])
-  shiftType     ShiftType @map("shift_type")
-  date          DateTime  @db.Date
-  isSplitShift  Boolean   @default(false) @map("is_split_shift")
-  cleaningNotes String?   @map("cleaning_notes")
-  suppliesNotes String?   @map("supplies_notes")
-  playNotes     String?   @map("play_notes")
-  otherNotes    String?   @map("other_notes")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  id                 Int                 @id @default(autoincrement())
+  authorId           String              @map("author_id")
+  author             User                @relation(fields: [authorId], references: [id])
+  shiftType          ShiftType           @map("shift_type")
+  date               DateTime            @db.Date
+  isSplitShift       Boolean             @default(false) @map("is_split_shift")
+  splitShiftPosition SplitShiftPosition? @map("split_shift_position")
+  cleaningNotes      String?             @map("cleaning_notes")
+  suppliesNotes      String?             @map("supplies_notes")
+  kennelNotes        String?             @map("kennel_notes")
+  otherNotes         String?             @map("other_notes")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
 
   catEntries             CatEntry[]
   photos                 Photo[]
   meetAndGreets          MeetAndGreet[]
-  playTags               ShiftReportPlayCat[]
+  playGroups             PlayGroup[]
   kennelsReset           ShiftReportKennelReset[]
+  kennelsFlagged         ShiftReportKennelFlag[]
   signTasksCompleted     SignTask[]
   kennelMoveRequestsDone KennelMoveRequest[]
 
@@ -295,6 +304,19 @@ model ShiftReportKennelReset {
 
   @@id([shiftReportId, kennelId])
   @@map("shift_report_kennel_reset")
+}
+
+// The reverse of ShiftReportKennelReset — a volunteer flagging a kennel as
+// still needing a reset (correcting roster drift), mirrored 1:1 in shape so
+// flagged kennels are just as queryable/historical as reset ones.
+model ShiftReportKennelFlag {
+  shiftReportId Int         @map("shift_report_id")
+  shiftReport   ShiftReport @relation(fields: [shiftReportId], references: [id], onDelete: Cascade)
+  kennelId      Int         @map("kennel_id")
+  kennel        Kennel      @relation(fields: [kennelId], references: [id])
+
+  @@id([shiftReportId, kennelId])
+  @@map("shift_report_kennel_flag")
 }
 
 // Holds both the Individual variant's fields and the Group variant's *shared*
@@ -320,9 +342,7 @@ model CatEntry {
   foodNotes     String?     @map("food_notes")
   otherNotes    String?     @map("other_notes")
 
-  // Individual-only (and Group-shared, for freeFed/waterNoted specifically)
-  freeFed        Boolean?    @map("free_fed")
-  waterNoted     Boolean?    @map("water_noted")
+  // Individual-only
   wetFoodAmount  FoodAmount? @map("wet_food_amount")
   wetFoodBrand   String?     @map("wet_food_brand")
   snackTreat     SnackTreat? @map("snack_treat")
@@ -422,15 +442,30 @@ model MeetAndGreetCat {
   @@map("meet_and_greet_cat")
 }
 
-// Tagged cats for a ShiftReport's shift-level "Play" free-text field.
-model ShiftReportPlayCat {
+// A repeatable "play group" — some cats that played together during the
+// shift, plus a note about that group. Structurally identical to
+// MeetAndGreet/MeetAndGreetCat above.
+model PlayGroup {
+  id            Int         @id @default(autoincrement())
   shiftReportId Int         @map("shift_report_id")
   shiftReport   ShiftReport @relation(fields: [shiftReportId], references: [id], onDelete: Cascade)
-  catId         Int         @map("cat_id")
-  cat           Cat         @relation(fields: [catId], references: [id])
+  note          String
+  createdAt     DateTime    @default(now()) @map("created_at")
 
-  @@id([shiftReportId, catId])
-  @@map("shift_report_play_cat")
+  cats PlayGroupCat[]
+
+  @@index([shiftReportId])
+  @@map("play_group")
+}
+
+model PlayGroupCat {
+  playGroupId Int       @map("play_group_id")
+  playGroup   PlayGroup @relation(fields: [playGroupId], references: [id], onDelete: Cascade)
+  catId       Int       @map("cat_id")
+  cat         Cat       @relation(fields: [catId], references: [id])
+
+  @@id([playGroupId, catId])
+  @@map("play_group_cat")
 }
 
 // --- Status & announcements ---

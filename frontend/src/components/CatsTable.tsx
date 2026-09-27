@@ -24,6 +24,7 @@ export interface Cat {
   dewormerStatus: DewormerStatus;
   dewormerDueDate: string | null;
   needsProbiotic: boolean;
+  lastProbioticGivenAt: string | null;
   pickupAt: string | null;
   kennel: { id: number; number: number } | null;
   group: { id: number; bonded: boolean; kennel: { id: number; number: number } | null } | null;
@@ -52,6 +53,15 @@ function ageLabel(cat: Cat): string {
 function isOverdue(cat: Cat): boolean {
   if (cat.dewormerStatus !== DewormerStatus.Due || !cat.dewormerDueDate) return false;
   return new Date(cat.dewormerDueDate) < new Date();
+}
+
+// Same 24h-since-last-dose pattern as dewormer's isOverdue() above, but the
+// "dose" here is derived server-side from CatEntry/GroupEntryCatDetail history
+// rather than a stored due date.
+function isProbioticOverdue(cat: Cat): boolean {
+  if (!cat.needsProbiotic) return false;
+  if (!cat.lastProbioticGivenAt) return true;
+  return Date.now() - new Date(cat.lastProbioticGivenAt).getTime() > 24 * 60 * 60 * 1000;
 }
 
 function siblingsLabel(cat: Cat): string {
@@ -184,7 +194,20 @@ export default function CatsTable({
                   </div>
                 </TableCell>
                 <TableCell>
-                  {cat.needsProbiotic ? <Badge variant="default">Needs Probiotic</Badge> : "—"}
+                  {cat.needsProbiotic ? (
+                    <div className="flex items-center gap-2">
+                      <Badge variant={isProbioticOverdue(cat) ? "destructive" : "default"}>
+                        {isProbioticOverdue(cat) ? "Overdue" : "Needs Probiotic"}
+                      </Badge>
+                      {cat.lastProbioticGivenAt && (
+                        <span className="text-sm text-muted-foreground">
+                          Last: {new Date(cat.lastProbioticGivenAt).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    "—"
+                  )}
                 </TableCell>
                 <TableCell>
                   {cat.pickupAt ? new Date(cat.pickupAt).toLocaleString() : "—"}

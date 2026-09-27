@@ -33,6 +33,11 @@ export default function Navbar() {
             Kennels
           </Link>
         )}
+        {session && (
+          <Link to="/shift-reports" className="text-sm font-medium text-blue hover:underline">
+            Shift Reports
+          </Link>
+        )}
         {session?.user.role === Role.Admin && (
           <Link to="/users" className="text-sm font-medium text-blue hover:underline">
             Users

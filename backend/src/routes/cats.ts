@@ -24,7 +24,31 @@ router.get("/", requireAuth, async (_req, res: Response) => {
     orderBy: { name: "asc" },
   });
 
-  res.json({ cats });
+  // "Last probiotic given" has no dedicated dose-log table — it's derived from
+  // the most recent probiotic-given CatEntry/GroupEntryCatDetail per cat.
+  // GroupEntryCatDetail has no timestamp of its own, so its parent CatEntry's
+  // createdAt is the timestamp used for a group dose too.
+  const doses = await prisma.$queryRaw<{ catId: number; lastGivenAt: Date }[]>`
+    SELECT cat_id AS "catId", MAX(given_at) AS "lastGivenAt" FROM (
+      SELECT cat_id, created_at AS given_at
+      FROM cat_entry
+      WHERE entry_type = 'Individual' AND probiotic_given = true
+      UNION ALL
+      SELECT gd.cat_id, ce.created_at AS given_at
+      FROM group_entry_cat_detail gd
+      JOIN cat_entry ce ON ce.id = gd.cat_entry_id
+      WHERE gd.probiotic_given = true
+    ) doses
+    GROUP BY cat_id
+  `;
+  const lastGivenByCatId = new Map(doses.map((dose) => [dose.catId, dose.lastGivenAt]));
+
+  res.json({
+    cats: cats.map((cat) => ({
+      ...cat,
+      lastProbioticGivenAt: lastGivenByCatId.get(cat.id) ?? null,
+    })),
+  });
 });
 
 router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
