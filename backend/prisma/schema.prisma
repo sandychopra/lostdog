@@ -173,7 +173,8 @@ model Verification {
 model Cat {
   id              Int            @id @default(autoincrement())
   name            String
-  age             Int?
+  ageYears        Int?           @map("age_years")
+  ageMonths       Int?           @map("age_months")
   sex             String
   colorPattern    String         @map("color_pattern")
   collarColor     String?        @map("collar_color")
@@ -185,7 +186,8 @@ model Cat {
   status          CatStatus      @default(Available)
   pickupAt        DateTime?      @map("pickup_at")
   dewormerStatus  DewormerStatus @default(Due) @map("dewormer_status")
-  needsProviable  Boolean        @default(false) @map("needs_proviable")
+  dewormerDueDate DateTime?      @map("dewormer_due_date") @db.Date
+  needsProbiotic  Boolean        @default(false) @map("needs_probiotic")
   litterId        Int?           @map("litter_id")
   litter          Litter?        @relation(fields: [litterId], references: [id])
   active          Boolean        @default(true)
@@ -327,7 +329,7 @@ model CatEntry {
   snackTreatNote String?     @map("snack_treat_note")
   medicalNotes   String?     @map("medical_notes")
   dewormerGiven  Boolean     @default(false) @map("dewormer_given")
-  proviableGiven Boolean     @default(false) @map("proviable_given")
+  probioticGiven Boolean     @default(false) @map("probiotic_given")
   behaviorNotes  String?     @map("behavior_notes")
   nailTrim       Boolean     @default(false) @map("nail_trim")
 
@@ -359,7 +361,7 @@ model GroupEntryCatDetail {
   foodNotes      String?     @map("food_notes")
   medicalNotes   String?     @map("medical_notes")
   dewormerGiven  Boolean     @default(false) @map("dewormer_given")
-  proviableGiven Boolean     @default(false) @map("proviable_given")
+  probioticGiven Boolean     @default(false) @map("probiotic_given")
   behaviorNotes  String?     @map("behavior_notes")
   otherNotes     String?     @map("other_notes")
   nailTrim       Boolean     @default(false) @map("nail_trim")

@@ -57,32 +57,38 @@ Goal: users can log in, are gated by role, and Admins manage the full user lifec
 ## Phase 3 — Cat & Kennel roster
 Goal: Admins can manage the roster that everything else references.
 
-- [ ] Backend: Kennel CRUD + state (`ready` / `occupied` / `needs reset`)
-- [ ] Backend: Cat CRUD (intake fields: name, age, sex, color/pattern, collar color, microchip number (optional), kennel, dewormer due)
+- [x] Backend: Kennel CRUD + state (`ready` / `occupied` / `needs reset`) — `backend/src/routes/kennels.ts`; Volunteer-readable, Admin-only writes; assigning/vacating a Cat auto-transitions state (`Occupied`/`NeedsReset`).
+- [x] Backend: Cat CRUD (intake fields: name, age in years+months, sex, color/pattern (picklist + free-text "Other"), collar color, microchip number (optional), kennel, dewormer due + due date, needs-probiotic) — `backend/src/routes/cats.ts`; a Cat with a `groupId` can't be edited/deleted here (409) until Group dissolve logic exists.
 - [ ] Backend: Group creation (paired/multi-cat intake into one kennel)
 - [ ] Backend: Group dissolve logic (cat leaves group → remaining cat becomes Individual if only one left)
 - [ ] Backend: Group bonded-pair flag (Admin-set, only settable on a Group of exactly two Cats, informational only; cleared automatically when the Group dissolves or resizes)
 - [ ] Backend: Litter/siblings tagging (Admin tags two or more Cats as siblings, independent of Group/kennel)
-- [ ] Backend: dewormer due/given toggle on Cat, from the roster
-- [ ] Frontend: Admin roster views — cat list, kennel list/grid, intake form
-- [ ] Frontend: cat/kennel detail views (current state, dewormer flag)
+- [x] Backend: dewormer due/given toggle on Cat, from the roster — Admin sets due date at intake/edit; any user can mark "given" via `PATCH /api/cats/:id/dewormer`, matching the scope doc's "from a shift report or the cat's profile."
+- [x] Frontend: Admin roster views — cat list, kennel list/grid, intake form — `CatsPage`/`CatsTable`/`CatForm`, `KennelsPage`/`KennelsTable`/`KennelForm`.
+- [x] Frontend: cat/kennel detail views (current state, dewormer flag) — surfaced inline on each roster table row (kennel/dewormer/probiotic columns) rather than a separate per-cat page.
 
 ## Phase 4 — Shift reports (core feature)
 Goal: volunteers can fully replace the shift-report email.
 
 - [ ] Backend: ShiftReport CRUD (author, shift type, date, split-shift flag (Morning/Evening only), shift-level fields: cleaning, supplies, other notes, play notes with optional cat tags)
-- [ ] Backend: CatEntry — individual variant (fecal score, pee, pee/poo notes, dry/wet food + brand default, snack/treat, food notes, medical notes, dewormer-given, proviable-given (Evening-shift entries only, while the Cat's needs-proviable flag is set), behavior notes, other notes, nail trim flag)
-- [ ] Backend: CatEntry — group variant (shared fields incl. shared pee/poo, food + other notes vs. per-cat fields incl. per-cat food + other notes and proviable-given (Evening-shift only), per the scope doc)
+- [ ] Backend: CatEntry — individual variant (fecal score, pee, pee/poo notes, dry/wet food + brand default, snack/treat, food notes, medical notes, dewormer-given, probiotic-given (any shift, while the Cat's needs-probiotic flag is set), behavior notes, other notes, nail trim flag)
+- [ ] Backend: CatEntry — group variant (shared fields incl. shared pee/poo, food + other notes vs. per-cat fields incl. per-cat food + other notes and probiotic-given (any shift), per the scope doc)
+- [ ] Backend: probiotic "last given" derived from the most recent CatEntry/GroupEntryCatDetail with probiotic-given checked for that Cat (no separate dose-log entity) — feeds the roster's 24h Overdue indicator
 - [ ] Backend: Photo upload to S3-compatible storage, attached to a ShiftReport (optionally a CatEntry, auto-tagged with that entry's cat), with zero-or-more cat tags; always keep the original full-resolution file (for Admin download)
 - [ ] Backend: edit a Photo's cat tags (uploader or Admin only)
 - [ ] Backend: MeetAndGreet CRUD (multi-cat reference + note), repeatable within a report
 - [ ] Backend: edit/delete permissions (author-only edit, Admin-only delete)
+- [ ] Backend: kennels-reset list on ShiftReport submit → sets each listed Kennel to `ready`
+- [ ] Backend: kennels-flagged list on ShiftReport submit (the reverse of reset) → sets each listed Kennel to `needs reset`; open to Volunteers, not Admin-gated, same as the reset list
 - [ ] Frontend: shift report creation flow — shift-level fields, repeatable cat entry, repeatable meet-and-greet
 - [ ] Frontend: structured pickers for fecal score (1–7) and food amount (none/some/all + free-fed)
 - [ ] Frontend: photo capture/upload UI (mobile camera-friendly; file picker on desktop) — inside cat entries and in the report-level Photos section, with an optional multi-cat tag picker
+- [ ] Frontend: read-only kennel-status summary shown in the report (all kennels, current state)
 - [ ] Frontend: "kennels reset" multi-select tied to Kennel state
+- [ ] Frontend: "kennels flagged" multi-select (reverse of reset) tied to Kennel state
 - [ ] Frontend: Play section — free-text notes with optional multi-cat tag picker (same picker as photo tags / meet-and-greet)
 - [ ] Wire dewormer-given in a CatEntry to clear the Cat's dewormer-due flag
+- [ ] Frontend: roster "Overdue" indicator on the Probiotic column once 24h pass since the last logged probiotic-given entry (same pattern as Phase 3's dewormer Overdue badge, now backed by real CatEntry data)
 
 ## Phase 5 — Status & announcements
 Goal: cat/kennel state transitions are structured, not free text, and surface as announcements.
@@ -92,7 +98,7 @@ Goal: cat/kennel state transitions are structured, not free text, and surface as
 - [ ] Backend: SignTask auto-created on status change (pending → post pending, adopted → post adopted, back available → remove pending), with superseding/cancel rules (incl. Returned to RCC)
 - [ ] Backend: check off a SignTask from a shift report (records user/time/report)
 - [ ] Backend: "Returned to RCC" action (deactivate cat, mark kennel `needs reset`, optional Admin-only reason)
-- [ ] Backend: Admin sets/clears a Cat's `needs-proviable` flag (set manually after diarrhea is reported; only an Admin clears it, once resolved — not cleared by logging a dose)
+- [x] Backend: Admin sets/clears a Cat's `needs-probiotic` flag (set manually after diarrhea is reported; only an Admin clears it, once resolved — not cleared by logging a dose) — built ahead of schedule as a plain checkbox in Phase 3's Cat CRUD form (`CatForm.tsx`), since there was no other Admin-facing control for it; the "triggered by a shift report" input path still arrives with Phase 4/5.
 - [ ] Backend: Announcement creation on each triggering event (new arrival, pending/adopted, back available, returned to RCC)
 - [ ] Backend: KennelPrepChecklist + ordered ChecklistAction creation (Admin-only)
 - [ ] Backend: checklist action check-off enforcing in-order completion, updating roster state as actions complete

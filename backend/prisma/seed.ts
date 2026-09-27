@@ -66,7 +66,8 @@ async function seedUsers() {
 // an existing row's other fields on a later run, which is fine for dev fixtures.
 async function findOrCreateCat(data: {
   name: string;
-  age?: number;
+  ageYears?: number;
+  ageMonths?: number;
   sex: string;
   colorPattern: string;
   collarColor?: string;
@@ -75,7 +76,8 @@ async function findOrCreateCat(data: {
   status?: CatStatus;
   pickupAt?: Date;
   dewormerStatus?: DewormerStatus;
-  needsProviable?: boolean;
+  dewormerDueDate?: Date;
+  needsProbiotic?: boolean;
 }) {
   const existing = await prisma.cat.findFirst({ where: { name: data.name } });
   if (existing) return existing;
@@ -93,7 +95,7 @@ async function findOrCreateGroupByKennel(kennelId: number, bonded: boolean) {
 async function seedRoster() {
   // Empty, ready kennels — representative of open capacity.
   await Promise.all(
-    [1, 5].map((number) =>
+    [1, 5, 6, 8].map((number) =>
       prisma.kennel.upsert({
         where: { number },
         update: {},
@@ -101,6 +103,14 @@ async function seedRoster() {
       }),
     ),
   );
+
+  // The site has 8 physical kennels total; 7 is left needing a reset so the
+  // seed data shows an example of every KennelState.
+  await prisma.kennel.upsert({
+    where: { number: 7 },
+    update: {},
+    create: { number: 7, state: KennelState.NeedsReset },
+  });
 
   const kennel2 = await prisma.kennel.upsert({
     where: { number: 2 },
@@ -120,9 +130,10 @@ async function seedRoster() {
 
   await findOrCreateCat({
     name: "Whiskers",
-    age: 3,
+    ageYears: 3,
+    ageMonths: 0,
     sex: "Female",
-    colorPattern: "Black and white",
+    colorPattern: "Black & White",
     kennelId: kennel2.id,
     status: CatStatus.Available,
     dewormerStatus: DewormerStatus.Given,
@@ -130,22 +141,25 @@ async function seedRoster() {
 
   await findOrCreateCat({
     name: "Pepsi",
-    age: 2,
+    ageYears: 2,
+    ageMonths: 6,
     sex: "Male",
-    colorPattern: "Orange tabby",
+    colorPattern: "Orange / Orange Tabby",
     collarColor: "Blue",
     kennelId: kennel3.id,
     status: CatStatus.PendingAdoption,
     pickupAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
     dewormerStatus: DewormerStatus.Due,
-    needsProviable: true,
+    dewormerDueDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+    needsProbiotic: true,
   });
 
   const group = await findOrCreateGroupByKennel(kennel4.id, true);
 
   await findOrCreateCat({
     name: "Sprite",
-    age: 1,
+    ageYears: 0,
+    ageMonths: 8,
     sex: "Female",
     colorPattern: "Calico",
     groupId: group.id,
@@ -155,7 +169,8 @@ async function seedRoster() {
 
   await findOrCreateCat({
     name: "Nehi",
-    age: 1,
+    ageYears: 0,
+    ageMonths: 8,
     sex: "Male",
     colorPattern: "Tuxedo",
     groupId: group.id,
@@ -163,7 +178,7 @@ async function seedRoster() {
     dewormerStatus: DewormerStatus.Given,
   });
 
-  console.log("Seeded roster: 5 kennels, 4 cats, 1 bonded group");
+  console.log("Seeded roster: 8 kennels, 4 cats, 1 bonded group");
 }
 
 await seedUsers();

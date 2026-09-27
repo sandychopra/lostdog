@@ -9,6 +9,7 @@ const badgeVariants = cva(
       variant: {
         default: "bg-navy text-white",
         secondary: "bg-secondary text-secondary-foreground",
+        destructive: "bg-destructive text-white",
       },
     },
     defaultVariants: { variant: "default" },

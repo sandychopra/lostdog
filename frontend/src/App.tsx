@@ -2,6 +2,8 @@ import { Route, Routes } from "react-router";
 import LoginPage from "./components/LoginPage";
 import HomePage from "./components/HomePage";
 import UsersPage from "./components/UsersPage";
+import KennelsPage from "./components/KennelsPage";
+import CatsPage from "./components/CatsPage";
 import RequireAuth from "./components/RequireAuth";
 import RequireAdmin from "./components/RequireAdmin";
 
@@ -14,6 +16,22 @@ export default function App() {
         element={
           <RequireAuth>
             <HomePage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/cats"
+        element={
+          <RequireAuth>
+            <CatsPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/kennels"
+        element={
+          <RequireAuth>
+            <KennelsPage />
           </RequireAuth>
         }
       />

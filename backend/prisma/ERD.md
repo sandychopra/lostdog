@@ -56,7 +56,8 @@ erDiagram
   "cat" {
     Int id "🗝️"
     String name 
-    Int age "❓"
+    Int age_years "❓"
+    Int age_months "❓"
     String sex 
     String color_pattern 
     String collar_color "❓"
@@ -66,7 +67,8 @@ erDiagram
     CatStatus status 
     DateTime pickup_at "❓"
     DewormerStatus dewormer_status 
-    Boolean needs_proviable 
+    DateTime dewormer_due_date "❓"
+    Boolean needs_probiotic 
     Int litter_id "❓"
     Boolean active 
     String inactive_reason "❓"
@@ -138,7 +140,7 @@ erDiagram
     String snack_treat_note "❓"
     String medical_notes "❓"
     Boolean dewormer_given 
-    Boolean proviable_given 
+    Boolean probiotic_given 
     String behavior_notes "❓"
     Boolean nail_trim 
     DateTime created_at 
@@ -157,7 +159,7 @@ erDiagram
     String food_notes "❓"
     String medical_notes "❓"
     Boolean dewormer_given 
-    Boolean proviable_given 
+    Boolean probiotic_given 
     String behavior_notes "❓"
     String other_notes "❓"
     Boolean nail_trim 
