@@ -17,7 +17,7 @@ Covers the MVP as described in `project-scope.md`: shift reporting, the cat/kenn
 - `CLAUDE.md` — current phase status and codebase orientation.
 
 ### 1.4 Status Legend
-Each requirement is tagged with its current implementation status, as of 2026-09-27 (Phases 0–4 of `implementation-plan.md` complete):
+Each requirement is tagged with its current implementation status, as of 2026-09-27 (Phases 0–5 of `implementation-plan.md` complete — Phase 5's Cat-status/Sign-Task/Announcement slice, Kennel Move Requests, and Kennel Prep Checklists are all now built; Phase 6 (Reporting/lookup) and Phase 7 (Email notifications) remain unimplemented):
 - ✅ **Implemented**
 - 🟡 **Partially implemented** — see the inline note
 - ⬜ **Not yet implemented**
@@ -86,8 +86,8 @@ There are no actors beyond these two in MVP; people who need read-only visibilit
 | FR-23 | The system shall maintain a persistent Cat profile referenced by shift reports, rather than free-typed cat names. | ✅ |
 | FR-24 | New-cat intake shall capture: name, age (years and months), sex, color/pattern (picklist plus "Other" free text), collar color, microchip number (optional), kennel assignment, and dewormer-due status with a due date. | ✅ |
 | FR-25 | The system shall support intake of two cats arriving together into the same kennel, modeled as a Group. | ✅ |
-| FR-26 | A Kennel shall track its current occupant (a Cat, a Group, or none) and one of four states: `ready`, `occupied`, `needs reset`, or `planned`. | 🟡 — `ready`/`occupied`/`needs reset` ✅; `planned` ⬜ |
-| FR-27 | The `planned` Kennel state shall be a plain, Admin-settable label with no linked data (not tied to a specific cat or date). | ⬜ |
+| FR-26 | A Kennel shall track its current occupant (a Cat, a Group, or none) and one of four states: `ready`, `occupied`, `needs reset`, or `planned`. | ✅ |
+| FR-27 | The `planned` Kennel state shall be a plain, Admin-settable label with no linked data (not tied to a specific cat or date). | ✅ |
 | FR-28 | A Cat's dewormer status shall be visible on its roster entry, showing `Overdue` instead of `Due` once its due date has passed. | ✅ |
 | FR-29 | Marking a Cat's dewormer as given shall permanently clear the due flag; the due date shall remain as a historical record. | ✅ |
 | FR-30 | An Admin shall be able to manually set a Cat's "needs probiotic" flag (not set at intake). | ✅ |
@@ -122,44 +122,44 @@ There are no actors beyond these two in MVP; people who need read-only visibilit
 | FR-54 | A shift report shall support shift-level fields not tied to any single cat: cleaning performed, supplies restocked, and general other notes. | ✅ |
 | FR-55 | A shift report shall support a Play section: free-text play notes optionally tagged with one or more cats from the active roster; a tagged note shall surface in each tagged cat's report history. | ✅ |
 | FR-56 | A shift report shall support one or more repeatable meet-and-greet entries, each referencing one or more cats plus a free-text context/outcome note. | ✅ |
-| FR-57 | A shift report shall display a "Signs to post" section listing every open Sign Task, hidden when none are open; checking one off shall record who/when/on which report and shall close the task. | ⬜ |
-| FR-58 | An open Sign Task not checked off shall carry over into every later shift report until it is checked off. | ⬜ |
-| FR-59 | A shift report shall display a "Kennel moves" section listing every open Kennel Move Request, hidden when none are open; checking one off shall move the referenced Cat/Group, mark the vacated Kennel `needs reset`, and close the request. | ⬜ |
-| FR-60 | An open Kennel Move Request not checked off shall carry over into every later shift report until it is checked off. | ⬜ |
-| FR-61 | A shift report shall display a "Confirm pickup" section listing every Cat that is `adopted` with a scheduled pickup date/time, hidden when none are scheduled; checking one off shall mark the Cat `picked up`, reset its Kennel, and resolve the related Announcement. | ⬜ |
+| FR-57 | A shift report shall display a "Signs to post" section listing every open Sign Task, hidden when none are open; checking one off shall record who/when/on which report and shall close the task. | ✅ |
+| FR-58 | An open Sign Task not checked off shall carry over into every later shift report until it is checked off. | ✅ |
+| FR-59 | A shift report shall display a "Kennel moves" section listing every open Kennel Move Request, hidden when none are open; checking one off shall move the referenced Cat/Group, mark the vacated Kennel `needs reset`, and close the request. | ✅ |
+| FR-60 | An open Kennel Move Request not checked off shall carry over into every later shift report until it is checked off. | ✅ |
+| FR-61 | A shift report shall display a "Confirm pickup" section listing every Cat that is `adopted` with a scheduled pickup date/time, hidden when none are scheduled; checking one off shall mark the Cat `picked up`, reset its Kennel, and resolve the related Announcement. | ✅ |
 | FR-62 | A shift report shall be editable only by its author or by an Admin. | ✅ |
 
 ### 3.5 Status & Announcements
 
 | ID | Requirement | Status |
 |---|---|---|
-| FR-63 | A Cat's status shall follow the sequence `available` → `pending adoption` → `adopted` → `picked up`, with `pending adoption` able to fall through back to `available`. | ⬜ |
-| FR-64 | A Cat shall be `available` immediately upon being added to the roster; there shall be no separate "new arrival" status. | 🟡 — cats are created as active roster entries today ✅; the formal status field/lifecycle is not yet implemented ⬜ |
-| FR-65 | Status changes shall be Admin-only, except the `adopted` → `picked up` transition, which a Volunteer may also trigger via Confirm pickup. | ⬜ |
-| FR-66 | A `pending adoption`/`adopted` Cat may carry an optional scheduled pickup date/time. | 🟡 — field exists on the Cat record ✅; gating by status transitions not yet implemented ⬜ |
-| FR-67 | The `adopted` → `picked up` transition shall mark the Cat's Kennel `needs reset` and shall resolve the related pending-adoption/adopted Announcement. | ⬜ |
+| FR-63 | A Cat's status shall follow the sequence `available` → `pending adoption` → `adopted` → `picked up`; `available` may also go directly to `adopted`, skipping `pending adoption`, when the adoption process moves fast; and both `pending adoption` and `adopted` may fall through back to `available`. | ✅ |
+| FR-64 | A Cat shall be `available` immediately upon being added to the roster; there shall be no separate "new arrival" status. | ✅ |
+| FR-65 | Status changes shall be Admin-only, except the `adopted` → `picked up` transition, which a Volunteer may also trigger via Confirm pickup. | ✅ |
+| FR-66 | A `pending adoption`/`adopted` Cat may carry an optional scheduled pickup date/time, settable or reschedulable at any point while in either status, not only at the moment of transition; it is cleared on a fallthrough to `available`. | ✅ |
+| FR-67 | The `adopted` → `picked up` transition shall mark the Cat's Kennel `needs reset`, shall resolve the related pending-adoption/adopted Announcement, and shall record who confirmed it, when, and on which ShiftReport. | ✅ |
 | FR-68 | A meet-and-greet outcome shall never automatically change a Cat's status; it shall only be logged as a note. | ✅ |
-| FR-69 | The system shall automatically create a Sign Task on a Cat status change: post the Adoption Pending sign on `→ pending adoption`; post the Adopted sign on `→ adopted`; remove the Adoption Pending sign on a fallthrough `→ available`. | ⬜ |
-| FR-70 | A new status change, or a Returned-to-RCC action, shall cancel any still-open Sign Task for that Cat. | ⬜ |
-| FR-71 | A "remove sign" Sign Task shall be created only if the corresponding sign had actually been posted. | ⬜ |
-| FR-72 | There shall be no separate Sign Task for removing the Adopted sign; its removal shall be part of resetting the Kennel after pickup. | ⬜ |
-| FR-73 | Sign Tasks shall be system-created only; a Volunteer or Admin shall not be able to create one directly. | ⬜ |
-| FR-74 | The system shall support a "Returned to RCC" action that deactivates the Cat (removes it from the active roster) and marks its Kennel `needs reset`. | ⬜ |
-| FR-75 | The "Returned to RCC" action shall support an optional Admin-only free-text reason, which shall not be shown to Volunteers. | ⬜ |
-| FR-76 | A cat re-admitted after Returned-to-RCC shall be entered as a new Cat record rather than reactivating the prior one. | ⬜ |
-| FR-77 | The system shall support six Announcement types, visible to all Volunteers, separate from shift reports: new cat arrival; pending adoption/adopted/back available; returned to RCC; kennel prep checklist assigned; kennel move requested. | ⬜ |
-| FR-78 | An Admin shall be able to create a Kennel Prep Checklist tied to an expected arrival or pickup, composed of an ordered list of actions (`reset kennel` \| `move cat to kennel`). | ⬜ |
-| FR-79 | A Volunteer shall be able to check off Checklist Actions only in order; only the next incomplete action shall be eligible to be marked done. | ⬜ |
-| FR-80 | A "move cat to kennel" Checklist Action shall move only that cat/group; it shall not automatically flag the vacated kennel as needing reset unless that is added as its own explicit step. | ⬜ |
-| FR-81 | An Admin shall be able to create a Kennel Move Request, independent of any Checklist, referencing one Cat or Group, a source Kennel, and a destination Kennel. | ⬜ |
-| FR-82 | Checking off a Kennel Move Request shall automatically mark its source Kennel `needs reset` (unlike a Checklist, which requires an explicit reset step). | ⬜ |
-| FR-83 | The default Announcement view shall show only announcements from the last 24 hours for purely informational types (new cat arrival, returned to RCC). | ⬜ |
-| FR-84 | An Announcement with an open action shall remain in the default view regardless of age, until it is resolved. | ⬜ |
-| FR-85 | A pending-adoption/adopted Announcement shall remain open until its Cat is marked `picked up`, its Kennel is marked reset, and it has no open Sign Task — all three conditions required. | ⬜ |
-| FR-86 | A Kennel Prep Checklist Announcement shall remain open until every Checklist Action on it is checked off. | ⬜ |
-| FR-87 | A Kennel Move Request Announcement shall remain open until the request is completed or cancelled. | ⬜ |
-| FR-88 | A "back available" Announcement shall remain open until its remove-sign Sign Task (if any) is checked off; otherwise it shall follow the 24-hour default rule. | ⬜ |
-| FR-89 | The system shall not automatically expire or purge Announcements in MVP; a "view all" option shall always show every Announcement regardless of the default-view filter. | ⬜ |
+| FR-69 | The system shall automatically create a Sign Task on a Cat status change: post the Adoption Pending sign on `→ pending adoption`; post the Adopted sign on `→ adopted` (whether arriving from `pending adoption` or directly from `available`); remove the Adoption Pending sign on a fallthrough from `pending adoption` `→ available`; remove the Adopted sign on a fallthrough from `adopted` `→ available`. | ✅ |
+| FR-70 | A new status change, or a Returned-to-RCC action, shall cancel any still-open Sign Task for that Cat. | ✅ |
+| FR-71 | A "remove sign" Sign Task shall be created only if the corresponding sign had actually been posted. | ✅ |
+| FR-72 | There shall be no separate Sign Task for removing the Adopted sign when it comes down via the `picked up` transition; its removal there is part of resetting the Kennel after pickup. (A fallthrough from `adopted` is the one case where taking the Adopted sign down *is* its own Sign Task — see FR-69.) | ✅ |
+| FR-73 | Sign Tasks shall be system-created only; a Volunteer or Admin shall not be able to create one directly. | ✅ |
+| FR-74 | The system shall support a "Returned to RCC" action that deactivates the Cat (removes it from the active roster) and marks its Kennel `needs reset`. | ✅ |
+| FR-75 | The "Returned to RCC" action shall support an optional Admin-only free-text reason, which shall not be shown to Volunteers. | ✅ |
+| FR-76 | A cat re-admitted after Returned-to-RCC shall be entered as a new Cat record rather than reactivating the prior one. | ✅ (satisfied by omission — no reactivation path exists) |
+| FR-77 | The system shall support six Announcement types, visible to all Volunteers, separate from shift reports: new cat arrival; pending adoption/adopted/back available; returned to RCC; kennel prep checklist assigned; kennel move requested. | ✅ |
+| FR-78 | An Admin shall be able to create a Kennel Prep Checklist tied to an expected arrival or pickup, composed of an ordered list of actions (`reset kennel` \| `move cat to kennel`). | ✅ |
+| FR-79 | A Volunteer shall be able to check off Checklist Actions only in order; only the next incomplete action shall be eligible to be marked done. | ✅ |
+| FR-80 | A "move cat to kennel" Checklist Action shall move only that cat/group; it shall not automatically flag the vacated kennel as needing reset unless that is added as its own explicit step. | ✅ |
+| FR-81 | An Admin shall be able to create a Kennel Move Request, independent of any Checklist, referencing one Cat or Group, a source Kennel, and a destination Kennel. | ✅ |
+| FR-82 | Checking off a Kennel Move Request shall automatically mark its source Kennel `needs reset` (unlike a Checklist, which requires an explicit reset step). | ✅ |
+| FR-83 | The default Announcement view shall show only announcements from the last 24 hours for purely informational types (new cat arrival, returned to RCC). | ✅ |
+| FR-84 | An Announcement with an open action shall remain in the default view regardless of age, until it is resolved. | ✅ |
+| FR-85 | A pending-adoption/adopted Announcement shall remain open until its Cat is marked `picked up`, its Kennel is marked reset, and it has no open Sign Task — all three conditions required (all three are satisfied together, in one transaction, by Confirm pickup). If the Cat instead falls through to `available` first, this Announcement is superseded by a new "back available" one instead of ever meeting this condition. | ✅ |
+| FR-86 | A Kennel Prep Checklist Announcement shall remain open until every Checklist Action on it is checked off. | ✅ |
+| FR-87 | A Kennel Move Request Announcement shall remain open until the request is completed or cancelled. | ✅ |
+| FR-88 | A "back available" Announcement shall remain open until its remove-sign Sign Task (if any) is checked off; otherwise it shall follow the 24-hour default rule. | ✅ |
+| FR-89 | The system shall not automatically expire or purge Announcements in MVP; a "view all" option shall always show every Announcement regardless of the default-view filter. | ✅ |
 
 ### 3.6 Reporting & Lookup
 
@@ -191,7 +191,7 @@ Each entity's required attributes and key constraints. See `project-scope.md`'s 
 | ID | Entity | Required attributes | Key constraints |
 |---|---|---|---|
 | DR-1 | **User** | name, email, role (`Volunteer`\|`Admin`), password, soft-delete timestamp | Created only by an Admin; soft-deleted user cannot log in but record/reports persist. |
-| DR-2 | **Cat** | name, age at intake (years+months), sex, color/pattern (+ "Other"), collar color, microchip number (optional), current kennel/group, status, scheduled pickup date/time (optional), dewormer status + due date, needs-probiotic flag, litter reference (optional), active flag | Microchip number not unique (re-admitted cats are new records). Inactive Cats keep all past report history viewable. |
+| DR-2 | **Cat** | name, age at intake (years+months), sex, color/pattern (+ "Other"), collar color, microchip number (optional), current kennel/group, status (`available`\|`pending adoption`\|`adopted`\|`picked up`), scheduled pickup date/time (optional), pickup attribution (who/when/which ShiftReport), dewormer status + due date, needs-probiotic flag, litter reference (optional), active flag | Microchip number not unique (re-admitted cats are new records). Inactive Cats keep all past report history viewable. |
 | DR-3 | **Group** | member Cats, shared kennel, bonded flag | Bonded settable only on a Group of exactly two Cats. Dissolves to an Individual when only one Cat remains; bonded flag clears on dissolve/resize. |
 | DR-4 | **Litter** | two or more member Cats | Independent of Group/Kennel; purely informational. |
 | DR-5 | **Kennel** | number, current occupant (Cat, Group, or none), state (`occupied`\|`needs reset`\|`ready`\|`planned`) | State driven by roster events, Admin edit, or a volunteer's shift-report action; `planned` has no linked data and no automatic transition. |
@@ -202,7 +202,7 @@ Each entity's required attributes and key constraints. See `project-scope.md`'s 
 | DR-10 | **KennelPrepChecklist** | ordered list of ChecklistActions | Created by an Admin; tied to an expected arrival or pickup. |
 | DR-11 | **ChecklistAction** | type (`reset kennel`\|`move cat to kennel`), target Kennel, target Cat/Group (when moving), completed flag, completed by/at | Belongs to a KennelPrepChecklist; only the next incomplete action may be completed. |
 | DR-12 | **Announcement** | type, reference to related Cat/Kennel/Checklist, timestamp, resolved flag, notification-sent flag | Resolution rules per FR-83–FR-89. |
-| DR-13 | **SignTask** | Cat, Kennel at creation time, action (`post pending`\|`post adopted`\|`remove pending`), triggering Announcement, state (`open`\|`done`\|`cancelled`), completed by/at, ShiftReport it was closed on | System-created only. |
+| DR-13 | **SignTask** | Cat, Kennel at creation time, action (`post pending`\|`post adopted`\|`remove pending`\|`remove adopted`), triggering Announcement, state (`open`\|`done`\|`cancelled`), completed by/at, ShiftReport it was closed on | System-created only. |
 | DR-14 | **KennelMoveRequest** | referenced Cat/Group, source Kennel, destination Kennel, optional reason note, state (`open`\|`done`\|`cancelled`), completed by/at, ShiftReport it was closed on, triggering Announcement | Created by an Admin only. |
 | DR-15 | **ActivityLog** | entity type, entity id, action (`create`\|`update`\|`delete`), actor, timestamp, description | Written automatically by Cat and Kennel routes; extensible to future entities; Admin-viewable only. |
 

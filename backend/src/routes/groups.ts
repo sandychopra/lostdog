@@ -1,5 +1,5 @@
 import { Router, type Response } from "express";
-import { createGroupSchema, updateGroupSchema } from "shared/schemas/groups.ts";
+import { addGroupCatSchema, createGroupSchema, updateGroupSchema } from "shared/schemas/groups.ts";
 import { KennelState } from "shared/constants/kennelState.ts";
 import { requireAuth } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
@@ -97,6 +97,50 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
   const updated = await prisma.group.update({ where: { id }, data: { bonded: data.bonded } });
 
   res.json({ group: updated });
+});
+
+router.post("/:id/cats", requireAuth, requireAdmin, async (req, res: Response) => {
+  const id = Number(req.params.id);
+
+  const data = validate(addGroupCatSchema, req.body, res);
+  if (!data) return;
+
+  const group = await prisma.group.findUnique({ where: { id } });
+  if (!group) {
+    res.status(404).json({ error: "Group not found" });
+    return;
+  }
+
+  const cat = await prisma.cat.findUnique({ where: { id: data.catId } });
+  if (!cat || !cat.active) {
+    res.status(404).json({ error: "Cat not found" });
+    return;
+  }
+  if (cat.groupId !== null) {
+    res.status(409).json({ error: "This cat already belongs to a group" });
+    return;
+  }
+
+  const kennelToVacate =
+    cat.kennelId !== null && cat.kennelId !== group.kennelId ? cat.kennelId : null;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.cat.update({ where: { id: data.catId }, data: { groupId: id, kennelId: null } });
+
+    if (kennelToVacate !== null) {
+      await tx.kennel.update({
+        where: { id: kennelToVacate },
+        data: { state: KennelState.NeedsReset },
+      });
+    }
+
+    // Bonded is pairwise-only; adding a third+ cat invalidates it.
+    if (group.bonded) {
+      await tx.group.update({ where: { id }, data: { bonded: false } });
+    }
+  });
+
+  res.json({ message: "Cat added to group" });
 });
 
 router.delete("/:id/cats/:catId", requireAuth, requireAdmin, async (req, res: Response) => {

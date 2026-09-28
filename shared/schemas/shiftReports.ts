@@ -121,6 +121,12 @@ const shiftReportFields = {
   playGroups: z.array(playGroupSchema).default([]),
   kennelsResetIds: distinctCatIds("Kennels must be distinct").default([]),
   kennelsFlaggedIds: distinctCatIds("Kennels must be distinct").default([]),
+  signTasksCompletedIds: distinctCatIds("Sign tasks must be distinct").default([]),
+  pickupsConfirmedIds: distinctCatIds("Cats must be distinct").default([]),
+  kennelMoveRequestsCompletedIds: distinctCatIds("Kennel move requests must be distinct").default(
+    [],
+  ),
+  checklistActionsCompletedIds: distinctCatIds("Checklist actions must be distinct").default([]),
 };
 
 export type GroupEntryCatDetailInput = z.infer<typeof groupEntryCatDetailSchema>;

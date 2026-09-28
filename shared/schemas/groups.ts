@@ -23,3 +23,9 @@ export const updateGroupSchema = z.object({
 });
 
 export type UpdateGroupInput = z.infer<typeof updateGroupSchema>;
+
+export const addGroupCatSchema = z.object({
+  catId: z.coerce.number("Cat is required").int().positive("Cat is required"),
+});
+
+export type AddGroupCatInput = z.infer<typeof addGroupCatSchema>;

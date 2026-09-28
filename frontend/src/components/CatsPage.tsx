@@ -19,7 +19,10 @@ import {
 import ErrorAlert from "./ErrorAlert";
 import CatForm from "./CatForm";
 import CreateGroupForm from "./CreateGroupForm";
+import EditGroupForm from "./EditGroupForm";
 import SiblingsForm from "./SiblingsForm";
+import CatStatusForm from "./CatStatusForm";
+import ReturnToRccForm from "./ReturnToRccForm";
 import CatsTable, { type Cat } from "./CatsTable";
 import Navbar from "./Navbar";
 
@@ -27,7 +30,10 @@ type DialogState =
   | { mode: "create" }
   | { mode: "edit"; cat: Cat }
   | { mode: "group" }
+  | { mode: "edit-group"; cat: Cat }
   | { mode: "siblings"; cat: Cat }
+  | { mode: "status"; cat: Cat }
+  | { mode: "returned-to-rcc"; cat: Cat }
   | null;
 
 export default function CatsPage() {
@@ -82,7 +88,10 @@ export default function CatsPage() {
           onEdit={(cat) => setDialog({ mode: "edit", cat })}
           onDelete={(cat) => setDeletingCat(cat)}
           onRemoveFromGroup={(cat) => setRemovingFromGroup(cat)}
+          onEditGroup={(cat) => setDialog({ mode: "edit-group", cat })}
           onManageSiblings={(cat) => setDialog({ mode: "siblings", cat })}
+          onChangeStatus={(cat) => setDialog({ mode: "status", cat })}
+          onReturnToRcc={(cat) => setDialog({ mode: "returned-to-rcc", cat })}
         />
         {isAdmin && (
           <>
@@ -99,15 +108,27 @@ export default function CatsPage() {
                       ? "Edit Cat"
                       : dialog?.mode === "group"
                         ? "Create Group"
-                        : dialog?.mode === "siblings"
-                          ? `Siblings — ${dialog.cat.name}`
-                          : "Create Cat"}
+                        : dialog?.mode === "edit-group"
+                          ? "Edit Group"
+                          : dialog?.mode === "siblings"
+                            ? `Siblings — ${dialog.cat.name}`
+                            : dialog?.mode === "status"
+                              ? `Change Status — ${dialog.cat.name}`
+                              : dialog?.mode === "returned-to-rcc"
+                                ? `Return to RCC — ${dialog.cat.name}`
+                                : "Create Cat"}
                   </DialogTitle>
                 </DialogHeader>
                 {dialog?.mode === "group" ? (
                   <CreateGroupForm onSuccess={close} />
+                ) : dialog?.mode === "edit-group" ? (
+                  <EditGroupForm groupId={dialog.cat.groupId!} />
                 ) : dialog?.mode === "siblings" ? (
                   <SiblingsForm catId={dialog.cat.id} />
+                ) : dialog?.mode === "status" ? (
+                  <CatStatusForm cat={dialog.cat} onSuccess={close} />
+                ) : dialog?.mode === "returned-to-rcc" ? (
+                  <ReturnToRccForm cat={dialog.cat} onSuccess={close} />
                 ) : (
                   <CatForm
                     key={dialog?.mode === "edit" ? dialog.cat.id : "create"}

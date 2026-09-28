@@ -66,6 +66,9 @@ erDiagram
     Int group_id "❓"
     CatStatus status 
     DateTime pickup_at "❓"
+    String picked_up_by_id "❓"
+    DateTime picked_up_at "❓"
+    Int picked_up_on_report_id "❓"
     DewormerStatus dewormer_status 
     DateTime dewormer_due_date "❓"
     Boolean needs_probiotic 
@@ -280,6 +283,8 @@ erDiagram
     "account" }o--|| "user" : "user"
     "cat" }o--|o "kennel" : "kennel"
     "cat" }o--|o "group" : "group"
+    "cat" }o--|o "user" : "pickedUpBy"
+    "cat" }o--|o "shift_report" : "pickedUpOnReport"
     "cat" }o--|o "litter" : "litter"
     "group" }o--|o "kennel" : "kennel"
     "shift_report" }o--|| "user" : "author"

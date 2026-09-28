@@ -88,6 +88,7 @@ export default function KennelForm({ kennel, onSuccess }: KennelFormProps) {
               <option value={KennelState.Ready}>Ready</option>
               <option value={KennelState.Occupied}>Occupied</option>
               <option value={KennelState.NeedsReset}>Needs Reset</option>
+              <option value={KennelState.Planned}>Planned</option>
             </select>
             <ErrorMessage message={stateError?.message} />
           </div>

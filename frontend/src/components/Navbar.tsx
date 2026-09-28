@@ -38,6 +38,11 @@ export default function Navbar() {
             Shift Reports
           </Link>
         )}
+        {session && (
+          <Link to="/announcements" className="text-sm font-medium text-blue hover:underline">
+            Announcements
+          </Link>
+        )}
         {session?.user.role === Role.Admin && (
           <Link to="/users" className="text-sm font-medium text-blue hover:underline">
             Users

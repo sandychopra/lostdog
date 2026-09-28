@@ -1,0 +1,301 @@
+import { CatStatus } from "shared/constants/catStatus.ts";
+import { SignAction } from "shared/constants/signAction.ts";
+import { AnnouncementType } from "shared/constants/announcementType.ts";
+import { TaskState } from "shared/constants/taskState.ts";
+import { KennelState } from "shared/constants/kennelState.ts";
+import { VALID_STATUS_TRANSITIONS } from "shared/constants/catStatusTransitions.ts";
+import type { CreateCatInput } from "shared/schemas/cats.ts";
+import type { Prisma } from "../generated/prisma/client.ts";
+
+export class InvalidCatStatusTransitionError extends Error {}
+export class InvalidPickupError extends Error {}
+
+type Tx = Prisma.TransactionClient;
+
+// The Announcement types that a Cat's status directly drives — a new status
+// change (or Returned to RCC) always supersedes whichever of these is still open.
+const DRIVING_ANNOUNCEMENT_TYPES = [
+  AnnouncementType.PendingAdoption,
+  AnnouncementType.Adopted,
+  AnnouncementType.BackAvailable,
+];
+
+async function cancelOpenSignTasks(tx: Tx, catId: number): Promise<void> {
+  await tx.signTask.updateMany({
+    where: { catId, state: TaskState.Open },
+    data: { state: TaskState.Cancelled },
+  });
+}
+
+// "Was a sign actually posted" — the most recent SignTask for this (catId, action)
+// reached Done. If it's still Open (never checked off) or Cancelled, there's
+// nothing physical to remove. SignTask has no createdAt column, so `id desc` is
+// used as a safe recency proxy (autoincrement ids are monotonic with insertion).
+async function wasSignPosted(
+  tx: Tx,
+  catId: number,
+  action: (typeof SignAction)["PostPending" | "PostAdopted"],
+): Promise<boolean> {
+  const last = await tx.signTask.findFirst({
+    where: { catId, action },
+    orderBy: { id: "desc" },
+  });
+  return last?.state === TaskState.Done;
+}
+
+async function resolveDrivingAnnouncement(tx: Tx, catId: number): Promise<void> {
+  await tx.announcement.updateMany({
+    where: { catId, type: { in: DRIVING_ANNOUNCEMENT_TYPES }, resolved: false },
+    data: { resolved: true },
+  });
+}
+
+// The sign action a cat's *current* status implies is posted, if any — used by
+// both a fallthrough-to-Available transition and Returned to RCC, so "was it
+// actually posted" always checks the sign tied to the status being left.
+function priorSignActionFor(
+  status: CatStatus,
+): (typeof SignAction)["PostPending" | "PostAdopted"] | null {
+  if (status === CatStatus.PendingAdoption) return SignAction.PostPending;
+  if (status === CatStatus.Adopted) return SignAction.PostAdopted;
+  return null;
+}
+
+function removeActionFor(
+  priorAction: (typeof SignAction)["PostPending" | "PostAdopted"],
+): SignAction {
+  return priorAction === SignAction.PostPending
+    ? SignAction.RemovePending
+    : SignAction.RemoveAdopted;
+}
+
+// Creates a remove-sign SignTask attached to `announcementId`, but only if the
+// corresponding Post* sign was actually posted (see wasSignPosted) — shared by
+// the Available fallthrough and Returned to RCC, which use identical logic.
+async function maybeCreateRemoveSignTask(
+  tx: Tx,
+  args: {
+    catId: number;
+    kennelId: number | null;
+    departingStatus: CatStatus;
+    announcementId: number;
+  },
+): Promise<void> {
+  const priorAction = priorSignActionFor(args.departingStatus);
+  if (!priorAction || args.kennelId === null) return;
+  if (!(await wasSignPosted(tx, args.catId, priorAction))) return;
+
+  await tx.signTask.create({
+    data: {
+      catId: args.catId,
+      kennelId: args.kennelId,
+      action: removeActionFor(priorAction),
+      announcementId: args.announcementId,
+      state: TaskState.Open,
+    },
+  });
+}
+
+/**
+ * Admin-driven Cat status changes: available <-> pending adoption (skippable) <->
+ * adopted, plus the pending-adoption/adopted -> available fallthroughs. Does NOT
+ * handle the adopted -> picked up transition — see confirmPickup.
+ */
+export async function changeCatStatus(
+  tx: Tx,
+  args: { catId: number; targetStatus: CatStatus; pickupAt?: Date | null },
+) {
+  const cat = await tx.cat.findUniqueOrThrow({ where: { id: args.catId } });
+
+  // Same-status call while pending/adopted: just reschedule pickupAt, no
+  // side effects — this is the one legal "no-op" transition.
+  if (
+    args.targetStatus === cat.status &&
+    (cat.status === CatStatus.PendingAdoption || cat.status === CatStatus.Adopted)
+  ) {
+    return tx.cat.update({
+      where: { id: args.catId },
+      data: { pickupAt: args.pickupAt ?? cat.pickupAt },
+    });
+  }
+
+  const validTargets: readonly CatStatus[] = VALID_STATUS_TRANSITIONS[cat.status];
+  if (!validTargets.includes(args.targetStatus)) {
+    throw new InvalidCatStatusTransitionError(
+      `Cannot change status from ${cat.status} to ${args.targetStatus}`,
+    );
+  }
+
+  await cancelOpenSignTasks(tx, args.catId);
+
+  // PendingAdoption -> Adopted is forward progress within the same adoption
+  // attempt, not a new one — per FR-85, both announcements stay open together
+  // until pickup resolves them jointly (see confirmPickup). Every other
+  // transition here (entering Pending/Adopted fresh from Available, or falling
+  // through to Available) closes out whatever was still open for this cat.
+  const isPendingToAdoptedForwardStep =
+    cat.status === CatStatus.PendingAdoption && args.targetStatus === CatStatus.Adopted;
+  if (!isPendingToAdoptedForwardStep) {
+    await resolveDrivingAnnouncement(tx, args.catId);
+  }
+
+  if (args.targetStatus === CatStatus.PendingAdoption || args.targetStatus === CatStatus.Adopted) {
+    const announcementType =
+      args.targetStatus === CatStatus.PendingAdoption
+        ? AnnouncementType.PendingAdoption
+        : AnnouncementType.Adopted;
+    const signAction =
+      args.targetStatus === CatStatus.PendingAdoption
+        ? SignAction.PostPending
+        : SignAction.PostAdopted;
+
+    const announcement = await tx.announcement.create({
+      data: { type: announcementType, catId: args.catId },
+    });
+    if (cat.kennelId !== null) {
+      await tx.signTask.create({
+        data: {
+          catId: args.catId,
+          kennelId: cat.kennelId,
+          action: signAction,
+          announcementId: announcement.id,
+          state: TaskState.Open,
+        },
+      });
+    }
+
+    return tx.cat.update({
+      where: { id: args.catId },
+      data: { status: args.targetStatus, pickupAt: args.pickupAt ?? null },
+    });
+  }
+
+  // targetStatus === Available: fallthrough from PendingAdoption or (per amendment) Adopted.
+  const announcement = await tx.announcement.create({
+    data: { type: AnnouncementType.BackAvailable, catId: args.catId },
+  });
+  await maybeCreateRemoveSignTask(tx, {
+    catId: args.catId,
+    kennelId: cat.kennelId,
+    departingStatus: cat.status,
+    announcementId: announcement.id,
+  });
+
+  return tx.cat.update({
+    where: { id: args.catId },
+    data: { status: CatStatus.Available, pickupAt: null },
+  });
+}
+
+/**
+ * The one Volunteer-triggerable transition (adopted -> picked up), only ever
+ * called from a ShiftReport's "Confirm pickup" processing.
+ */
+export async function confirmPickup(
+  tx: Tx,
+  args: { catId: number; actorId: string; shiftReportId: number },
+) {
+  const cat = await tx.cat.findUniqueOrThrow({ where: { id: args.catId } });
+  if (cat.status !== CatStatus.Adopted || cat.pickupAt === null) {
+    throw new InvalidPickupError(`Cat ${args.catId} is not adopted with a scheduled pickup`);
+  }
+
+  await cancelOpenSignTasks(tx, args.catId); // defensive — normally none open on this path
+
+  // This transaction is exactly what satisfies FR-85's 3-condition rule for the
+  // PendingAdoption/Adopted announcement(s) still open on this cat (picked up +
+  // kennel reset + no open sign task, all set right here) — so resolving them
+  // now is authoritative; the announcements feed never needs to re-derive this
+  // at read time.
+  await resolveDrivingAnnouncement(tx, args.catId);
+
+  if (cat.kennelId !== null) {
+    await tx.kennel.update({
+      where: { id: cat.kennelId },
+      data: { state: KennelState.NeedsReset },
+    });
+  }
+
+  // No new SignTask here — the Adopted sign's removal is implied by the kennel
+  // reset above, never tracked as its own task on this path.
+  return tx.cat.update({
+    where: { id: args.catId },
+    data: {
+      status: CatStatus.PickedUp,
+      pickedUpById: args.actorId,
+      pickedUpAt: new Date(),
+      pickedUpOnReportId: args.shiftReportId,
+    },
+  });
+}
+
+/** Returns a Cat to the RCC: deactivates it and mirrors the same sign-task/announcement rules as a status change. */
+export async function returnCatToRcc(tx: Tx, args: { catId: number; reason?: string }) {
+  const cat = await tx.cat.findUniqueOrThrow({ where: { id: args.catId } });
+
+  await cancelOpenSignTasks(tx, args.catId);
+  await resolveDrivingAnnouncement(tx, args.catId);
+
+  const announcement = await tx.announcement.create({
+    data: { type: AnnouncementType.ReturnedToRcc, catId: args.catId },
+  });
+  await maybeCreateRemoveSignTask(tx, {
+    catId: args.catId,
+    kennelId: cat.kennelId,
+    departingStatus: cat.status,
+    announcementId: announcement.id,
+  });
+
+  if (cat.kennelId !== null) {
+    await tx.kennel.update({
+      where: { id: cat.kennelId },
+      data: { state: KennelState.NeedsReset },
+    });
+  }
+
+  return tx.cat.update({
+    where: { id: args.catId },
+    data: { active: false, inactiveReason: args.reason ?? null },
+  });
+}
+
+/** Creates a new Cat (always `Available`) and its NewArrival Announcement together. */
+export async function createCatWithArrivalAnnouncement(tx: Tx, data: CreateCatInput) {
+  const cat = await tx.cat.create({ data });
+  await tx.announcement.create({ data: { type: AnnouncementType.NewArrival, catId: cat.id } });
+  return cat;
+}
+
+/** Completes an open SignTask from a ShiftReport submission. */
+export async function completeSignTask(
+  tx: Tx,
+  args: { signTaskId: number; actorId: string; shiftReportId: number },
+) {
+  const task = await tx.signTask.findUniqueOrThrow({ where: { id: args.signTaskId } });
+  if (task.state !== TaskState.Open) {
+    throw new Error(`Sign task ${args.signTaskId} is not open`);
+  }
+
+  const updated = await tx.signTask.update({
+    where: { id: args.signTaskId },
+    data: {
+      state: TaskState.Done,
+      completedById: args.actorId,
+      completedAt: new Date(),
+      completedOnReportId: args.shiftReportId,
+    },
+  });
+
+  // A RemovePending/RemoveAdopted task completing is exactly what "the sign has
+  // come down" means for a BackAvailable announcement (FR-88's one remaining
+  // resolution condition) — flip it here since this is the only place that
+  // happens, rather than re-deriving it at read time.
+  if (updated.action === SignAction.RemovePending || updated.action === SignAction.RemoveAdopted) {
+    await tx.announcement.update({
+      where: { id: updated.announcementId },
+      data: { resolved: true },
+    });
+  }
+
+  return updated;
+}

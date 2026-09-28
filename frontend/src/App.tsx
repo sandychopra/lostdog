@@ -7,6 +7,7 @@ import CatsPage from "./components/CatsPage";
 import ShiftReportsPage from "./components/ShiftReportsPage";
 import ShiftReportFormPage from "./components/ShiftReportFormPage";
 import ShiftReportDetailPage from "./components/ShiftReportDetailPage";
+import AnnouncementsPage from "./components/AnnouncementsPage";
 import RequireAuth from "./components/RequireAuth";
 import RequireAdmin from "./components/RequireAdmin";
 
@@ -67,6 +68,14 @@ export default function App() {
         element={
           <RequireAuth>
             <ShiftReportFormPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/announcements"
+        element={
+          <RequireAuth>
+            <AnnouncementsPage />
           </RequireAuth>
         }
       />

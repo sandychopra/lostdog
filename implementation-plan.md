@@ -93,28 +93,28 @@ Goal: volunteers can fully replace the shift-report email.
 ## Phase 5 — Status & announcements
 Goal: cat/kennel state transitions are structured, not free text, and surface as announcements.
 
-- [ ] Backend: Cat status transitions (`available` → `pending adoption` → `adopted` → `picked up`, fallthrough `pending adoption` → back to `available`)
-- [ ] Backend: pickup date/time field on pending adoption — the raw `pickupAt` field itself was exposed early, in Phase 3's `CatForm`/`CatsTable` (editable regardless of status, since status transitions don't exist yet); this bullet is about gating/using it properly once they do
-- [ ] Backend: `adopted` → `picked up` transition — the one status change a Volunteer can also make (not just Admin), via Confirm pickup below; marks the cat's kennel `needs reset` and resolves the pending-adoption/adopted Announcement
-- [ ] Backend: Confirm pickup — a SignTask-like open/done/cancelled record (exact shape TBD; likely extends SignTask or mirrors KennelMoveRequest) surfaced per shift report for every `adopted` cat with a scheduled pickup; completing it performs the `picked up` transition above
-- [ ] Backend: Kennel `planned` state — a 4th, plain Admin-settable `KennelState` value (no linked data), alongside the existing Ready/Occupied/NeedsReset CRUD from Phase 3
-- [ ] Backend: SignTask auto-created on status change (pending → post pending, adopted → post adopted, back available → remove pending), with superseding/cancel rules (incl. Returned to RCC)
-- [ ] Backend: check off a SignTask from a shift report (records user/time/report)
-- [ ] Backend: "Returned to RCC" action (deactivate cat, mark kennel `needs reset`, optional Admin-only reason)
+- [x] Backend: Cat status transitions (`available` → `pending adoption` → `adopted` → `picked up`, with `available` → `adopted` also valid directly (fast-track, skips pending), and both `pending adoption` and `adopted` able to fall through back to `available`) — the fallthrough-from-`adopted` case and the fast-track skip were added during implementation, beyond this bullet's original scope; see `backend/src/lib/catStatus.ts` and `requirements.md`'s FR-63.
+- [x] Backend: pickup date/time field on pending adoption — now settable/reschedulable independently of a status change while pending/adopted (a same-status call to `PATCH /api/cats/:id/status`), and cleared on a fallthrough to available.
+- [x] Backend: `adopted` → `picked up` transition — the one status change a Volunteer can also make (not just Admin), via Confirm pickup below; marks the cat's kennel `needs reset` and resolves the pending-adoption/adopted Announcement
+- [x] Backend: Confirm pickup — implemented as three new nullable columns on `Cat` (`pickedUpById`/`pickedUpAt`/`pickedUpOnReportId`, mirroring `SignTask`'s own completion columns) rather than a separate task table, since there's only ever one live pending pickup per cat at a time; surfaced per shift report for every `adopted` cat with a scheduled pickup; completing it performs the `picked up` transition above
+- [x] Backend: Kennel `planned` state — a 4th, plain Admin-settable `KennelState` value (no linked data), alongside the existing Ready/Occupied/NeedsReset CRUD from Phase 3
+- [x] Backend: SignTask auto-created on status change (pending → post pending, adopted → post adopted — whether from pending or directly from available, back available → remove pending or remove adopted depending on which status it fell through from), with superseding/cancel rules (incl. Returned to RCC) — added a 4th `SignAction`, `RemoveAdopted`, beyond the original 3, to cover the fallthrough-from-`adopted` case
+- [x] Backend: check off a SignTask from a shift report (records user/time/report)
+- [x] Backend: "Returned to RCC" action (deactivate cat, mark kennel `needs reset`, optional Admin-only reason)
 - [x] Backend: Admin sets/clears a Cat's `needs-probiotic` flag (set manually after diarrhea is reported; only an Admin clears it, once resolved — not cleared by logging a dose) — built ahead of schedule as a plain checkbox in Phase 3's Cat CRUD form (`CatForm.tsx`), since there was no other Admin-facing control for it; the "triggered by a shift report" input path still arrives with Phase 4/5.
-- [ ] Backend: Announcement creation on each triggering event (new arrival, pending/adopted, back available, returned to RCC)
-- [ ] Backend: KennelPrepChecklist + ordered ChecklistAction creation (Admin-only)
-- [ ] Backend: checklist action check-off enforcing in-order completion, updating roster state as actions complete
-- [ ] Backend: announcement resolution rules (24h default for informational types; open-until-resolved for pending adoption/adopted, back available with a remove-sign task, checklists, and kennel move requests; includes SignTask completion)
-- [ ] Backend: KennelMoveRequest creation (Admin-only, independent of a checklist) + triggering Announcement
-- [ ] Backend: check off a KennelMoveRequest from a shift report (performs the move — updates the Cat/Group's kennel — marks the vacated kennel `needs reset`, and resolves the announcement)
-- [ ] Frontend: Admin controls for status changes, return-to-RCC, checklist creation, and kennel move requests
-- [ ] Frontend: Volunteer checklist check-off UI (next-action-only enabled)
-- [ ] Frontend: "Signs to post" section in the shift report form — open sign tasks with checkboxes; hidden when none
-- [ ] Frontend: "Kennel moves" section in the shift report form — open move requests with checkboxes; hidden when none
-- [ ] Frontend: "Confirm pickup" section in the shift report form — scheduled pickups with checkboxes; hidden when none
-- [ ] Frontend: `planned` as a selectable Kennel state in `KennelForm`
-- [ ] Frontend: announcement feed — default (24h/unresolved) view + "view all"
+- [x] Backend: Announcement creation on each triggering event (new arrival, pending/adopted, back available, returned to RCC)
+- [x] Backend: KennelPrepChecklist + ordered ChecklistAction creation (Admin-only) — `createChecklist` in `backend/src/lib/kennelPrepChecklists.ts`, `POST /api/kennel-prep-checklists`; `order` is derived from the submitted array's index rather than being client-specified.
+- [x] Backend: checklist action check-off enforcing in-order completion, updating roster state as actions complete — `completeChecklistAction` in the same file, called only from a ShiftReport submission (no standalone complete-by-id route, matching the SignTask/KennelMoveRequest precedent); a `MoveCat` step never auto-flags the vacated kennel as needing reset — only an explicit `ResetKennel` step does — per FR-80.
+- [x] Backend: announcement resolution rules for pending adoption/adopted (all 3 conditions are satisfied together, in one transaction, by Confirm pickup — no separate re-derivation needed), back available (via SignTask completion, or the 24h rule when no remove-sign task was ever created), Kennel Prep Checklist (resolves once its last action completes), and Kennel Move Request (resolves on completion or cancellation)
+- [x] Backend: KennelMoveRequest creation (Admin-only, independent of a checklist) + triggering Announcement — `createKennelMoveRequest` in `backend/src/lib/kennelMoveRequests.ts`, `POST /api/kennel-move-requests`; also added a cancel path (`PATCH /api/kennel-move-requests/:id/cancel`) beyond this bullet's original scope, since FR-87 requires the Announcement to resolve on cancellation too, not just completion.
+- [x] Backend: check off a KennelMoveRequest from a shift report (performs the move — updates the Cat/Group's kennel — marks the vacated kennel `needs reset`, and resolves the announcement) — `completeKennelMoveRequest`, wired into `shiftReports.ts` via `kennelMoveRequestsCompletedIds`.
+- [x] Frontend: Admin controls for status changes and return-to-RCC (`CatStatusForm.tsx`, `ReturnToRccForm.tsx`, both opened from `CatsTable.tsx`)
+- [x] Frontend: checklist creation (`KennelPrepChecklistForm.tsx`, an ordered add/remove step builder behind a "New Checklist" button on the Kennels page) and kennel move request creation (`KennelMoveRequestForm.tsx`, a per-kennel-row "Request Move" action on `KennelsTable.tsx`); Volunteer checklist check-off is next-action-only, computed live in the shift report form — checking a step immediately reveals that checklist's next step in the same session, no page reload needed.
+- [x] Frontend: "Signs to post" section in the shift report form — open sign tasks with checkboxes; hidden when none
+- [x] Frontend: "Kennel moves" section in the shift report form — open move requests with checkboxes; hidden when none; reuses the generic `OpenTaskList.tsx` component unchanged, exactly as anticipated. A parallel "Kennel prep" section for Checklist actions was added the same way, also reusing `OpenTaskList.tsx` unchanged — each checklist ever contributes at most one (its current next-incomplete) item to the list.
+- [x] Frontend: "Confirm pickup" section in the shift report form — scheduled pickups with checkboxes; hidden when none
+- [x] Frontend: `planned` as a selectable Kennel state in `KennelForm`
+- [x] Frontend: announcement feed — default (24h/unresolved) view + "view all" (`AnnouncementsPage.tsx`)
 
 ## Phase 6 — Reporting & lookup
 Goal: past data is easy to find without reading an inbox.

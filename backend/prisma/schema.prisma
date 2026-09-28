@@ -30,6 +30,7 @@ enum CatStatus {
   Available
   PendingAdoption
   Adopted
+  PickedUp
 }
 
 enum DewormerStatus {
@@ -41,6 +42,7 @@ enum KennelState {
   Ready
   Occupied
   NeedsReset
+  Planned
 }
 
 enum ShiftType {
@@ -81,6 +83,7 @@ enum SignAction {
   PostPending
   PostAdopted
   RemovePending
+  RemoveAdopted
 }
 
 enum AnnouncementType {
@@ -121,6 +124,7 @@ model User {
   completedSignTasks        SignTask[]
   requestedKennelMoves      KennelMoveRequest[]   @relation("KennelMoveRequestRequestedBy")
   completedKennelMoves      KennelMoveRequest[]   @relation("KennelMoveRequestCompletedBy")
+  pickedUpCats              Cat[]                 @relation("CatPickedUpBy")
 
   @@unique([email])
   @@map("user")
@@ -177,29 +181,34 @@ model Verification {
 // --- Roster ---
 
 model Cat {
-  id              Int            @id @default(autoincrement())
-  name            String
-  ageYears        Int?           @map("age_years")
-  ageMonths       Int?           @map("age_months")
-  sex             String
-  colorPattern    String         @map("color_pattern")
-  collarColor     String?        @map("collar_color")
-  microchipNumber String?        @map("microchip_number")
-  kennelId        Int?           @map("kennel_id")
-  kennel          Kennel?        @relation(fields: [kennelId], references: [id])
-  groupId         Int?           @map("group_id")
-  group           Group?         @relation(fields: [groupId], references: [id])
-  status          CatStatus      @default(Available)
-  pickupAt        DateTime?      @map("pickup_at")
-  dewormerStatus  DewormerStatus @default(Due) @map("dewormer_status")
-  dewormerDueDate DateTime?      @map("dewormer_due_date") @db.Date
-  needsProbiotic  Boolean        @default(false) @map("needs_probiotic")
-  litterId        Int?           @map("litter_id")
-  litter          Litter?        @relation(fields: [litterId], references: [id])
-  active          Boolean        @default(true)
-  inactiveReason  String?        @map("inactive_reason")
-  createdAt       DateTime       @default(now()) @map("created_at")
-  updatedAt       DateTime       @updatedAt @map("updated_at")
+  id                 Int            @id @default(autoincrement())
+  name               String
+  ageYears           Int?           @map("age_years")
+  ageMonths          Int?           @map("age_months")
+  sex                String
+  colorPattern       String         @map("color_pattern")
+  collarColor        String?        @map("collar_color")
+  microchipNumber    String?        @map("microchip_number")
+  kennelId           Int?           @map("kennel_id")
+  kennel             Kennel?        @relation(fields: [kennelId], references: [id])
+  groupId            Int?           @map("group_id")
+  group              Group?         @relation(fields: [groupId], references: [id])
+  status             CatStatus      @default(Available)
+  pickupAt           DateTime?      @map("pickup_at")
+  pickedUpById       String?        @map("picked_up_by_id")
+  pickedUpBy         User?          @relation("CatPickedUpBy", fields: [pickedUpById], references: [id])
+  pickedUpAt         DateTime?      @map("picked_up_at")
+  pickedUpOnReportId Int?           @map("picked_up_on_report_id")
+  pickedUpOnReport   ShiftReport?   @relation(fields: [pickedUpOnReportId], references: [id])
+  dewormerStatus     DewormerStatus @default(Due) @map("dewormer_status")
+  dewormerDueDate    DateTime?      @map("dewormer_due_date") @db.Date
+  needsProbiotic     Boolean        @default(false) @map("needs_probiotic")
+  litterId           Int?           @map("litter_id")
+  litter             Litter?        @relation(fields: [litterId], references: [id])
+  active             Boolean        @default(true)
+  inactiveReason     String?        @map("inactive_reason")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
 
   individualEntries  CatEntry[]
   groupEntryDetails  GroupEntryCatDetail[]
@@ -288,6 +297,7 @@ model ShiftReport {
   kennelsFlagged         ShiftReportKennelFlag[]
   signTasksCompleted     SignTask[]
   kennelMoveRequestsDone KennelMoveRequest[]
+  pickedUpCats           Cat[]
 
   @@index([authorId])
   @@index([date])

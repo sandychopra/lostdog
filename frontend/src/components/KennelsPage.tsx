@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Plus, ClipboardList } from "lucide-react";
 import { api } from "../lib/api";
 import { authClient } from "../lib/auth-client";
 import { Role } from "shared/constants/role.ts";
@@ -18,10 +18,17 @@ import {
 } from "./ui/alert-dialog";
 import ErrorAlert from "./ErrorAlert";
 import KennelForm from "./KennelForm";
-import KennelsTable, { type Kennel } from "./KennelsTable";
+import KennelMoveRequestForm from "./KennelMoveRequestForm";
+import KennelPrepChecklistForm from "./KennelPrepChecklistForm";
+import KennelsTable, { type Kennel, type KennelMoveRequest } from "./KennelsTable";
 import Navbar from "./Navbar";
 
-type DialogState = { mode: "create" } | { mode: "edit"; kennel: Kennel } | null;
+type DialogState =
+  | { mode: "create" }
+  | { mode: "edit"; kennel: Kennel }
+  | { mode: "request-move"; kennel: Kennel }
+  | { mode: "create-checklist" }
+  | null;
 
 export default function KennelsPage() {
   const { data: session } = authClient.useSession();
@@ -41,6 +48,14 @@ export default function KennelsPage() {
     },
   });
 
+  const cancelMoveRequestMutation = useMutation({
+    mutationFn: (id: number) => api.patch(`/api/kennel-move-requests/${id}/cancel`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kennel-move-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["announcements"] });
+    },
+  });
+
   return (
     <>
       <Navbar />
@@ -48,15 +63,25 @@ export default function KennelsPage() {
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-semibold tracking-tight">Kennels</h1>
           {isAdmin && (
-            <Button onClick={() => setDialog({ mode: "create" })}>
-              <Plus className="mr-1 h-4 w-4" />
-              New Kennel
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => setDialog({ mode: "create-checklist" })}>
+                <ClipboardList className="mr-1 h-4 w-4" />
+                New Checklist
+              </Button>
+              <Button onClick={() => setDialog({ mode: "create" })}>
+                <Plus className="mr-1 h-4 w-4" />
+                New Kennel
+              </Button>
+            </div>
           )}
         </div>
         <KennelsTable
           onEdit={(kennel) => setDialog({ mode: "edit", kennel })}
           onDelete={(kennel) => setDeletingKennel(kennel)}
+          onRequestMove={(kennel) => setDialog({ mode: "request-move", kennel })}
+          onCancelMoveRequest={(request: KennelMoveRequest) =>
+            cancelMoveRequestMutation.mutate(request.id)
+          }
         />
         {isAdmin && (
           <>
@@ -69,14 +94,26 @@ export default function KennelsPage() {
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>
-                    {dialog?.mode === "edit" ? "Edit Kennel" : "Create Kennel"}
+                    {dialog?.mode === "edit"
+                      ? "Edit Kennel"
+                      : dialog?.mode === "request-move"
+                        ? "Request Kennel Move"
+                        : dialog?.mode === "create-checklist"
+                          ? "New Kennel Prep Checklist"
+                          : "Create Kennel"}
                   </DialogTitle>
                 </DialogHeader>
-                <KennelForm
-                  key={dialog?.mode === "edit" ? dialog.kennel.id : "create"}
-                  kennel={dialog?.mode === "edit" ? dialog.kennel : undefined}
-                  onSuccess={close}
-                />
+                {dialog?.mode === "request-move" ? (
+                  <KennelMoveRequestForm kennel={dialog.kennel} onSuccess={close} />
+                ) : dialog?.mode === "create-checklist" ? (
+                  <KennelPrepChecklistForm onSuccess={close} />
+                ) : (
+                  <KennelForm
+                    key={dialog?.mode === "edit" ? dialog.kennel.id : "create"}
+                    kennel={dialog?.mode === "edit" ? dialog.kennel : undefined}
+                    onSuccess={close}
+                  />
+                )}
               </DialogContent>
             </Dialog>
             <AlertDialog

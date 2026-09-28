@@ -12,6 +12,10 @@ import groupsRouter from "./routes/groups.ts";
 import littersRouter from "./routes/litters.ts";
 import shiftReportsRouter from "./routes/shiftReports.ts";
 import photosRouter from "./routes/photos.ts";
+import announcementsRouter from "./routes/announcements.ts";
+import signTasksRouter from "./routes/signTasks.ts";
+import kennelMoveRequestsRouter from "./routes/kennelMoveRequests.ts";
+import kennelPrepChecklistsRouter from "./routes/kennelPrepChecklists.ts";
 
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
@@ -45,6 +49,10 @@ app.use("/api/groups", groupsRouter);
 app.use("/api/litters", littersRouter);
 app.use("/api/shift-reports", shiftReportsRouter);
 app.use("/api/photos", photosRouter);
+app.use("/api/announcements", announcementsRouter);
+app.use("/api/sign-tasks", signTasksRouter);
+app.use("/api/kennel-move-requests", kennelMoveRequestsRouter);
+app.use("/api/kennel-prep-checklists", kennelPrepChecklistsRouter);
 
 app.get("/api/health", async (_req, res) => {
   try {

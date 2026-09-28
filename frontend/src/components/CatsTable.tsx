@@ -1,7 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2, Users2, UserMinus } from "lucide-react";
+import {
+  Pencil,
+  Trash2,
+  Users2,
+  UserMinus,
+  LogOut,
+  ArrowRightLeft,
+  MoreVertical,
+} from "lucide-react";
 import { Role } from "shared/constants/role.ts";
 import { DewormerStatus } from "shared/constants/dewormerStatus.ts";
+import { CatStatus } from "shared/constants/catStatus.ts";
+import { VALID_STATUS_TRANSITIONS } from "shared/constants/catStatusTransitions.ts";
 import { api } from "../lib/api";
 import { authClient } from "../lib/auth-client";
 import ErrorAlert from "./ErrorAlert";
@@ -9,6 +19,13 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Skeleton } from "./ui/skeleton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 
 export interface Cat {
   id: number;
@@ -21,6 +38,7 @@ export interface Cat {
   microchipNumber: string | null;
   kennelId: number | null;
   groupId: number | null;
+  status: CatStatus;
   dewormerStatus: DewormerStatus;
   dewormerDueDate: string | null;
   needsProbiotic: boolean;
@@ -35,7 +53,30 @@ interface CatsTableProps {
   onEdit: (cat: Cat) => void;
   onDelete: (cat: Cat) => void;
   onRemoveFromGroup: (cat: Cat) => void;
+  onEditGroup: (cat: Cat) => void;
   onManageSiblings: (cat: Cat) => void;
+  onChangeStatus: (cat: Cat) => void;
+  onReturnToRcc: (cat: Cat) => void;
+}
+
+const CAT_STATUS_LABELS: Record<CatStatus, string> = {
+  [CatStatus.Available]: "Available",
+  [CatStatus.PendingAdoption]: "Pending Adoption",
+  [CatStatus.Adopted]: "Adopted",
+  [CatStatus.PickedUp]: "Picked Up",
+};
+
+function catStatusBadgeVariant(status: CatStatus): "default" | "outline" | "warning" | "secondary" {
+  switch (status) {
+    case CatStatus.Available:
+      return "outline";
+    case CatStatus.PendingAdoption:
+      return "warning";
+    case CatStatus.Adopted:
+      return "default";
+    case CatStatus.PickedUp:
+      return "secondary";
+  }
 }
 
 function kennelLabel(cat: Cat): string {
@@ -73,7 +114,10 @@ export default function CatsTable({
   onEdit,
   onDelete,
   onRemoveFromGroup,
+  onEditGroup,
   onManageSiblings,
+  onChangeStatus,
+  onReturnToRcc,
 }: CatsTableProps) {
   const { data: session } = authClient.useSession();
   const isAdmin = session?.user.role === Role.Admin;
@@ -107,14 +151,13 @@ export default function CatsTable({
       <TableHeader>
         <TableRow>
           <TableHead>Name</TableHead>
+          <TableHead>Status</TableHead>
           <TableHead>Age</TableHead>
           <TableHead>Sex</TableHead>
           <TableHead>Color/Pattern</TableHead>
           <TableHead>Kennel</TableHead>
           <TableHead>Dewormer</TableHead>
-          <TableHead>Probiotic</TableHead>
-          <TableHead>Pickup</TableHead>
-          <TableHead>Siblings</TableHead>
+          <TableHead>Flags</TableHead>
           {isAdmin && <TableHead>Actions</TableHead>}
         </TableRow>
       </TableHeader>
@@ -124,6 +167,9 @@ export default function CatsTable({
               <TableRow key={i}>
                 <TableCell>
                   <Skeleton className="h-4 w-24" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-5 w-20 rounded-full" />
                 </TableCell>
                 <TableCell>
                   <Skeleton className="h-4 w-8" />
@@ -141,12 +187,6 @@ export default function CatsTable({
                   <Skeleton className="h-5 w-20 rounded-full" />
                 </TableCell>
                 <TableCell>
-                  <Skeleton className="h-5 w-20 rounded-full" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-4 w-24" />
-                </TableCell>
-                <TableCell>
                   <Skeleton className="h-4 w-24" />
                 </TableCell>
                 {isAdmin && (
@@ -159,6 +199,11 @@ export default function CatsTable({
           : cats?.map((cat) => (
               <TableRow key={cat.id}>
                 <TableCell>{cat.name}</TableCell>
+                <TableCell>
+                  <Badge variant={catStatusBadgeVariant(cat.status)}>
+                    {CAT_STATUS_LABELS[cat.status]}
+                  </Badge>
+                </TableCell>
                 <TableCell>{ageLabel(cat)}</TableCell>
                 <TableCell>{cat.sex}</TableCell>
                 <TableCell>{cat.colorPattern}</TableCell>
@@ -194,14 +239,24 @@ export default function CatsTable({
                   </div>
                 </TableCell>
                 <TableCell>
-                  {cat.needsProbiotic ? (
-                    <div className="flex items-center gap-2">
-                      <Badge variant={isProbioticOverdue(cat) ? "destructive" : "default"}>
-                        {isProbioticOverdue(cat) ? "Overdue" : "Needs Probiotic"}
-                      </Badge>
-                      {cat.lastProbioticGivenAt && (
-                        <span className="text-sm text-muted-foreground">
-                          Last: {new Date(cat.lastProbioticGivenAt).toLocaleDateString()}
+                  {cat.needsProbiotic || cat.pickupAt || cat.litter ? (
+                    <div className="flex flex-col gap-1 text-sm">
+                      {cat.needsProbiotic && (
+                        <Badge
+                          variant={isProbioticOverdue(cat) ? "destructive" : "default"}
+                          className="w-fit"
+                        >
+                          {isProbioticOverdue(cat) ? "Probiotic Overdue" : "Needs Probiotic"}
+                        </Badge>
+                      )}
+                      {cat.pickupAt && (
+                        <span className="text-muted-foreground">
+                          Pickup: {new Date(cat.pickupAt).toLocaleString()}
+                        </span>
+                      )}
+                      {cat.litter && (
+                        <span className="text-muted-foreground">
+                          Siblings: {siblingsLabel(cat)}
                         </span>
                       )}
                     </div>
@@ -209,59 +264,71 @@ export default function CatsTable({
                     "—"
                   )}
                 </TableCell>
-                <TableCell>
-                  {cat.pickupAt ? new Date(cat.pickupAt).toLocaleString() : "—"}
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <span>{siblingsLabel(cat)}</span>
-                    {isAdmin && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => onManageSiblings(cat)}
-                        aria-label={`Manage siblings for ${cat.name}`}
-                      >
-                        <Users2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </TableCell>
                 {isAdmin && (
                   <TableCell>
-                    {cat.groupId !== null ? (
-                      <div className="flex items-center gap-1">
-                        <span className="text-sm text-muted-foreground">In Group</span>
-                        {cat.group?.bonded && <Badge variant="secondary">Bonded</Badge>}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onRemoveFromGroup(cat)}
-                          aria-label={`Remove ${cat.name} from group`}
-                        >
-                          <UserMinus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onEdit(cat)}
-                          aria-label={`Edit ${cat.name}`}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onDelete(cat)}
-                          aria-label={`Delete ${cat.name}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {cat.groupId !== null && (
+                        <>
+                          <span className="text-sm text-muted-foreground">In Group</span>
+                          {cat.group?.bonded && <Badge variant="secondary">Bonded</Badge>}
+                        </>
+                      )}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Actions for ${cat.name}`}
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuItem onClick={() => onEdit(cat)}>
+                            <Pencil className="h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          {cat.groupId !== null && (
+                            <DropdownMenuItem onClick={() => onEditGroup(cat)}>
+                              <Users2 className="h-4 w-4" />
+                              Edit Group
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem onClick={() => onManageSiblings(cat)}>
+                            <Users2 className="h-4 w-4" />
+                            Manage Siblings
+                          </DropdownMenuItem>
+                          {cat.groupId === null &&
+                            VALID_STATUS_TRANSITIONS[cat.status].length > 0 && (
+                              <DropdownMenuItem onClick={() => onChangeStatus(cat)}>
+                                <ArrowRightLeft className="h-4 w-4" />
+                                Change Status
+                              </DropdownMenuItem>
+                            )}
+                          {cat.groupId === null && (
+                            <DropdownMenuItem onClick={() => onReturnToRcc(cat)}>
+                              <LogOut className="h-4 w-4" />
+                              Return to RCC
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          {cat.groupId !== null ? (
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onClick={() => onRemoveFromGroup(cat)}
+                            >
+                              <UserMinus className="h-4 w-4" />
+                              Remove from Group
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem variant="destructive" onClick={() => onDelete(cat)}>
+                              <Trash2 className="h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableCell>
                 )}
               </TableRow>

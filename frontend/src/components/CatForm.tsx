@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createCatSchema,
   updateCatSchema,
+  updateGroupedCatSchema,
   type CreateCatInput,
   type UpdateCatInput,
 } from "shared/schemas/cats.ts";
@@ -12,6 +13,7 @@ import { CatSex } from "shared/constants/catSex.ts";
 import { DewormerStatus } from "shared/constants/dewormerStatus.ts";
 import { CAT_COLOR_PATTERNS } from "shared/constants/catColorPattern.ts";
 import { api } from "../lib/api";
+import { toDateTimeInputValue } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -29,13 +31,6 @@ function toDateInputValue(value: string | null | undefined): string {
   return value ? value.slice(0, 10) : "";
 }
 
-function toDateTimeInputValue(value: string | null | undefined): string {
-  if (!value) return "";
-  const date = new Date(value);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
 interface CatFormProps {
   cat?: Cat;
   onSuccess: () => void;
@@ -43,6 +38,7 @@ interface CatFormProps {
 
 export default function CatForm({ cat, onSuccess }: CatFormProps) {
   const isEdit = !!cat;
+  const isGrouped = !!cat && cat.groupId !== null;
   const queryClient = useQueryClient();
 
   const [isOtherColor, setIsOtherColor] = useState(
@@ -64,7 +60,10 @@ export default function CatForm({ cat, onSuccess }: CatFormProps) {
   );
 
   const form = useForm<CreateCatInput | UpdateCatInput>({
-    resolver: zodResolver(isEdit ? updateCatSchema : createCatSchema),
+    resolver: zodResolver(
+      (isGrouped ? updateGroupedCatSchema : isEdit ? updateCatSchema : createCatSchema) as
+        typeof updateCatSchema | typeof createCatSchema,
+    ),
     defaultValues: {
       name: cat?.name ?? "",
       ageYears: cat?.ageYears ?? undefined,
@@ -197,23 +196,25 @@ export default function CatForm({ cat, onSuccess }: CatFormProps) {
           />
           <ErrorMessage message={form.formState.errors.microchipNumber?.message} />
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="kennelId">Kennel</Label>
-          <select
-            id="kennelId"
-            className={selectClassName}
-            aria-invalid={!!form.formState.errors.kennelId}
-            {...form.register("kennelId")}
-          >
-            <option value="">Select a kennel</option>
-            {availableKennels.map((k) => (
-              <option key={k.id} value={k.id}>
-                {k.number}
-              </option>
-            ))}
-          </select>
-          <ErrorMessage message={form.formState.errors.kennelId?.message} />
-        </div>
+        {!isGrouped && (
+          <div className="space-y-2">
+            <Label htmlFor="kennelId">Kennel{!isEdit ? " (optional)" : ""}</Label>
+            <select
+              id="kennelId"
+              className={selectClassName}
+              aria-invalid={!!form.formState.errors.kennelId}
+              {...form.register("kennelId")}
+            >
+              <option value="">Select a kennel</option>
+              {availableKennels.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.number}
+                </option>
+              ))}
+            </select>
+            <ErrorMessage message={form.formState.errors.kennelId?.message} />
+          </div>
+        )}
         <div className="space-y-2">
           <Label htmlFor="dewormerStatus">Dewormer</Label>
           <select

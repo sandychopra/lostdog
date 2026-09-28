@@ -1,11 +1,18 @@
 import { Router, type Response } from "express";
-import { createCatSchema, updateCatSchema } from "shared/schemas/cats.ts";
+import { createCatSchema, updateCatSchema, updateGroupedCatSchema } from "shared/schemas/cats.ts";
+import { changeCatStatusSchema, returnToRccSchema } from "shared/schemas/catStatus.ts";
 import { DewormerStatus } from "shared/constants/dewormerStatus.ts";
 import { KennelState } from "shared/constants/kennelState.ts";
 import { requireAuth } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
+import {
+  changeCatStatus,
+  createCatWithArrivalAnnouncement,
+  InvalidCatStatusTransitionError,
+  returnCatToRcc,
+} from "../lib/catStatus.ts";
 
 const router = Router();
 
@@ -55,25 +62,33 @@ router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
   const data = validate(createCatSchema, req.body, res);
   if (!data) return;
 
-  const kennel = await prisma.kennel.findUnique({ where: { id: data.kennelId } });
-  if (!kennel) {
-    res.status(404).json({ error: "Kennel not found" });
-    return;
+  if (data.kennelId !== undefined) {
+    const kennel = await prisma.kennel.findUnique({ where: { id: data.kennelId } });
+    if (!kennel) {
+      res.status(404).json({ error: "Kennel not found" });
+      return;
+    }
+
+    const [catCount, groupCount] = await Promise.all([
+      prisma.cat.count({ where: { kennelId: data.kennelId } }),
+      prisma.group.count({ where: { kennelId: data.kennelId } }),
+    ]);
+    if (catCount > 0 || groupCount > 0) {
+      res.status(409).json({ error: "That kennel is already occupied" });
+      return;
+    }
   }
 
-  const [catCount, groupCount] = await Promise.all([
-    prisma.cat.count({ where: { kennelId: data.kennelId } }),
-    prisma.group.count({ where: { kennelId: data.kennelId } }),
-  ]);
-  if (catCount > 0 || groupCount > 0) {
-    res.status(409).json({ error: "That kennel is already occupied" });
-    return;
-  }
-
-  const [cat] = await prisma.$transaction([
-    prisma.cat.create({ data, include: catInclude }),
-    prisma.kennel.update({ where: { id: data.kennelId }, data: { state: KennelState.Occupied } }),
-  ]);
+  const cat = await prisma.$transaction(async (tx) => {
+    const created = await createCatWithArrivalAnnouncement(tx, data);
+    if (data.kennelId !== undefined) {
+      await tx.kennel.update({
+        where: { id: data.kennelId },
+        data: { state: KennelState.Occupied },
+      });
+    }
+    return tx.cat.findUniqueOrThrow({ where: { id: created.id }, include: catInclude });
+  });
 
   res.status(201).json({ cat });
 });
@@ -86,8 +101,13 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
     res.status(404).json({ error: "Cat not found" });
     return;
   }
+
   if (existing.groupId !== null) {
-    res.status(409).json({ error: "This cat is part of a group and can't be edited here" });
+    const data = validate(updateGroupedCatSchema, req.body, res);
+    if (!data) return;
+
+    const cat = await prisma.cat.update({ where: { id }, data, include: catInclude });
+    res.json({ cat });
     return;
   }
 
@@ -143,6 +163,9 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
   }
 
   await prisma.$transaction([
+    // SignTask.catId is a required FK with ON DELETE RESTRICT (unlike Announcement's,
+    // which is SET NULL) — a hard delete has to clear these explicitly first.
+    prisma.signTask.deleteMany({ where: { catId: id } }),
     prisma.cat.delete({ where: { id } }),
     ...(existing.kennelId !== null
       ? [
@@ -170,6 +193,69 @@ router.patch("/:id/dewormer", requireAuth, async (req, res: Response) => {
     where: { id },
     data: { dewormerStatus: DewormerStatus.Given },
     include: catInclude,
+  });
+
+  res.json({ cat });
+});
+
+router.patch("/:id/status", requireAuth, requireAdmin, async (req, res: Response) => {
+  const id = Number(req.params.id);
+
+  const data = validate(changeCatStatusSchema, req.body, res);
+  if (!data) return;
+
+  const existing = await prisma.cat.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Cat not found" });
+    return;
+  }
+  if (existing.groupId !== null) {
+    res
+      .status(409)
+      .json({ error: "This cat is part of a group and can't have its status changed here" });
+    return;
+  }
+
+  try {
+    const cat = await prisma.$transaction(async (tx) => {
+      await changeCatStatus(tx, { catId: id, targetStatus: data.status, pickupAt: data.pickupAt });
+      return tx.cat.findUniqueOrThrow({ where: { id }, include: catInclude });
+    });
+    res.json({ cat });
+  } catch (err) {
+    if (err instanceof InvalidCatStatusTransitionError) {
+      res.status(409).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.patch("/:id/returned-to-rcc", requireAuth, requireAdmin, async (req, res: Response) => {
+  const id = Number(req.params.id);
+
+  const data = validate(returnToRccSchema, req.body, res);
+  if (!data) return;
+
+  const existing = await prisma.cat.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Cat not found" });
+    return;
+  }
+  if (!existing.active) {
+    res.status(409).json({ error: "Cat is already inactive" });
+    return;
+  }
+  if (existing.groupId !== null) {
+    res
+      .status(409)
+      .json({ error: "This cat is part of a group and can't be returned to RCC here" });
+    return;
+  }
+
+  const cat = await prisma.$transaction(async (tx) => {
+    await returnCatToRcc(tx, { catId: id, reason: data.reason });
+    return tx.cat.findUniqueOrThrow({ where: { id }, include: catInclude });
   });
 
   res.json({ cat });
