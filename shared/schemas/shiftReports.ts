@@ -4,6 +4,7 @@ import { CatEntryType } from "../constants/catEntryType.ts";
 import { FoodAmount } from "../constants/foodAmount.ts";
 import { SnackTreat } from "../constants/snackTreat.ts";
 import { SplitShiftPosition } from "../constants/splitShiftPosition.ts";
+import { ReportableKennelState } from "../constants/kennelState.ts";
 
 const emptyToUndefined = <T>(val: T): T | undefined => (val === "" ? undefined : val);
 
@@ -99,6 +100,18 @@ const meetAndGreetSchema = z.object({
   catIds: distinctCatIds("Cats must be distinct").min(1, "Tag at least one cat"),
 });
 
+// reportedState excludes Planned on purpose — that value stays admin-only,
+// set from the Kennel edit form, not something a volunteer reports during a
+// shift. note is optional here; whether it's actually required depends on
+// whether reportedState conflicts with the kennel's current state, which can
+// only be checked server-side (shiftReports.ts's validateReferences) against
+// live kennel data, not statically in this schema.
+const kennelStatusSchema = z.object({
+  kennelId: z.coerce.number("Kennel is required").int().positive("Kennel is required"),
+  reportedState: z.enum(ReportableKennelState),
+  note: z.string().trim().optional().transform(emptyToUndefined),
+});
+
 // Same shape as meetAndGreetSchema — kept separate since they're different
 // domain concepts (cats that played together + a note, vs. a meet-and-greet).
 const playGroupSchema = z.object({
@@ -119,14 +132,13 @@ const shiftReportFields = {
   catEntries: z.array(catEntrySchema).default([]),
   meetAndGreets: z.array(meetAndGreetSchema).default([]),
   playGroups: z.array(playGroupSchema).default([]),
-  kennelsResetIds: distinctCatIds("Kennels must be distinct").default([]),
-  kennelsFlaggedIds: distinctCatIds("Kennels must be distinct").default([]),
-  signTasksCompletedIds: distinctCatIds("Sign tasks must be distinct").default([]),
-  pickupsConfirmedIds: distinctCatIds("Cats must be distinct").default([]),
-  kennelMoveRequestsCompletedIds: distinctCatIds("Kennel move requests must be distinct").default(
-    [],
-  ),
-  checklistActionsCompletedIds: distinctCatIds("Checklist actions must be distinct").default([]),
+  kennelsStatus: z
+    .array(kennelStatusSchema)
+    .refine(
+      (items) => new Set(items.map((i) => i.kennelId)).size === items.length,
+      "Kennels must be distinct",
+    )
+    .default([]),
 };
 
 export type GroupEntryCatDetailInput = z.infer<typeof groupEntryCatDetailSchema>;
@@ -135,13 +147,10 @@ export type GroupCatEntryInput = z.infer<typeof groupCatEntrySchema>;
 export type CatEntryInput = z.infer<typeof catEntrySchema>;
 export type MeetAndGreetInput = z.infer<typeof meetAndGreetSchema>;
 export type PlayGroupInput = z.infer<typeof playGroupSchema>;
+export type KennelStatusInput = z.infer<typeof kennelStatusSchema>;
 
 export const createShiftReportSchema = z
   .object(shiftReportFields)
-  .refine((data) => data.kennelsResetIds.every((id) => !data.kennelsFlaggedIds.includes(id)), {
-    error: "A kennel can't be both reset and flagged in the same report",
-    path: ["kennelsFlaggedIds"],
-  })
   .refine((data) => !data.isSplitShift || data.shiftType !== ShiftType.MidDay, {
     error: "Split shift only applies to Morning or Evening",
     path: ["isSplitShift"],

@@ -5,6 +5,7 @@ import { requireAuth } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
+import { markKennelNeedsReset } from "../lib/kennelResets.ts";
 
 const router = Router();
 
@@ -62,10 +63,7 @@ router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
     });
 
     for (const kennelId of kennelsToVacate) {
-      await tx.kennel.update({
-        where: { id: kennelId },
-        data: { state: KennelState.NeedsReset },
-      });
+      await markKennelNeedsReset(tx, kennelId);
     }
 
     return created;
@@ -128,10 +126,7 @@ router.post("/:id/cats", requireAuth, requireAdmin, async (req, res: Response) =
     await tx.cat.update({ where: { id: data.catId }, data: { groupId: id, kennelId: null } });
 
     if (kennelToVacate !== null) {
-      await tx.kennel.update({
-        where: { id: kennelToVacate },
-        data: { state: KennelState.NeedsReset },
-      });
+      await markKennelNeedsReset(tx, kennelToVacate);
     }
 
     // Bonded is pairwise-only; adding a third+ cat invalidates it.

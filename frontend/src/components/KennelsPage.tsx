@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, ClipboardList } from "lucide-react";
+import { Plus } from "lucide-react";
 import { api } from "../lib/api";
 import { authClient } from "../lib/auth-client";
 import { Role } from "shared/constants/role.ts";
@@ -19,7 +19,6 @@ import {
 import ErrorAlert from "./ErrorAlert";
 import KennelForm from "./KennelForm";
 import KennelMoveRequestForm from "./KennelMoveRequestForm";
-import KennelPrepChecklistForm from "./KennelPrepChecklistForm";
 import KennelsTable, { type Kennel, type KennelMoveRequest } from "./KennelsTable";
 import Navbar from "./Navbar";
 
@@ -27,7 +26,6 @@ type DialogState =
   | { mode: "create" }
   | { mode: "edit"; kennel: Kennel }
   | { mode: "request-move"; kennel: Kennel }
-  | { mode: "create-checklist" }
   | null;
 
 export default function KennelsPage() {
@@ -63,16 +61,10 @@ export default function KennelsPage() {
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-semibold tracking-tight">Kennels</h1>
           {isAdmin && (
-            <div className="flex gap-2">
-              <Button variant="secondary" onClick={() => setDialog({ mode: "create-checklist" })}>
-                <ClipboardList className="mr-1 h-4 w-4" />
-                New Checklist
-              </Button>
-              <Button onClick={() => setDialog({ mode: "create" })}>
-                <Plus className="mr-1 h-4 w-4" />
-                New Kennel
-              </Button>
-            </div>
+            <Button onClick={() => setDialog({ mode: "create" })}>
+              <Plus className="mr-1 h-4 w-4" />
+              New Kennel
+            </Button>
           )}
         </div>
         <KennelsTable
@@ -98,15 +90,11 @@ export default function KennelsPage() {
                       ? "Edit Kennel"
                       : dialog?.mode === "request-move"
                         ? "Request Kennel Move"
-                        : dialog?.mode === "create-checklist"
-                          ? "New Kennel Prep Checklist"
-                          : "Create Kennel"}
+                        : "Create Kennel"}
                   </DialogTitle>
                 </DialogHeader>
                 {dialog?.mode === "request-move" ? (
                   <KennelMoveRequestForm kennel={dialog.kennel} onSuccess={close} />
-                ) : dialog?.mode === "create-checklist" ? (
-                  <KennelPrepChecklistForm onSuccess={close} />
                 ) : (
                   <KennelForm
                     key={dialog?.mode === "edit" ? dialog.kennel.id : "create"}

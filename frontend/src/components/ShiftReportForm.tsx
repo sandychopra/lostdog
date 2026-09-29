@@ -10,9 +10,6 @@ import {
 import { ShiftType } from "shared/constants/shiftType.ts";
 import { CatEntryType } from "shared/constants/catEntryType.ts";
 import { SplitShiftPosition } from "shared/constants/splitShiftPosition.ts";
-import { SignAction } from "shared/constants/signAction.ts";
-import { CatStatus } from "shared/constants/catStatus.ts";
-import { ChecklistActionType } from "shared/constants/checklistActionType.ts";
 import { api } from "../lib/api";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
@@ -22,48 +19,11 @@ import ErrorMessage from "./ErrorMessage";
 import CatEntryFields from "./CatEntryFields";
 import GroupCatEntryFields from "./GroupCatEntryFields";
 import CatNoteGroupList from "./CatNoteGroupList";
-import OpenTaskList from "./OpenTaskList";
+import KennelStatusList from "./KennelStatusList";
 import PhotoUploadSection, { type QueuedPhoto } from "./PhotoUploadSection";
 import type { Cat } from "./CatsTable";
-import { occupantLabel, type Kennel } from "./KennelsTable";
+import type { Kennel } from "./KennelsTable";
 import type { ShiftReport } from "./ShiftReportsTable";
-
-interface SignTask {
-  id: number;
-  action: SignAction;
-  cat: { id: number; name: string };
-  kennel: { id: number; number: number };
-}
-
-interface KennelMoveRequest {
-  id: number;
-  cat: { id: number; name: string } | null;
-  group: { id: number; cats: { id: number; name: string }[] } | null;
-  fromKennel: { id: number; number: number };
-  toKennel: { id: number; number: number };
-}
-
-interface ChecklistAction {
-  id: number;
-  order: number;
-  actionType: ChecklistActionType;
-  completed: boolean;
-  kennel: { id: number; number: number };
-  cat: { id: number; name: string } | null;
-  group: { id: number; cats: { id: number; name: string }[] } | null;
-}
-
-interface KennelPrepChecklist {
-  id: number;
-  actions: ChecklistAction[];
-}
-
-const SIGN_ACTION_LABELS: Record<SignAction, string> = {
-  [SignAction.PostPending]: "Post Adoption Pending sign",
-  [SignAction.PostAdopted]: "Post Adopted sign",
-  [SignAction.RemovePending]: "Remove Adoption Pending sign",
-  [SignAction.RemoveAdopted]: "Remove Adopted sign",
-};
 
 const selectClassName =
   "flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -146,15 +106,11 @@ function mapReportToDefaultValues(report: ShiftReport): CreateShiftReportInput {
       note: playGroup.note,
       catIds: playGroup.cats.map((c) => c.catId),
     })),
-    kennelsResetIds: report.kennelsReset.map((k) => k.kennelId),
-    kennelsFlaggedIds: report.kennelsFlagged.map((k) => k.kennelId),
-    // Always empty on edit-load — these are one-way "mark done now" actions, not
-    // persisted selections to redisplay (a previously-completed item is no
-    // longer Open/eligible, so it won't reappear in either open-items list).
-    signTasksCompletedIds: [],
-    pickupsConfirmedIds: [],
-    kennelMoveRequestsCompletedIds: [],
-    checklistActionsCompletedIds: [],
+    kennelsStatus: report.kennelsStatus.map((k) => ({
+      kennelId: k.kennelId,
+      reportedState: k.reportedState,
+      note: k.note ?? "",
+    })),
   };
 }
 
@@ -198,34 +154,6 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
     },
   });
 
-  const { data: openSignTasks } = useQuery({
-    queryKey: ["sign-tasks", "open"],
-    queryFn: async () => {
-      const { data } = await api.get<{ signTasks: SignTask[] }>("/api/sign-tasks");
-      return data.signTasks;
-    },
-  });
-
-  const { data: openMoveRequests } = useQuery({
-    queryKey: ["kennel-move-requests", "open"],
-    queryFn: async () => {
-      const { data } = await api.get<{ kennelMoveRequests: KennelMoveRequest[] }>(
-        "/api/kennel-move-requests",
-      );
-      return data.kennelMoveRequests;
-    },
-  });
-
-  const { data: openChecklists } = useQuery({
-    queryKey: ["kennel-prep-checklists", "open"],
-    queryFn: async () => {
-      const { data } = await api.get<{ checklists: KennelPrepChecklist[] }>(
-        "/api/kennel-prep-checklists",
-      );
-      return data.checklists;
-    },
-  });
-
   const form = useForm<CreateShiftReportInput>({
     resolver: zodResolver(isEdit ? updateShiftReportSchema : createShiftReportSchema),
     defaultValues: report
@@ -237,41 +165,18 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
           catEntries: [],
           meetAndGreets: [],
           playGroups: [],
-          kennelsResetIds: [],
-          kennelsFlaggedIds: [],
-          signTasksCompletedIds: [],
-          pickupsConfirmedIds: [],
-          kennelMoveRequestsCompletedIds: [],
-          checklistActionsCompletedIds: [],
+          kennelsStatus: [],
         },
   });
 
-  const { control, register, formState, setValue } = form;
+  const { control, register, formState, setError } = form;
 
   const catEntries = useFieldArray({ control, name: "catEntries" });
 
   const shiftType = useWatch({ control, name: "shiftType" });
   const isSplitShift = useWatch({ control, name: "isSplitShift" });
-  const signTasksCompletedIds = useWatch({ control, name: "signTasksCompletedIds" }) ?? [];
-  const pickupsConfirmedIds = useWatch({ control, name: "pickupsConfirmedIds" }) ?? [];
-  const kennelMoveRequestsCompletedIds =
-    useWatch({ control, name: "kennelMoveRequestsCompletedIds" }) ?? [];
-  const checklistActionsCompletedIds =
-    useWatch({ control, name: "checklistActionsCompletedIds" }) ?? [];
-
-  const nextChecklistActions = (openChecklists ?? []).flatMap((checklist) => {
-    const incomplete = [...checklist.actions]
-      .filter((a) => !a.completed)
-      .sort((a, b) => a.order - b.order);
-    const next = incomplete.find((a) => !checklistActionsCompletedIds.includes(a.id));
-    return next ? [next] : [];
-  });
 
   const catOptions = (cats ?? []).map((c) => ({ id: c.id, name: c.name }));
-
-  const pickupCandidates = (cats ?? []).filter(
-    (cat) => cat.status === CatStatus.Adopted && cat.pickupAt !== null,
-  );
 
   const uploadedByEntryId = new Map((report?.catEntries ?? []).map((e) => [e.id, e.photos]));
 
@@ -287,6 +192,21 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
   });
 
   async function onSubmit(data: CreateShiftReportInput) {
+    // A note is only required when the reported state disagrees with the
+    // kennel's current state — checked here for immediate feedback, since
+    // the schema can't see live kennel state; the backend re-checks this
+    // authoritatively regardless.
+    const kennelById = new Map((kennels ?? []).map((k) => [k.id, k]));
+    for (const [index, status] of data.kennelsStatus.entries()) {
+      const kennel = kennelById.get(status.kennelId);
+      if (kennel && status.reportedState !== kennel.state && !status.note) {
+        setError(`kennelsStatus.${index}.note`, {
+          message: `Doesn't match the system's current state (${kennel.state}) — a note is required`,
+        });
+        return;
+      }
+    }
+
     const saved = await mutation.mutateAsync(data);
 
     const knownIds = new Set(
@@ -331,9 +251,6 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
     queryClient.invalidateQueries({ queryKey: ["shiftReports"] });
     queryClient.invalidateQueries({ queryKey: ["cats"] });
     queryClient.invalidateQueries({ queryKey: ["kennels"] });
-    queryClient.invalidateQueries({ queryKey: ["sign-tasks"] });
-    queryClient.invalidateQueries({ queryKey: ["kennel-move-requests"] });
-    queryClient.invalidateQueries({ queryKey: ["kennel-prep-checklists"] });
     queryClient.invalidateQueries({ queryKey: ["announcements"] });
     onSuccess(saved.id);
   }
@@ -402,106 +319,12 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
         </div>
       )}
 
-      <section className="space-y-2">
-        <h2 className="text-lg font-semibold">Kennel Status</h2>
-        <div className="flex flex-wrap gap-2">
-          {(kennels ?? []).map((kennel) => {
-            const hasOccupant = kennel.cats.length > 0 || kennel.groups.length > 0;
-            return (
-              <span
-                key={kennel.id}
-                className="rounded-full border border-input px-2.5 py-0.5 text-xs"
-              >
-                #{kennel.number}: {kennel.state}
-                {hasOccupant ? ` — ${occupantLabel(kennel)}` : ""}
-              </span>
-            );
-          })}
-        </div>
-      </section>
+      <KennelStatusList form={form} kennelOptions={kennels ?? []} />
 
       <div className="space-y-2">
         <Label htmlFor="kennelNotes">Kennel Notes</Label>
         <textarea id="kennelNotes" className={textareaClassName} {...register("kennelNotes")} />
       </div>
-
-      <OpenTaskList
-        title="Signs to post"
-        items={openSignTasks ?? []}
-        getId={(task) => task.id}
-        getLabel={(task) =>
-          `${SIGN_ACTION_LABELS[task.action]} — ${task.cat.name}, kennel ${task.kennel.number}`
-        }
-        checkedIds={signTasksCompletedIds}
-        onToggle={(id) =>
-          setValue(
-            "signTasksCompletedIds",
-            signTasksCompletedIds.includes(id)
-              ? signTasksCompletedIds.filter((x) => x !== id)
-              : [...signTasksCompletedIds, id],
-            { shouldValidate: true },
-          )
-        }
-      />
-
-      <OpenTaskList
-        title="Confirm pickup"
-        items={pickupCandidates}
-        getId={(cat) => cat.id}
-        getLabel={(cat) =>
-          `Confirm pickup — ${cat.name}, kennel ${cat.kennel?.number ?? "—"}, scheduled ${new Date(cat.pickupAt!).toLocaleString()}`
-        }
-        checkedIds={pickupsConfirmedIds}
-        onToggle={(id) =>
-          setValue(
-            "pickupsConfirmedIds",
-            pickupsConfirmedIds.includes(id)
-              ? pickupsConfirmedIds.filter((x) => x !== id)
-              : [...pickupsConfirmedIds, id],
-            { shouldValidate: true },
-          )
-        }
-      />
-
-      <OpenTaskList
-        title="Kennel moves"
-        items={openMoveRequests ?? []}
-        getId={(request) => request.id}
-        getLabel={(request) =>
-          `Move ${request.cat?.name ?? request.group!.cats.map((c) => c.name).join("/")} — kennel ${request.fromKennel.number} → kennel ${request.toKennel.number}`
-        }
-        checkedIds={kennelMoveRequestsCompletedIds}
-        onToggle={(id) =>
-          setValue(
-            "kennelMoveRequestsCompletedIds",
-            kennelMoveRequestsCompletedIds.includes(id)
-              ? kennelMoveRequestsCompletedIds.filter((x) => x !== id)
-              : [...kennelMoveRequestsCompletedIds, id],
-            { shouldValidate: true },
-          )
-        }
-      />
-
-      <OpenTaskList
-        title="Kennel prep"
-        items={nextChecklistActions}
-        getId={(action) => action.id}
-        getLabel={(action) =>
-          action.actionType === ChecklistActionType.ResetKennel
-            ? `Reset kennel ${action.kennel.number}`
-            : `Move ${action.cat?.name ?? action.group!.cats.map((c) => c.name).join("/")} → kennel ${action.kennel.number}`
-        }
-        checkedIds={checklistActionsCompletedIds}
-        onToggle={(id) =>
-          setValue(
-            "checklistActionsCompletedIds",
-            checklistActionsCompletedIds.includes(id)
-              ? checklistActionsCompletedIds.filter((x) => x !== id)
-              : [...checklistActionsCompletedIds, id],
-            { shouldValidate: true },
-          )
-        }
-      />
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">

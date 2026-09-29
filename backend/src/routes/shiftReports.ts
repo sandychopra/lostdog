@@ -6,22 +6,13 @@ import {
   type GroupEntryCatDetailInput,
 } from "shared/schemas/shiftReports.ts";
 import { CatEntryType } from "shared/constants/catEntryType.ts";
-import { KennelState } from "shared/constants/kennelState.ts";
 import { DewormerStatus } from "shared/constants/dewormerStatus.ts";
-import { CatStatus } from "shared/constants/catStatus.ts";
-import { TaskState } from "shared/constants/taskState.ts";
 import { Role } from "shared/constants/role.ts";
 import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
 import { storage } from "../lib/storage.ts";
-import { completeSignTask, confirmPickup, InvalidPickupError } from "../lib/catStatus.ts";
-import { completeKennelMoveRequest, InvalidKennelMoveError } from "../lib/kennelMoveRequests.ts";
-import {
-  completeChecklistAction,
-  InvalidChecklistActionError,
-} from "../lib/kennelPrepChecklists.ts";
 import { Prisma } from "../generated/prisma/client.ts";
 
 const router = Router();
@@ -45,8 +36,7 @@ const shiftReportInclude = {
     orderBy: { id: "asc" },
     include: { cats: { include: { cat: { select: { id: true, name: true } } } } },
   },
-  kennelsReset: { include: { kennel: { select: { id: true, number: true } } } },
-  kennelsFlagged: { include: { kennel: { select: { id: true, number: true } } } },
+  kennelsStatus: { include: { kennel: { select: { id: true, number: true } } } },
   // Report-level photos only — cat-entry-scoped photos are nested under
   // catEntries above instead, so a photo never appears in both places.
   photos: {
@@ -159,47 +149,20 @@ function collectDewormerGivenCatIds(data: CreateShiftReportInput): number[] {
   return [...ids];
 }
 
-// The four completion helpers (completeSignTask/confirmPickup/completeKennelMoveRequest/
-// completeChecklistAction) each throw their own error class for a business-rule violation
-// that validateReferences can't catch up front (e.g. state changed underneath the request
-// between validation and the transaction) — surfaced here as a 409 rather than an
-// unhandled 500, the same pattern cats.ts uses for InvalidCatStatusTransitionError.
-function isCompletionError(err: unknown): err is Error {
-  return (
-    err instanceof InvalidPickupError ||
-    err instanceof InvalidKennelMoveError ||
-    err instanceof InvalidChecklistActionError
-  );
-}
-
 // Runs every existence/membership check before any write — returns false (and
 // has already written the error response) if something doesn't check out.
 async function validateReferences(data: CreateShiftReportInput, res: Response): Promise<boolean> {
-  const catIds = [...new Set([...collectReferencedCatIds(data), ...data.pickupsConfirmedIds])];
+  const catIds = collectReferencedCatIds(data);
   const groupIds = collectReferencedGroupIds(data);
-  const kennelIds = [...new Set([...data.kennelsResetIds, ...data.kennelsFlaggedIds])];
+  const kennelIds = [...new Set(data.kennelsStatus.map((k) => k.kennelId))];
 
-  const [cats, groups, kennels, signTasks, kennelMoveRequests, checklistActions] =
-    await Promise.all([
-      catIds.length > 0 ? prisma.cat.findMany({ where: { id: { in: catIds } } }) : [],
-      groupIds.length > 0
-        ? prisma.group.findMany({ where: { id: { in: groupIds } }, include: { cats: true } })
-        : [],
-      kennelIds.length > 0 ? prisma.kennel.findMany({ where: { id: { in: kennelIds } } }) : [],
-      data.signTasksCompletedIds.length > 0
-        ? prisma.signTask.findMany({ where: { id: { in: data.signTasksCompletedIds } } })
-        : [],
-      data.kennelMoveRequestsCompletedIds.length > 0
-        ? prisma.kennelMoveRequest.findMany({
-            where: { id: { in: data.kennelMoveRequestsCompletedIds } },
-          })
-        : [],
-      data.checklistActionsCompletedIds.length > 0
-        ? prisma.checklistAction.findMany({
-            where: { id: { in: data.checklistActionsCompletedIds } },
-          })
-        : [],
-    ]);
+  const [cats, groups, kennels] = await Promise.all([
+    catIds.length > 0 ? prisma.cat.findMany({ where: { id: { in: catIds } } }) : [],
+    groupIds.length > 0
+      ? prisma.group.findMany({ where: { id: { in: groupIds } }, include: { cats: true } })
+      : [],
+    kennelIds.length > 0 ? prisma.kennel.findMany({ where: { id: { in: kennelIds } } }) : [],
+  ]);
 
   if (cats.length !== catIds.length) {
     res.status(404).json({ error: "One or more cats not found" });
@@ -213,36 +176,17 @@ async function validateReferences(data: CreateShiftReportInput, res: Response): 
     res.status(404).json({ error: "One or more kennels not found" });
     return false;
   }
-  if (signTasks.length !== data.signTasksCompletedIds.length) {
-    res.status(404).json({ error: "One or more sign tasks not found" });
-    return false;
-  }
-  if (signTasks.some((task) => task.state !== TaskState.Open)) {
-    res.status(409).json({ error: "One or more sign tasks are no longer open" });
-    return false;
-  }
-  if (kennelMoveRequests.length !== data.kennelMoveRequestsCompletedIds.length) {
-    res.status(404).json({ error: "One or more kennel move requests not found" });
-    return false;
-  }
-  if (kennelMoveRequests.some((request) => request.state !== TaskState.Open)) {
-    res.status(409).json({ error: "One or more kennel move requests are no longer open" });
-    return false;
-  }
-  if (checklistActions.length !== data.checklistActionsCompletedIds.length) {
-    res.status(404).json({ error: "One or more checklist actions not found" });
-    return false;
-  }
-  if (checklistActions.some((action) => action.completed)) {
-    res.status(409).json({ error: "One or more checklist actions are already completed" });
-    return false;
-  }
 
-  const catById = new Map(cats.map((cat) => [cat.id, cat]));
-  for (const catId of data.pickupsConfirmedIds) {
-    const cat = catById.get(catId)!;
-    if (cat.status !== CatStatus.Adopted || cat.pickupAt === null) {
-      res.status(409).json({ error: "One or more cats are not adopted with a scheduled pickup" });
+  // A note is only required when the volunteer's reported state disagrees
+  // with what the system currently has on file for that kennel — otherwise
+  // this is just a routine confirmation, not a discrepancy worth explaining.
+  const kennelById = new Map(kennels.map((kennel) => [kennel.id, kennel]));
+  for (const status of data.kennelsStatus) {
+    const kennel = kennelById.get(status.kennelId)!;
+    if (status.reportedState !== kennel.state && !status.note) {
+      res.status(400).json({
+        error: `Kennel ${kennel.number}'s reported state doesn't match its current state — a note is required`,
+      });
       return false;
     }
   }
@@ -295,92 +239,54 @@ router.post("/", requireAuth, async (req, res: Response) => {
 
   const authorId = (req as AuthedRequest).session.user.id;
 
-  let shiftReport;
-  try {
-    shiftReport = await prisma.$transaction(async (tx) => {
-      const created = await tx.shiftReport.create({
-        data: {
-          authorId,
-          shiftType: data.shiftType,
-          date: data.date,
-          isSplitShift: data.isSplitShift,
-          splitShiftPosition: data.splitShiftPosition ?? null,
-          cleaningNotes: data.cleaningNotes,
-          suppliesNotes: data.suppliesNotes,
-          kennelNotes: data.kennelNotes,
-          otherNotes: data.otherNotes,
-          catEntries: { create: data.catEntries.map(buildCatEntryCreate) },
-          meetAndGreets: {
-            create: data.meetAndGreets.map((meetAndGreet) => ({
-              note: meetAndGreet.note,
-              cats: { create: meetAndGreet.catIds.map((catId) => ({ catId })) },
-            })),
-          },
-          playGroups: {
-            create: data.playGroups.map((playGroup) => ({
-              note: playGroup.note,
-              cats: { create: playGroup.catIds.map((catId) => ({ catId })) },
-            })),
-          },
-          kennelsReset: { create: data.kennelsResetIds.map((kennelId) => ({ kennelId })) },
-          kennelsFlagged: { create: data.kennelsFlaggedIds.map((kennelId) => ({ kennelId })) },
+  const shiftReport = await prisma.$transaction(async (tx) => {
+    const created = await tx.shiftReport.create({
+      data: {
+        authorId,
+        shiftType: data.shiftType,
+        date: data.date,
+        isSplitShift: data.isSplitShift,
+        splitShiftPosition: data.splitShiftPosition ?? null,
+        cleaningNotes: data.cleaningNotes,
+        suppliesNotes: data.suppliesNotes,
+        kennelNotes: data.kennelNotes,
+        otherNotes: data.otherNotes,
+        catEntries: { create: data.catEntries.map(buildCatEntryCreate) },
+        meetAndGreets: {
+          create: data.meetAndGreets.map((meetAndGreet) => ({
+            note: meetAndGreet.note,
+            cats: { create: meetAndGreet.catIds.map((catId) => ({ catId })) },
+          })),
         },
-      });
-
-      if (data.kennelsResetIds.length > 0) {
-        await tx.kennel.updateMany({
-          where: { id: { in: data.kennelsResetIds } },
-          data: { state: KennelState.Ready },
-        });
-      }
-      if (data.kennelsFlaggedIds.length > 0) {
-        await tx.kennel.updateMany({
-          where: { id: { in: data.kennelsFlaggedIds } },
-          data: { state: KennelState.NeedsReset },
-        });
-      }
-
-      const dewormerCatIds = collectDewormerGivenCatIds(data);
-      if (dewormerCatIds.length > 0) {
-        await tx.cat.updateMany({
-          where: { id: { in: dewormerCatIds } },
-          data: { dewormerStatus: DewormerStatus.Given },
-        });
-      }
-
-      for (const signTaskId of data.signTasksCompletedIds) {
-        await completeSignTask(tx, { signTaskId, actorId: authorId, shiftReportId: created.id });
-      }
-      for (const catId of data.pickupsConfirmedIds) {
-        await confirmPickup(tx, { catId, actorId: authorId, shiftReportId: created.id });
-      }
-      for (const kennelMoveRequestId of data.kennelMoveRequestsCompletedIds) {
-        await completeKennelMoveRequest(tx, {
-          kennelMoveRequestId,
-          actorId: authorId,
-          shiftReportId: created.id,
-        });
-      }
-      const actionsToComplete = await tx.checklistAction.findMany({
-        where: { id: { in: data.checklistActionsCompletedIds } },
-        orderBy: [{ order: "asc" }, { id: "asc" }],
-      });
-      for (const action of actionsToComplete) {
-        await completeChecklistAction(tx, { checklistActionId: action.id, actorId: authorId });
-      }
-
-      return tx.shiftReport.findUniqueOrThrow({
-        where: { id: created.id },
-        include: shiftReportInclude,
-      });
+        playGroups: {
+          create: data.playGroups.map((playGroup) => ({
+            note: playGroup.note,
+            cats: { create: playGroup.catIds.map((catId) => ({ catId })) },
+          })),
+        },
+        kennelsStatus: {
+          create: data.kennelsStatus.map((k) => ({
+            kennelId: k.kennelId,
+            reportedState: k.reportedState,
+            note: k.note ?? null,
+          })),
+        },
+      },
     });
-  } catch (err) {
-    if (isCompletionError(err)) {
-      res.status(409).json({ error: err.message });
-      return;
+
+    const dewormerCatIds = collectDewormerGivenCatIds(data);
+    if (dewormerCatIds.length > 0) {
+      await tx.cat.updateMany({
+        where: { id: { in: dewormerCatIds } },
+        data: { dewormerStatus: DewormerStatus.Given },
+      });
     }
-    throw err;
-  }
+
+    return tx.shiftReport.findUniqueOrThrow({
+      where: { id: created.id },
+      include: shiftReportInclude,
+    });
+  });
 
   res.status(201).json({ shiftReport });
 });
@@ -432,190 +338,140 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
     .map((entry) => entry.id)
     .filter((entryId) => !incomingIds.has(entryId));
 
-  try {
-    await prisma.$transaction(
-      async (tx) => {
-        if (removedEntryIds.length > 0) {
-          await tx.catEntry.deleteMany({ where: { id: { in: removedEntryIds } } });
+  await prisma.$transaction(
+    async (tx) => {
+      if (removedEntryIds.length > 0) {
+        await tx.catEntry.deleteMany({ where: { id: { in: removedEntryIds } } });
+      }
+
+      for (const entry of data.catEntries) {
+        if (entry.id === undefined) {
+          await tx.catEntry.create({
+            data: { ...buildCatEntryCreate(entry), shiftReportId: id },
+          });
+          continue;
         }
 
-        for (const entry of data.catEntries) {
-          if (entry.id === undefined) {
-            await tx.catEntry.create({
-              data: { ...buildCatEntryCreate(entry), shiftReportId: id },
-            });
-            continue;
-          }
-
-          if (entry.entryType === CatEntryType.Individual) {
-            await tx.catEntry.update({
-              where: { id: entry.id },
-              data: {
-                catId: entry.catId,
-                fecalScore: entry.fecalScore ?? null,
-                pee: entry.pee,
-                peePooNotes: entry.peePooNotes,
-                dryFoodAmount: entry.dryFoodAmount,
-                wetFoodAmount: entry.wetFoodAmount,
-                wetFoodBrand: entry.wetFoodBrand,
-                foodNotes: entry.foodNotes,
-                snackTreat: entry.snackTreat,
-                snackTreatNote: entry.snackTreatNote,
-                medicalNotes: entry.medicalNotes,
-                dewormerGiven: entry.dewormerGiven,
-                probioticGiven: entry.probioticGiven,
-                behaviorNotes: entry.behaviorNotes,
-                otherNotes: entry.otherNotes,
-                nailTrim: entry.nailTrim,
-              },
-            });
-            continue;
-          }
-
+        if (entry.entryType === CatEntryType.Individual) {
           await tx.catEntry.update({
             where: { id: entry.id },
             data: {
-              groupId: entry.groupId,
+              catId: entry.catId,
               fecalScore: entry.fecalScore ?? null,
               pee: entry.pee,
               peePooNotes: entry.peePooNotes,
               dryFoodAmount: entry.dryFoodAmount,
+              wetFoodAmount: entry.wetFoodAmount,
+              wetFoodBrand: entry.wetFoodBrand,
               foodNotes: entry.foodNotes,
+              snackTreat: entry.snackTreat,
+              snackTreatNote: entry.snackTreatNote,
+              medicalNotes: entry.medicalNotes,
+              dewormerGiven: entry.dewormerGiven,
+              probioticGiven: entry.probioticGiven,
+              behaviorNotes: entry.behaviorNotes,
               otherNotes: entry.otherNotes,
+              nailTrim: entry.nailTrim,
             },
           });
-
-          const currentDetails = await tx.groupEntryCatDetail.findMany({
-            where: { catEntryId: entry.id },
-            select: { catId: true },
-          });
-          const incomingCatIds = new Set(entry.catDetails.map((detail) => detail.catId));
-          const droppedCatIds = currentDetails
-            .map((detail) => detail.catId)
-            .filter((catId) => !incomingCatIds.has(catId));
-
-          if (droppedCatIds.length > 0) {
-            await tx.groupEntryCatDetail.deleteMany({
-              where: { catEntryId: entry.id, catId: { in: droppedCatIds } },
-            });
-          }
-
-          for (const detail of entry.catDetails) {
-            await tx.groupEntryCatDetail.upsert({
-              where: { catEntryId_catId: { catEntryId: entry.id, catId: detail.catId } },
-              create: { catEntryId: entry.id, catId: detail.catId, ...detailFields(detail) },
-              update: detailFields(detail),
-            });
-          }
+          continue;
         }
 
-        await tx.meetAndGreet.deleteMany({ where: { shiftReportId: id } });
-        for (const meetAndGreet of data.meetAndGreets) {
-          await tx.meetAndGreet.create({
-            data: {
-              shiftReportId: id,
-              note: meetAndGreet.note,
-              cats: { create: meetAndGreet.catIds.map((catId) => ({ catId })) },
-            },
-          });
-        }
-
-        await tx.playGroup.deleteMany({ where: { shiftReportId: id } });
-        for (const playGroup of data.playGroups) {
-          await tx.playGroup.create({
-            data: {
-              shiftReportId: id,
-              note: playGroup.note,
-              cats: { create: playGroup.catIds.map((catId) => ({ catId })) },
-            },
-          });
-        }
-
-        await tx.shiftReportKennelReset.deleteMany({ where: { shiftReportId: id } });
-        if (data.kennelsResetIds.length > 0) {
-          await tx.shiftReportKennelReset.createMany({
-            data: data.kennelsResetIds.map((kennelId) => ({ shiftReportId: id, kennelId })),
-          });
-        }
-
-        await tx.shiftReportKennelFlag.deleteMany({ where: { shiftReportId: id } });
-        if (data.kennelsFlaggedIds.length > 0) {
-          await tx.shiftReportKennelFlag.createMany({
-            data: data.kennelsFlaggedIds.map((kennelId) => ({ shiftReportId: id, kennelId })),
-          });
-        }
-
-        await tx.shiftReport.update({
-          where: { id },
+        await tx.catEntry.update({
+          where: { id: entry.id },
           data: {
-            shiftType: data.shiftType,
-            date: data.date,
-            isSplitShift: data.isSplitShift,
-            splitShiftPosition: data.splitShiftPosition ?? null,
-            cleaningNotes: data.cleaningNotes,
-            suppliesNotes: data.suppliesNotes,
-            kennelNotes: data.kennelNotes,
-            otherNotes: data.otherNotes,
+            groupId: entry.groupId,
+            fecalScore: entry.fecalScore ?? null,
+            pee: entry.pee,
+            peePooNotes: entry.peePooNotes,
+            dryFoodAmount: entry.dryFoodAmount,
+            foodNotes: entry.foodNotes,
+            otherNotes: entry.otherNotes,
           },
         });
 
-        if (data.kennelsResetIds.length > 0) {
-          await tx.kennel.updateMany({
-            where: { id: { in: data.kennelsResetIds } },
-            data: { state: KennelState.Ready },
-          });
-        }
-        if (data.kennelsFlaggedIds.length > 0) {
-          await tx.kennel.updateMany({
-            where: { id: { in: data.kennelsFlaggedIds } },
-            data: { state: KennelState.NeedsReset },
-          });
-        }
-
-        const dewormerCatIds = collectDewormerGivenCatIds(data);
-        if (dewormerCatIds.length > 0) {
-          await tx.cat.updateMany({
-            where: { id: { in: dewormerCatIds } },
-            data: { dewormerStatus: DewormerStatus.Given },
-          });
-        }
-
-        // Both arrays only ever list currently-open/eligible items in the first
-        // place (validateReferences already re-checked that above), so this is
-        // naturally additive-only — a previously-completed id won't reappear here.
-        for (const signTaskId of data.signTasksCompletedIds) {
-          await completeSignTask(tx, { signTaskId, actorId: session.user.id, shiftReportId: id });
-        }
-        for (const catId of data.pickupsConfirmedIds) {
-          await confirmPickup(tx, { catId, actorId: session.user.id, shiftReportId: id });
-        }
-        for (const kennelMoveRequestId of data.kennelMoveRequestsCompletedIds) {
-          await completeKennelMoveRequest(tx, {
-            kennelMoveRequestId,
-            actorId: session.user.id,
-            shiftReportId: id,
-          });
-        }
-        const actionsToComplete = await tx.checklistAction.findMany({
-          where: { id: { in: data.checklistActionsCompletedIds } },
-          orderBy: [{ order: "asc" }, { id: "asc" }],
+        const currentDetails = await tx.groupEntryCatDetail.findMany({
+          where: { catEntryId: entry.id },
+          select: { catId: true },
         });
-        for (const action of actionsToComplete) {
-          await completeChecklistAction(tx, {
-            checklistActionId: action.id,
-            actorId: session.user.id,
+        const incomingCatIds = new Set(entry.catDetails.map((detail) => detail.catId));
+        const droppedCatIds = currentDetails
+          .map((detail) => detail.catId)
+          .filter((catId) => !incomingCatIds.has(catId));
+
+        if (droppedCatIds.length > 0) {
+          await tx.groupEntryCatDetail.deleteMany({
+            where: { catEntryId: entry.id, catId: { in: droppedCatIds } },
           });
         }
-      },
-      { timeout: 15_000 },
-    );
-  } catch (err) {
-    if (isCompletionError(err)) {
-      res.status(409).json({ error: err.message });
-      return;
-    }
-    throw err;
-  }
+
+        for (const detail of entry.catDetails) {
+          await tx.groupEntryCatDetail.upsert({
+            where: { catEntryId_catId: { catEntryId: entry.id, catId: detail.catId } },
+            create: { catEntryId: entry.id, catId: detail.catId, ...detailFields(detail) },
+            update: detailFields(detail),
+          });
+        }
+      }
+
+      await tx.meetAndGreet.deleteMany({ where: { shiftReportId: id } });
+      for (const meetAndGreet of data.meetAndGreets) {
+        await tx.meetAndGreet.create({
+          data: {
+            shiftReportId: id,
+            note: meetAndGreet.note,
+            cats: { create: meetAndGreet.catIds.map((catId) => ({ catId })) },
+          },
+        });
+      }
+
+      await tx.playGroup.deleteMany({ where: { shiftReportId: id } });
+      for (const playGroup of data.playGroups) {
+        await tx.playGroup.create({
+          data: {
+            shiftReportId: id,
+            note: playGroup.note,
+            cats: { create: playGroup.catIds.map((catId) => ({ catId })) },
+          },
+        });
+      }
+
+      await tx.shiftReportKennelStatus.deleteMany({ where: { shiftReportId: id } });
+      if (data.kennelsStatus.length > 0) {
+        await tx.shiftReportKennelStatus.createMany({
+          data: data.kennelsStatus.map((k) => ({
+            shiftReportId: id,
+            kennelId: k.kennelId,
+            reportedState: k.reportedState,
+            note: k.note ?? null,
+          })),
+        });
+      }
+
+      await tx.shiftReport.update({
+        where: { id },
+        data: {
+          shiftType: data.shiftType,
+          date: data.date,
+          isSplitShift: data.isSplitShift,
+          splitShiftPosition: data.splitShiftPosition ?? null,
+          cleaningNotes: data.cleaningNotes,
+          suppliesNotes: data.suppliesNotes,
+          kennelNotes: data.kennelNotes,
+          otherNotes: data.otherNotes,
+        },
+      });
+
+      const dewormerCatIds = collectDewormerGivenCatIds(data);
+      if (dewormerCatIds.length > 0) {
+        await tx.cat.updateMany({
+          where: { id: { in: dewormerCatIds } },
+          data: { dewormerStatus: DewormerStatus.Given },
+        });
+      }
+    },
+    { timeout: 15_000 },
+  );
 
   const shiftReport = await prisma.shiftReport.findUniqueOrThrow({
     where: { id },

@@ -27,7 +27,6 @@ import {
   type CatEntry,
   type ShiftReport,
 } from "./ShiftReportsTable";
-import { occupantLabel, type Kennel } from "./KennelsTable";
 import Navbar from "./Navbar";
 
 function shiftTypeLabel(shiftType: string): string {
@@ -149,16 +148,6 @@ export default function ShiftReportDetailPage() {
     },
   });
 
-  // Live kennel state for the Kennel Status section — reflects current
-  // occupancy, not occupancy at the time this report was submitted.
-  const { data: kennels } = useQuery({
-    queryKey: ["kennels"],
-    queryFn: async () => {
-      const { data } = await api.get<{ kennels: Kennel[] }>("/api/kennels");
-      return data.kennels;
-    },
-  });
-
   const deleteMutation = useMutation({
     mutationFn: () => api.delete(`/api/shift-reports/${id}`),
     onSuccess: () => {
@@ -223,45 +212,17 @@ export default function ShiftReportDetailPage() {
               </div>
             </div>
 
-            {kennels && kennels.length > 0 && (
+            {report.kennelsStatus.length > 0 && (
               <section className="mt-6 space-y-2">
                 <h2 className="text-lg font-semibold">Kennel Status</h2>
                 <div className="flex flex-wrap gap-2">
-                  {kennels.map((kennel) => {
-                    const hasOccupant = kennel.cats.length > 0 || kennel.groups.length > 0;
-                    return (
-                      <span
-                        key={kennel.id}
-                        className="rounded-full border border-input px-2.5 py-0.5 text-xs"
-                      >
-                        #{kennel.number}: {kennel.state}
-                        {hasOccupant ? ` — ${occupantLabel(kennel)}` : ""}
-                      </span>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
-
-            {report.kennelsReset.length > 0 && (
-              <section className="mt-6 space-y-2">
-                <h2 className="text-lg font-semibold">Kennels Reset</h2>
-                <div className="flex flex-wrap gap-2">
-                  {report.kennelsReset.map((k) => (
-                    <Badge key={k.kennelId}>#{k.kennel.number}</Badge>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {report.kennelsFlagged.length > 0 && (
-              <section className="mt-6 space-y-2">
-                <h2 className="text-lg font-semibold">Kennels Flagged</h2>
-                <div className="flex flex-wrap gap-2">
-                  {report.kennelsFlagged.map((k) => (
-                    <Badge key={k.kennelId} variant="destructive">
-                      #{k.kennel.number}
-                    </Badge>
+                  {report.kennelsStatus.map((k) => (
+                    <div key={k.kennelId} className="rounded-md border border-input p-2 text-sm">
+                      <Badge variant={k.note ? "destructive" : "secondary"}>
+                        #{k.kennel.number}: {k.reportedState}
+                      </Badge>
+                      {k.note && <p className="mt-1">{k.note}</p>}
+                    </div>
                   ))}
                 </div>
               </section>

@@ -4,8 +4,9 @@ export const AnnouncementType = {
   Adopted: "Adopted",
   BackAvailable: "BackAvailable",
   ReturnedToRcc: "ReturnedToRcc",
-  ChecklistAssigned: "ChecklistAssigned",
   KennelMoveRequested: "KennelMoveRequested",
+  KennelNeedsReset: "KennelNeedsReset",
+  Manual: "Manual",
 } as const;
 
 export type AnnouncementType = (typeof AnnouncementType)[keyof typeof AnnouncementType];

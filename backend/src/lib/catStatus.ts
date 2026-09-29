@@ -2,10 +2,10 @@ import { CatStatus } from "shared/constants/catStatus.ts";
 import { SignAction } from "shared/constants/signAction.ts";
 import { AnnouncementType } from "shared/constants/announcementType.ts";
 import { TaskState } from "shared/constants/taskState.ts";
-import { KennelState } from "shared/constants/kennelState.ts";
 import { VALID_STATUS_TRANSITIONS } from "shared/constants/catStatusTransitions.ts";
 import type { CreateCatInput } from "shared/schemas/cats.ts";
 import type { Prisma } from "../generated/prisma/client.ts";
+import { markKennelNeedsReset } from "./kennelResets.ts";
 
 export class InvalidCatStatusTransitionError extends Error {}
 export class InvalidPickupError extends Error {}
@@ -43,10 +43,10 @@ async function wasSignPosted(
   return last?.state === TaskState.Done;
 }
 
-async function resolveDrivingAnnouncement(tx: Tx, catId: number): Promise<void> {
+async function resolveDrivingAnnouncement(tx: Tx, catId: number, actorId: string): Promise<void> {
   await tx.announcement.updateMany({
     where: { catId, type: { in: DRIVING_ANNOUNCEMENT_TYPES }, resolved: false },
-    data: { resolved: true },
+    data: { resolved: true, resolvedAt: new Date(), resolvedById: actorId },
   });
 }
 
@@ -103,7 +103,7 @@ async function maybeCreateRemoveSignTask(
  */
 export async function changeCatStatus(
   tx: Tx,
-  args: { catId: number; targetStatus: CatStatus; pickupAt?: Date | null },
+  args: { catId: number; targetStatus: CatStatus; pickupAt?: Date | null; actorId: string },
 ) {
   const cat = await tx.cat.findUniqueOrThrow({ where: { id: args.catId } });
 
@@ -136,7 +136,7 @@ export async function changeCatStatus(
   const isPendingToAdoptedForwardStep =
     cat.status === CatStatus.PendingAdoption && args.targetStatus === CatStatus.Adopted;
   if (!isPendingToAdoptedForwardStep) {
-    await resolveDrivingAnnouncement(tx, args.catId);
+    await resolveDrivingAnnouncement(tx, args.catId, args.actorId);
   }
 
   if (args.targetStatus === CatStatus.PendingAdoption || args.targetStatus === CatStatus.Adopted) {
@@ -188,13 +188,10 @@ export async function changeCatStatus(
 }
 
 /**
- * The one Volunteer-triggerable transition (adopted -> picked up), only ever
- * called from a ShiftReport's "Confirm pickup" processing.
+ * The one Volunteer-triggerable transition (adopted -> picked up), completed
+ * directly from the Announcements page.
  */
-export async function confirmPickup(
-  tx: Tx,
-  args: { catId: number; actorId: string; shiftReportId: number },
-) {
+export async function confirmPickup(tx: Tx, args: { catId: number; actorId: string }) {
   const cat = await tx.cat.findUniqueOrThrow({ where: { id: args.catId } });
   if (cat.status !== CatStatus.Adopted || cat.pickupAt === null) {
     throw new InvalidPickupError(`Cat ${args.catId} is not adopted with a scheduled pickup`);
@@ -207,13 +204,10 @@ export async function confirmPickup(
   // kennel reset + no open sign task, all set right here) — so resolving them
   // now is authoritative; the announcements feed never needs to re-derive this
   // at read time.
-  await resolveDrivingAnnouncement(tx, args.catId);
+  await resolveDrivingAnnouncement(tx, args.catId, args.actorId);
 
   if (cat.kennelId !== null) {
-    await tx.kennel.update({
-      where: { id: cat.kennelId },
-      data: { state: KennelState.NeedsReset },
-    });
+    await markKennelNeedsReset(tx, cat.kennelId);
   }
 
   // No new SignTask here — the Adopted sign's removal is implied by the kennel
@@ -224,17 +218,19 @@ export async function confirmPickup(
       status: CatStatus.PickedUp,
       pickedUpById: args.actorId,
       pickedUpAt: new Date(),
-      pickedUpOnReportId: args.shiftReportId,
     },
   });
 }
 
 /** Returns a Cat to the RCC: deactivates it and mirrors the same sign-task/announcement rules as a status change. */
-export async function returnCatToRcc(tx: Tx, args: { catId: number; reason?: string }) {
+export async function returnCatToRcc(
+  tx: Tx,
+  args: { catId: number; reason?: string; actorId: string },
+) {
   const cat = await tx.cat.findUniqueOrThrow({ where: { id: args.catId } });
 
   await cancelOpenSignTasks(tx, args.catId);
-  await resolveDrivingAnnouncement(tx, args.catId);
+  await resolveDrivingAnnouncement(tx, args.catId, args.actorId);
 
   const announcement = await tx.announcement.create({
     data: { type: AnnouncementType.ReturnedToRcc, catId: args.catId },
@@ -247,10 +243,7 @@ export async function returnCatToRcc(tx: Tx, args: { catId: number; reason?: str
   });
 
   if (cat.kennelId !== null) {
-    await tx.kennel.update({
-      where: { id: cat.kennelId },
-      data: { state: KennelState.NeedsReset },
-    });
+    await markKennelNeedsReset(tx, cat.kennelId);
   }
 
   return tx.cat.update({
@@ -266,11 +259,8 @@ export async function createCatWithArrivalAnnouncement(tx: Tx, data: CreateCatIn
   return cat;
 }
 
-/** Completes an open SignTask from a ShiftReport submission. */
-export async function completeSignTask(
-  tx: Tx,
-  args: { signTaskId: number; actorId: string; shiftReportId: number },
-) {
+/** Completes an open SignTask, from the Announcements page. */
+export async function completeSignTask(tx: Tx, args: { signTaskId: number; actorId: string }) {
   const task = await tx.signTask.findUniqueOrThrow({ where: { id: args.signTaskId } });
   if (task.state !== TaskState.Open) {
     throw new Error(`Sign task ${args.signTaskId} is not open`);
@@ -282,18 +272,17 @@ export async function completeSignTask(
       state: TaskState.Done,
       completedById: args.actorId,
       completedAt: new Date(),
-      completedOnReportId: args.shiftReportId,
     },
   });
 
   // A RemovePending/RemoveAdopted task completing is exactly what "the sign has
-  // come down" means for a BackAvailable announcement (FR-88's one remaining
-  // resolution condition) — flip it here since this is the only place that
-  // happens, rather than re-deriving it at read time.
+  // come down" means for a BackAvailable (or ReturnedToRcc) announcement (FR-88's
+  // one remaining resolution condition) — flip it here since this is the only
+  // place that happens, rather than re-deriving it at read time.
   if (updated.action === SignAction.RemovePending || updated.action === SignAction.RemoveAdopted) {
     await tx.announcement.update({
       where: { id: updated.announcementId },
-      data: { resolved: true },
+      data: { resolved: true, resolvedAt: new Date(), resolvedById: args.actorId },
     });
   }
 

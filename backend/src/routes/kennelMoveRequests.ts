@@ -8,6 +8,7 @@ import { prisma } from "../lib/prisma.ts";
 import {
   createKennelMoveRequest,
   cancelKennelMoveRequest,
+  completeKennelMoveRequest,
   InvalidKennelMoveError,
 } from "../lib/kennelMoveRequests.ts";
 
@@ -72,6 +73,7 @@ router.post("/", requireAuth, requireAdmin, async (req: Request, res: Response) 
 
 router.patch("/:id/cancel", requireAuth, requireAdmin, async (req, res: Response) => {
   const id = Number(req.params.id);
+  const actorId = (req as AuthedRequest).session.user.id;
 
   const existing = await prisma.kennelMoveRequest.findUnique({ where: { id } });
   if (!existing) {
@@ -80,7 +82,9 @@ router.patch("/:id/cancel", requireAuth, requireAdmin, async (req, res: Response
   }
 
   try {
-    await prisma.$transaction((tx) => cancelKennelMoveRequest(tx, { kennelMoveRequestId: id }));
+    await prisma.$transaction((tx) =>
+      cancelKennelMoveRequest(tx, { kennelMoveRequestId: id, actorId }),
+    );
   } catch (err) {
     if (err instanceof InvalidKennelMoveError) {
       res.status(409).json({ error: err.message });
@@ -90,6 +94,36 @@ router.patch("/:id/cancel", requireAuth, requireAdmin, async (req, res: Response
   }
 
   res.json({ message: "Kennel move request cancelled" });
+});
+
+// Completed directly from the Announcements page — any authenticated user, same as a Sign Task.
+router.patch("/:id/complete", requireAuth, async (req, res: Response) => {
+  const id = Number(req.params.id);
+  const actorId = (req as AuthedRequest).session.user.id;
+
+  const existing = await prisma.kennelMoveRequest.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Kennel move request not found" });
+    return;
+  }
+
+  try {
+    await prisma.$transaction((tx) =>
+      completeKennelMoveRequest(tx, { kennelMoveRequestId: id, actorId }),
+    );
+  } catch (err) {
+    if (err instanceof InvalidKennelMoveError) {
+      res.status(409).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
+
+  const kennelMoveRequest = await prisma.kennelMoveRequest.findUniqueOrThrow({
+    where: { id },
+    include: kennelMoveRequestInclude,
+  });
+  res.json({ kennelMoveRequest });
 });
 
 export default router;

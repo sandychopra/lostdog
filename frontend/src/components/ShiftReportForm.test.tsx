@@ -21,11 +21,15 @@ const get = mock(async (url: string) => {
     };
   }
   if (url === "/api/kennels") {
-    return { data: { kennels: [] } };
+    return {
+      data: {
+        kennels: [{ id: 5, number: 5, state: "Ready", cats: [], groups: [] }],
+      },
+    };
   }
   throw new Error(`Unexpected GET ${url}`);
 });
-const post = mock(async () => ({
+const post = mock(async (_url: string, _payload: unknown) => ({
   data: { shiftReport: { id: 1, catEntries: [] } },
 }));
 
@@ -122,9 +126,39 @@ describe("ShiftReportForm", () => {
     expect(screen.queryByText("Water noted (shared)")).not.toBeInTheDocument();
   });
 
-  test("has a Kennel Notes field after Kennels Reset/Flagged", () => {
+  test("has a Kennel Notes field after Kennel Status", () => {
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
     expect(screen.getByLabelText("Kennel Notes")).toBeInTheDocument();
+  });
+
+  test("every kennel is listed, defaulted to its current state", async () => {
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+
+    expect(await screen.findByLabelText("Kennel 5")).toHaveValue("Ready");
+  });
+
+  test("reporting a state that conflicts with the current one requires a note", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+
+    await user.selectOptions(await screen.findByLabelText("Kennel 5"), "Occupied");
+    await user.click(screen.getByRole("button", { name: "Submit Report" }));
+
+    expect(await screen.findByText(/a note is required/i)).toBeInTheDocument();
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  test("confirming the current state needs no note", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+
+    await screen.findByLabelText("Kennel 5");
+    await user.click(screen.getByRole("button", { name: "Submit Report" }));
+
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    const payload = post.mock.calls[0]?.[1] as { kennelsStatus: unknown[] };
+    expect(payload.kennelsStatus).toHaveLength(1);
+    expect(payload.kennelsStatus[0]).toMatchObject({ kennelId: 5, reportedState: "Ready" });
   });
 });

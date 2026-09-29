@@ -1,17 +1,24 @@
 import { ChecklistActionType } from "shared/constants/checklistActionType.ts";
 import { KennelState } from "shared/constants/kennelState.ts";
-import { AnnouncementType } from "shared/constants/announcementType.ts";
-import type { CreateChecklistInput } from "shared/schemas/kennelPrepChecklists.ts";
 import type { Prisma } from "../generated/prisma/client.ts";
 
 export class InvalidChecklistActionError extends Error {}
 
 type Tx = Prisma.TransactionClient;
 
-/** Creates a KennelPrepChecklist with its ordered actions and triggering Announcement together. */
-export async function createChecklist(
+interface TaskInput {
+  actionType: ChecklistActionType;
+  description?: string;
+  kennelId?: number;
+  catId?: number;
+  groupId?: number;
+}
+
+/** Creates a KennelPrepChecklist with its ordered tasks — no Announcement of
+ * its own; the caller (an ad-hoc Manual announcement) owns that. */
+export async function createChecklistTasks(
   tx: Tx,
-  args: { actions: CreateChecklistInput["actions"]; createdById: string },
+  args: { actions: TaskInput[]; createdById: string },
 ) {
   const checklist = await tx.kennelPrepChecklist.create({
     data: { createdById: args.createdById },
@@ -22,14 +29,11 @@ export async function createChecklist(
       checklistId: checklist.id,
       order: index,
       actionType: action.actionType,
-      kennelId: action.kennelId,
+      kennelId: action.kennelId ?? null,
       catId: action.catId ?? null,
       groupId: action.groupId ?? null,
+      description: action.description ?? null,
     })),
-  });
-
-  await tx.announcement.create({
-    data: { type: AnnouncementType.ChecklistAssigned, checklistId: checklist.id },
   });
 
   return tx.kennelPrepChecklist.findUniqueOrThrow({
@@ -38,7 +42,7 @@ export async function createChecklist(
   });
 }
 
-/** Completes the next-in-order ChecklistAction (from a ShiftReport's "Kennel prep" section). */
+/** Completes the next-in-order ChecklistAction, from the Announcements page. */
 export async function completeChecklistAction(
   tx: Tx,
   args: { checklistActionId: number; actorId: string },
@@ -60,29 +64,33 @@ export async function completeChecklistAction(
   }
 
   if (action.actionType === ChecklistActionType.ResetKennel) {
-    await tx.kennel.update({ where: { id: action.kennelId }, data: { state: KennelState.Ready } });
-  } else {
+    await tx.kennel.update({
+      where: { id: action.kennelId! },
+      data: { state: KennelState.Ready },
+    });
+  } else if (action.actionType === ChecklistActionType.MoveCat) {
     const [catCount, groupCount] = await Promise.all([
-      tx.cat.count({ where: { kennelId: action.kennelId } }),
-      tx.group.count({ where: { kennelId: action.kennelId } }),
+      tx.cat.count({ where: { kennelId: action.kennelId! } }),
+      tx.group.count({ where: { kennelId: action.kennelId! } }),
     ]);
     if (catCount > 0 || groupCount > 0) {
       throw new InvalidChecklistActionError("Destination kennel is already occupied");
     }
 
     if (action.catId !== null) {
-      await tx.cat.update({ where: { id: action.catId }, data: { kennelId: action.kennelId } });
+      await tx.cat.update({ where: { id: action.catId! }, data: { kennelId: action.kennelId! } });
     } else {
       await tx.group.update({
         where: { id: action.groupId! },
-        data: { kennelId: action.kennelId },
+        data: { kennelId: action.kennelId! },
       });
     }
     await tx.kennel.update({
-      where: { id: action.kennelId },
+      where: { id: action.kennelId! },
       data: { state: KennelState.Occupied },
     });
   }
+  // FreeText: no side effect beyond marking it completed below.
 
   await tx.checklistAction.update({
     where: { id: action.id },
@@ -95,7 +103,7 @@ export async function completeChecklistAction(
   if (remainingIncomplete === 0) {
     await tx.announcement.updateMany({
       where: { checklistId: action.checklistId },
-      data: { resolved: true },
+      data: { resolved: true, resolvedAt: new Date(), resolvedById: args.actorId },
     });
   }
 }

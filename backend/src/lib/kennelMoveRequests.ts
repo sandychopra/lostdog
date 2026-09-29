@@ -2,6 +2,7 @@ import { TaskState } from "shared/constants/taskState.ts";
 import { KennelState } from "shared/constants/kennelState.ts";
 import { AnnouncementType } from "shared/constants/announcementType.ts";
 import type { Prisma } from "../generated/prisma/client.ts";
+import { markKennelNeedsReset } from "./kennelResets.ts";
 
 export class InvalidKennelMoveError extends Error {}
 
@@ -37,10 +38,10 @@ export async function createKennelMoveRequest(
   });
 }
 
-/** Performs the requested move (from a ShiftReport's "Kennel moves" section), and resolves its Announcement. */
+/** Performs the requested move, from the Announcements page, and resolves its Announcement. */
 export async function completeKennelMoveRequest(
   tx: Tx,
-  args: { kennelMoveRequestId: number; actorId: string; shiftReportId: number },
+  args: { kennelMoveRequestId: number; actorId: string },
 ) {
   const request = await tx.kennelMoveRequest.findUniqueOrThrow({
     where: { id: args.kennelMoveRequestId },
@@ -76,10 +77,7 @@ export async function completeKennelMoveRequest(
     });
   }
 
-  await tx.kennel.update({
-    where: { id: request.fromKennelId },
-    data: { state: KennelState.NeedsReset },
-  });
+  await markKennelNeedsReset(tx, request.fromKennelId);
   await tx.kennel.update({
     where: { id: request.toKennelId },
     data: { state: KennelState.Occupied },
@@ -91,20 +89,22 @@ export async function completeKennelMoveRequest(
       state: TaskState.Done,
       completedById: args.actorId,
       completedAt: new Date(),
-      completedOnReportId: args.shiftReportId,
     },
   });
 
   if (request.announcementId !== null) {
     await tx.announcement.update({
       where: { id: request.announcementId },
-      data: { resolved: true },
+      data: { resolved: true, resolvedAt: new Date(), resolvedById: args.actorId },
     });
   }
 }
 
 /** Cancels an open KennelMoveRequest and resolves its Announcement. */
-export async function cancelKennelMoveRequest(tx: Tx, args: { kennelMoveRequestId: number }) {
+export async function cancelKennelMoveRequest(
+  tx: Tx,
+  args: { kennelMoveRequestId: number; actorId: string },
+) {
   const request = await tx.kennelMoveRequest.findUniqueOrThrow({
     where: { id: args.kennelMoveRequestId },
   });
@@ -120,7 +120,7 @@ export async function cancelKennelMoveRequest(tx: Tx, args: { kennelMoveRequestI
   if (request.announcementId !== null) {
     await tx.announcement.update({
       where: { id: request.announcementId },
-      data: { resolved: true },
+      data: { resolved: true, resolvedAt: new Date(), resolvedById: args.actorId },
     });
   }
 }

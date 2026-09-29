@@ -68,7 +68,6 @@ erDiagram
     DateTime pickup_at "❓"
     String picked_up_by_id "❓"
     DateTime picked_up_at "❓"
-    Int picked_up_on_report_id "❓"
     DewormerStatus dewormer_status 
     DateTime dewormer_due_date "❓"
     Boolean needs_probiotic 
@@ -118,15 +117,11 @@ erDiagram
     }
   
 
-  "shift_report_kennel_reset" {
+  "shift_report_kennel_status" {
     Int shift_report_id 
     Int kennel_id 
-    }
-  
-
-  "shift_report_kennel_flag" {
-    Int shift_report_id 
-    Int kennel_id 
+    KennelState reported_state 
+    String note "❓"
     }
   
 
@@ -230,9 +225,10 @@ erDiagram
     Int checklist_id 
     Int order 
     ChecklistActionType action_type 
-    Int kennel_id 
+    Int kennel_id "❓"
     Int cat_id "❓"
     Int group_id "❓"
+    String description "❓"
     Boolean completed 
     String completed_by_id "❓"
     DateTime completed_at "❓"
@@ -244,7 +240,16 @@ erDiagram
     AnnouncementType type 
     Int cat_id "❓"
     Int checklist_id "❓"
+    Int kennel_id "❓"
+    String title "❓"
+    String message "❓"
     Boolean resolved 
+    DateTime resolved_at "❓"
+    String resolved_by_id "❓"
+    String created_by_id "❓"
+    String comment "❓"
+    DateTime commented_at "❓"
+    String commented_by_id "❓"
     Boolean email_sent 
     DateTime created_at 
     }
@@ -259,7 +264,6 @@ erDiagram
     TaskState state 
     String completed_by_id "❓"
     DateTime completed_at "❓"
-    Int completed_on_report_id "❓"
     }
   
 
@@ -274,7 +278,6 @@ erDiagram
     TaskState state 
     String completed_by_id "❓"
     DateTime completed_at "❓"
-    Int completed_on_report_id "❓"
     Int announcement_id "❓"
     DateTime created_at 
     }
@@ -284,14 +287,11 @@ erDiagram
     "cat" }o--|o "kennel" : "kennel"
     "cat" }o--|o "group" : "group"
     "cat" }o--|o "user" : "pickedUpBy"
-    "cat" }o--|o "shift_report" : "pickedUpOnReport"
     "cat" }o--|o "litter" : "litter"
     "group" }o--|o "kennel" : "kennel"
     "shift_report" }o--|| "user" : "author"
-    "shift_report_kennel_reset" }o--|| "shift_report" : "shiftReport"
-    "shift_report_kennel_reset" }o--|| "kennel" : "kennel"
-    "shift_report_kennel_flag" }o--|| "shift_report" : "shiftReport"
-    "shift_report_kennel_flag" }o--|| "kennel" : "kennel"
+    "shift_report_kennel_status" }o--|| "shift_report" : "shiftReport"
+    "shift_report_kennel_status" }o--|| "kennel" : "kennel"
     "cat_entry" }o--|| "shift_report" : "shiftReport"
     "cat_entry" }o--|o "cat" : "cat"
     "cat_entry" }o--|o "group" : "group"
@@ -310,23 +310,25 @@ erDiagram
     "play_group_cat" }o--|| "cat" : "cat"
     "kennel_prep_checklist" }o--|| "user" : "createdBy"
     "checklist_action" }o--|| "kennel_prep_checklist" : "checklist"
-    "checklist_action" }o--|| "kennel" : "kennel"
+    "checklist_action" }o--|o "kennel" : "kennel"
     "checklist_action" }o--|o "cat" : "cat"
     "checklist_action" }o--|o "group" : "group"
     "checklist_action" }o--|o "user" : "completedBy"
     "announcement" }o--|o "cat" : "cat"
     "announcement" }o--|o "kennel_prep_checklist" : "checklist"
+    "announcement" }o--|o "kennel" : "kennel"
+    "announcement" }o--|o "user" : "resolvedBy"
+    "announcement" }o--|o "user" : "createdBy"
+    "announcement" }o--|o "user" : "commentedBy"
     "sign_task" }o--|| "cat" : "cat"
     "sign_task" }o--|| "kennel" : "kennel"
     "sign_task" }o--|| "announcement" : "announcement"
     "sign_task" }o--|o "user" : "completedBy"
-    "sign_task" }o--|o "shift_report" : "completedOnReport"
     "kennel_move_request" }o--|o "cat" : "cat"
     "kennel_move_request" }o--|o "group" : "group"
     "kennel_move_request" }o--|| "kennel" : "fromKennel"
     "kennel_move_request" }o--|| "kennel" : "toKennel"
     "kennel_move_request" }o--|| "user" : "requestedBy"
     "kennel_move_request" }o--|o "user" : "completedBy"
-    "kennel_move_request" }o--|o "shift_report" : "completedOnReport"
     "kennel_move_request" }o--|o "announcement" : "announcement"
 ```

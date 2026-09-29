@@ -3,16 +3,19 @@ import { createCatSchema, updateCatSchema, updateGroupedCatSchema } from "shared
 import { changeCatStatusSchema, returnToRccSchema } from "shared/schemas/catStatus.ts";
 import { DewormerStatus } from "shared/constants/dewormerStatus.ts";
 import { KennelState } from "shared/constants/kennelState.ts";
-import { requireAuth } from "../middleware/requireAuth.ts";
+import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
 import {
   changeCatStatus,
+  confirmPickup,
   createCatWithArrivalAnnouncement,
   InvalidCatStatusTransitionError,
+  InvalidPickupError,
   returnCatToRcc,
 } from "../lib/catStatus.ts";
+import { markKennelNeedsReset } from "../lib/kennelResets.ts";
 
 const router = Router();
 
@@ -133,18 +136,17 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
     }
   }
 
-  const [cat] = await prisma.$transaction([
-    prisma.cat.update({ where: { id }, data, include: catInclude }),
-    prisma.kennel.update({ where: { id: data.kennelId }, data: { state: KennelState.Occupied } }),
-    ...(kennelChanged && existing.kennelId !== null
-      ? [
-          prisma.kennel.update({
-            where: { id: existing.kennelId },
-            data: { state: KennelState.NeedsReset },
-          }),
-        ]
-      : []),
-  ]);
+  const cat = await prisma.$transaction(async (tx) => {
+    const updated = await tx.cat.update({ where: { id }, data, include: catInclude });
+    await tx.kennel.update({
+      where: { id: data.kennelId },
+      data: { state: KennelState.Occupied },
+    });
+    if (kennelChanged && existing.kennelId !== null) {
+      await markKennelNeedsReset(tx, existing.kennelId);
+    }
+    return updated;
+  });
 
   res.json({ cat });
 });
@@ -162,20 +164,15 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
     return;
   }
 
-  await prisma.$transaction([
+  await prisma.$transaction(async (tx) => {
     // SignTask.catId is a required FK with ON DELETE RESTRICT (unlike Announcement's,
     // which is SET NULL) — a hard delete has to clear these explicitly first.
-    prisma.signTask.deleteMany({ where: { catId: id } }),
-    prisma.cat.delete({ where: { id } }),
-    ...(existing.kennelId !== null
-      ? [
-          prisma.kennel.update({
-            where: { id: existing.kennelId },
-            data: { state: KennelState.NeedsReset },
-          }),
-        ]
-      : []),
-  ]);
+    await tx.signTask.deleteMany({ where: { catId: id } });
+    await tx.cat.delete({ where: { id } });
+    if (existing.kennelId !== null) {
+      await markKennelNeedsReset(tx, existing.kennelId);
+    }
+  });
 
   res.json({ message: "Cat deleted" });
 });
@@ -216,9 +213,16 @@ router.patch("/:id/status", requireAuth, requireAdmin, async (req, res: Response
     return;
   }
 
+  const actorId = (req as AuthedRequest).session.user.id;
+
   try {
     const cat = await prisma.$transaction(async (tx) => {
-      await changeCatStatus(tx, { catId: id, targetStatus: data.status, pickupAt: data.pickupAt });
+      await changeCatStatus(tx, {
+        catId: id,
+        targetStatus: data.status,
+        pickupAt: data.pickupAt,
+        actorId,
+      });
       return tx.cat.findUniqueOrThrow({ where: { id }, include: catInclude });
     });
     res.json({ cat });
@@ -253,12 +257,40 @@ router.patch("/:id/returned-to-rcc", requireAuth, requireAdmin, async (req, res:
     return;
   }
 
+  const actorId = (req as AuthedRequest).session.user.id;
+
   const cat = await prisma.$transaction(async (tx) => {
-    await returnCatToRcc(tx, { catId: id, reason: data.reason });
+    await returnCatToRcc(tx, { catId: id, reason: data.reason, actorId });
     return tx.cat.findUniqueOrThrow({ where: { id }, include: catInclude });
   });
 
   res.json({ cat });
+});
+
+// Completed directly from the Announcements page — any authenticated user.
+router.patch("/:id/confirm-pickup", requireAuth, async (req, res: Response) => {
+  const id = Number(req.params.id);
+  const actorId = (req as AuthedRequest).session.user.id;
+
+  const existing = await prisma.cat.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Cat not found" });
+    return;
+  }
+
+  try {
+    const cat = await prisma.$transaction(async (tx) => {
+      await confirmPickup(tx, { catId: id, actorId });
+      return tx.cat.findUniqueOrThrow({ where: { id }, include: catInclude });
+    });
+    res.json({ cat });
+  } catch (err) {
+    if (err instanceof InvalidPickupError) {
+      res.status(409).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
 });
 
 export default router;

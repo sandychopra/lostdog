@@ -1,10 +1,11 @@
 import { Router, type Response } from "express";
 import { createKennelSchema, updateKennelSchema } from "shared/schemas/kennels.ts";
 import { KennelState } from "shared/constants/kennelState.ts";
-import { requireAuth } from "../middleware/requireAuth.ts";
+import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
+import { completeKennelReset, KennelResetNotFoundError } from "../lib/kennelResets.ts";
 
 const router = Router();
 
@@ -82,6 +83,31 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
   await prisma.kennel.delete({ where: { id } });
 
   res.json({ message: "Kennel deleted" });
+});
+
+// Completed directly from the Announcements page — any authenticated user.
+router.patch("/:id/complete-reset", requireAuth, async (req, res: Response) => {
+  const id = Number(req.params.id);
+  const actorId = (req as AuthedRequest).session.user.id;
+
+  const existing = await prisma.kennel.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Kennel not found" });
+    return;
+  }
+
+  try {
+    await prisma.$transaction((tx) => completeKennelReset(tx, { kennelId: id, actorId }));
+  } catch (err) {
+    if (err instanceof KennelResetNotFoundError) {
+      res.status(404).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
+
+  const kennel = await prisma.kennel.findUniqueOrThrow({ where: { id }, include: kennelInclude });
+  res.json({ kennel });
 });
 
 export default router;

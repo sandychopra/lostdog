@@ -1,14 +1,14 @@
 import { Router, type Response } from "express";
 import { TaskState } from "shared/constants/taskState.ts";
-import { requireAuth } from "../middleware/requireAuth.ts";
+import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
 import { prisma } from "../lib/prisma.ts";
+import { completeSignTask } from "../lib/catStatus.ts";
 
 const router = Router();
 
-// No create/complete-by-id endpoint here — SignTasks are system-created only
-// (see catStatus.ts), and completion only happens via a ShiftReport submission
-// (see shiftReports.ts's signTasksCompletedIds), the same "carries forward until
-// checked off on a report" model as kennelsResetIds.
+// SignTasks are still system-created only (see catStatus.ts) — no POST here —
+// but completion now happens directly from the Announcements page rather than
+// via a ShiftReport submission.
 router.get("/", requireAuth, async (_req, res: Response) => {
   const signTasks = await prisma.signTask.findMany({
     where: { state: TaskState.Open },
@@ -20,6 +20,27 @@ router.get("/", requireAuth, async (_req, res: Response) => {
   });
 
   res.json({ signTasks });
+});
+
+router.patch("/:id/complete", requireAuth, async (req, res: Response) => {
+  const id = Number(req.params.id);
+  const actorId = (req as AuthedRequest).session.user.id;
+
+  const existing = await prisma.signTask.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Sign task not found" });
+    return;
+  }
+  if (existing.state !== TaskState.Open) {
+    res.status(409).json({ error: "Sign task is not open" });
+    return;
+  }
+
+  const signTask = await prisma.$transaction((tx) =>
+    completeSignTask(tx, { signTaskId: id, actorId }),
+  );
+
+  res.json({ signTask });
 });
 
 export default router;

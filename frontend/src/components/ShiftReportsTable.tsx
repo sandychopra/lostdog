@@ -5,6 +5,7 @@ import { CatEntryType } from "shared/constants/catEntryType.ts";
 import { FoodAmount } from "shared/constants/foodAmount.ts";
 import { SnackTreat } from "shared/constants/snackTreat.ts";
 import { SplitShiftPosition } from "shared/constants/splitShiftPosition.ts";
+import type { ReportableKennelState } from "shared/constants/kennelState.ts";
 import { api } from "../lib/api";
 import ErrorAlert from "./ErrorAlert";
 import { Badge } from "./ui/badge";
@@ -96,8 +97,12 @@ export interface ShiftReport {
   catEntries: CatEntry[];
   meetAndGreets: MeetAndGreet[];
   playGroups: PlayGroup[];
-  kennelsReset: { kennelId: number; kennel: { id: number; number: number } }[];
-  kennelsFlagged: { kennelId: number; kennel: { id: number; number: number } }[];
+  kennelsStatus: {
+    kennelId: number;
+    reportedState: ReportableKennelState;
+    note: string | null;
+    kennel: { id: number; number: number };
+  }[];
   photos: ShiftReportPhoto[];
 }
 

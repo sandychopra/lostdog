@@ -1,11 +1,18 @@
 import { Router, type Response } from "express";
 import { AnnouncementType } from "shared/constants/announcementType.ts";
-import { requireAuth } from "../middleware/requireAuth.ts";
+import { ChecklistActionType } from "shared/constants/checklistActionType.ts";
+import {
+  createManualAnnouncementSchema,
+  updateManualAnnouncementSchema,
+  announcementCommentSchema,
+} from "shared/schemas/announcements.ts";
+import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
+import { requireAdmin } from "../middleware/requireAdmin.ts";
+import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
+import { createChecklistTasks } from "../lib/kennelPrepChecklists.ts";
 
 const router = Router();
-
-const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
 const announcementInclude = {
   cat: {
@@ -13,54 +20,238 @@ const announcementInclude = {
       id: true,
       name: true,
       status: true,
+      pickupAt: true,
+      pickedUpAt: true,
       kennel: { select: { id: true, number: true } },
     },
   },
-  signTasks: { select: { id: true } },
+  kennel: { select: { id: true, number: true } },
+  checklist: {
+    select: {
+      id: true,
+      actions: {
+        orderBy: { order: "asc" as const },
+        include: {
+          kennel: { select: { id: true, number: true } },
+          cat: { select: { id: true, name: true } },
+          group: { select: { id: true, cats: { select: { id: true, name: true } } } },
+        },
+      },
+    },
+  },
+  signTasks: {
+    select: {
+      id: true,
+      action: true,
+      state: true,
+      completedAt: true,
+      completedBy: { select: { id: true, name: true } },
+      cat: { select: { id: true, name: true } },
+      kennel: { select: { id: true, number: true } },
+    },
+  },
+  kennelMoveRequests: {
+    select: {
+      id: true,
+      state: true,
+      completedAt: true,
+      completedBy: { select: { id: true, name: true } },
+      cat: { select: { id: true, name: true } },
+      group: { select: { id: true, cats: { select: { id: true, name: true } } } },
+      fromKennel: { select: { id: true, number: true } },
+      toKennel: { select: { id: true, number: true } },
+    },
+  },
+  resolvedBy: { select: { id: true, name: true } },
+  createdBy: { select: { id: true, name: true } },
+  commentedBy: { select: { id: true, name: true } },
 } as const;
 
-// Default-view membership per type (see requirements.md FR-83–FR-89):
-// - NewArrival / ReturnedToRcc: purely informational — visible for 24h regardless
-//   of `resolved` (which these two types never write).
-// - PendingAdoption / Adopted: `resolved` is written authoritatively by
-//   confirmPickup, the only path that satisfies all 3 of FR-85's conditions in
-//   one transaction — no re-derivation needed here.
-// - BackAvailable: resolved by completeSignTask when its remove-sign task (if
-//   any) finishes; if no such task was ever created (nothing had been posted),
-//   it just follows the 24h rule instead, per FR-88.
-// - ChecklistAssigned / KennelMoveRequested: Slice 2 — never produced yet, so
-//   `resolved` alone is a safe placeholder until that slice implements their
-//   real resolution rules.
-function isVisibleInDefaultView(announcement: {
-  type: AnnouncementType;
-  resolved: boolean;
-  createdAt: Date;
-  signTasks: { id: number }[];
-}): boolean {
-  const withinLastDay = Date.now() - announcement.createdAt.getTime() < TWENTY_FOUR_HOURS_MS;
-
-  switch (announcement.type) {
-    case AnnouncementType.NewArrival:
-    case AnnouncementType.ReturnedToRcc:
-      return withinLastDay;
-    case AnnouncementType.BackAvailable:
-      return announcement.signTasks.length > 0 ? !announcement.resolved : withinLastDay;
-    default:
-      return !announcement.resolved;
-  }
-}
-
 router.get("/", requireAuth, async (req, res: Response) => {
-  const viewAll = req.query.all === "true";
+  const activeOnly = req.query.activeOnly === "true";
+  const from = typeof req.query.from === "string" ? new Date(req.query.from) : undefined;
+  const to = typeof req.query.to === "string" ? new Date(req.query.to) : undefined;
 
   const announcements = await prisma.announcement.findMany({
+    where: {
+      ...(activeOnly ? { resolved: false } : {}),
+      ...(from || to ? { createdAt: { ...(from && { gte: from }), ...(to && { lte: to }) } } : {}),
+    },
     include: announcementInclude,
     orderBy: { createdAt: "desc" },
   });
 
-  const visible = viewAll ? announcements : announcements.filter(isVisibleInDefaultView);
+  res.json({ announcements });
+});
 
-  res.json({ announcements: visible });
+router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
+  const data = validate(createManualAnnouncementSchema, req.body, res);
+  if (!data) return;
+
+  const kennelIds = [
+    ...new Set(
+      data.tasks
+        .map((t) => (t.actionType === ChecklistActionType.FreeText ? undefined : t.kennelId))
+        .filter((id): id is number => id !== undefined),
+    ),
+  ];
+  const catIds = [
+    ...new Set(
+      data.tasks
+        .map((t) => (t.actionType === ChecklistActionType.MoveCat ? t.catId : undefined))
+        .filter((id): id is number => id !== undefined),
+    ),
+  ];
+  const groupIds = [
+    ...new Set(
+      data.tasks
+        .map((t) => (t.actionType === ChecklistActionType.MoveCat ? t.groupId : undefined))
+        .filter((id): id is number => id !== undefined),
+    ),
+  ];
+
+  const [kennels, cats, groups] = await Promise.all([
+    kennelIds.length > 0 ? prisma.kennel.findMany({ where: { id: { in: kennelIds } } }) : [],
+    catIds.length > 0 ? prisma.cat.findMany({ where: { id: { in: catIds }, active: true } }) : [],
+    groupIds.length > 0 ? prisma.group.findMany({ where: { id: { in: groupIds } } }) : [],
+  ]);
+  if (kennels.length !== kennelIds.length) {
+    res.status(404).json({ error: "One or more kennels not found" });
+    return;
+  }
+  if (cats.length !== catIds.length) {
+    res.status(404).json({ error: "One or more cats not found" });
+    return;
+  }
+  if (groups.length !== groupIds.length) {
+    res.status(404).json({ error: "One or more groups not found" });
+    return;
+  }
+
+  const createdById = (req as AuthedRequest).session.user.id;
+
+  const announcement = await prisma.$transaction(async (tx) => {
+    let checklistId: number | undefined;
+    if (data.tasks.length > 0) {
+      const checklist = await createChecklistTasks(tx, { actions: data.tasks, createdById });
+      checklistId = checklist.id;
+    }
+    return tx.announcement.create({
+      data: {
+        type: AnnouncementType.Manual,
+        title: data.title,
+        message: data.message ?? null,
+        createdById,
+        checklistId,
+      },
+      include: announcementInclude,
+    });
+  });
+
+  res.status(201).json({ announcement });
+});
+
+router.put("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
+  const id = Number(req.params.id);
+
+  const existing = await prisma.announcement.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Announcement not found" });
+    return;
+  }
+  if (existing.type !== AnnouncementType.Manual) {
+    res.status(409).json({ error: "Only manual announcements can be edited" });
+    return;
+  }
+
+  const data = validate(updateManualAnnouncementSchema, req.body, res);
+  if (!data) return;
+
+  if (existing.checklistId === null && !data.message) {
+    res.status(400).json({ error: "Message is required when there are no tasks" });
+    return;
+  }
+
+  const announcement = await prisma.announcement.update({
+    where: { id },
+    data: { title: data.title, message: data.message ?? null },
+    include: announcementInclude,
+  });
+
+  res.json({ announcement });
+});
+
+router.delete("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
+  const id = Number(req.params.id);
+
+  const existing = await prisma.announcement.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Announcement not found" });
+    return;
+  }
+  if (existing.type !== AnnouncementType.Manual) {
+    res.status(409).json({ error: "Only manual announcements can be deleted" });
+    return;
+  }
+
+  await prisma.announcement.delete({ where: { id } });
+
+  res.json({ message: "Announcement deleted" });
+});
+
+router.patch("/:id/resolve", requireAuth, requireAdmin, async (req, res: Response) => {
+  const id = Number(req.params.id);
+
+  const existing = await prisma.announcement.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Announcement not found" });
+    return;
+  }
+  if (existing.type !== AnnouncementType.Manual) {
+    res.status(409).json({ error: "Only manual announcements can be manually resolved" });
+    return;
+  }
+  if (existing.resolved) {
+    res.status(409).json({ error: "Announcement is already resolved" });
+    return;
+  }
+
+  const resolvedById = (req as AuthedRequest).session.user.id;
+
+  const announcement = await prisma.announcement.update({
+    where: { id },
+    data: { resolved: true, resolvedAt: new Date(), resolvedById },
+    include: announcementInclude,
+  });
+
+  res.json({ announcement });
+});
+
+// Any Volunteer or Admin can leave a note on any announcement type.
+router.patch("/:id/comment", requireAuth, async (req, res: Response) => {
+  const id = Number(req.params.id);
+
+  const existing = await prisma.announcement.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Announcement not found" });
+    return;
+  }
+
+  const data = validate(announcementCommentSchema, req.body, res);
+  if (!data) return;
+
+  const cleared = data.comment.length === 0;
+  const commentedById = (req as AuthedRequest).session.user.id;
+
+  const announcement = await prisma.announcement.update({
+    where: { id },
+    data: cleared
+      ? { comment: null, commentedAt: null, commentedById: null }
+      : { comment: data.comment, commentedAt: new Date(), commentedById },
+    include: announcementInclude,
+  });
+
+  res.json({ announcement });
 });
 
 export default router;
