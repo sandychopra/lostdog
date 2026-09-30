@@ -13,6 +13,7 @@ import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
 import { storage } from "../lib/storage.ts";
+import { syncDewormerAnnouncement } from "../lib/medicalAlerts.ts";
 import { Prisma } from "../generated/prisma/client.ts";
 
 const router = Router();
@@ -280,6 +281,9 @@ router.post("/", requireAuth, async (req, res: Response) => {
         where: { id: { in: dewormerCatIds } },
         data: { dewormerStatus: DewormerStatus.Given },
       });
+      for (const catId of dewormerCatIds) {
+        await syncDewormerAnnouncement(tx, { catId, actorId: authorId });
+      }
     }
 
     return tx.shiftReport.findUniqueOrThrow({
@@ -468,6 +472,9 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
           where: { id: { in: dewormerCatIds } },
           data: { dewormerStatus: DewormerStatus.Given },
         });
+        for (const catId of dewormerCatIds) {
+          await syncDewormerAnnouncement(tx, { catId, actorId: session.user.id });
+        }
       }
     },
     { timeout: 15_000 },

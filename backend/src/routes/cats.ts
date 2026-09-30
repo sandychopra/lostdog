@@ -16,6 +16,7 @@ import {
   returnCatToRcc,
 } from "../lib/catStatus.ts";
 import { markKennelNeedsReset } from "../lib/kennelResets.ts";
+import { syncDewormerAnnouncement, syncProbioticAnnouncement } from "../lib/medicalAlerts.ts";
 
 const router = Router();
 
@@ -82,8 +83,10 @@ router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
     }
   }
 
+  const actorId = (req as AuthedRequest).session.user.id;
+
   const cat = await prisma.$transaction(async (tx) => {
-    const created = await createCatWithArrivalAnnouncement(tx, data);
+    const created = await createCatWithArrivalAnnouncement(tx, data, { actorId });
     if (data.kennelId !== undefined) {
       await tx.kennel.update({
         where: { id: data.kennelId },
@@ -105,11 +108,18 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
     return;
   }
 
+  const actorId = (req as AuthedRequest).session.user.id;
+
   if (existing.groupId !== null) {
     const data = validate(updateGroupedCatSchema, req.body, res);
     if (!data) return;
 
-    const cat = await prisma.cat.update({ where: { id }, data, include: catInclude });
+    const cat = await prisma.$transaction(async (tx) => {
+      const updated = await tx.cat.update({ where: { id }, data, include: catInclude });
+      await syncDewormerAnnouncement(tx, { catId: id, actorId });
+      await syncProbioticAnnouncement(tx, { catId: id, actorId });
+      return updated;
+    });
     res.json({ cat });
     return;
   }
@@ -145,6 +155,8 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
     if (kennelChanged && existing.kennelId !== null) {
       await markKennelNeedsReset(tx, existing.kennelId);
     }
+    await syncDewormerAnnouncement(tx, { catId: id, actorId });
+    await syncProbioticAnnouncement(tx, { catId: id, actorId });
     return updated;
   });
 
@@ -179,6 +191,7 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
 
 router.patch("/:id/dewormer", requireAuth, async (req, res: Response) => {
   const id = Number(req.params.id);
+  const actorId = (req as AuthedRequest).session.user.id;
 
   const existing = await prisma.cat.findUnique({ where: { id } });
   if (!existing) {
@@ -186,10 +199,14 @@ router.patch("/:id/dewormer", requireAuth, async (req, res: Response) => {
     return;
   }
 
-  const cat = await prisma.cat.update({
-    where: { id },
-    data: { dewormerStatus: DewormerStatus.Given },
-    include: catInclude,
+  const cat = await prisma.$transaction(async (tx) => {
+    const updated = await tx.cat.update({
+      where: { id },
+      data: { dewormerStatus: DewormerStatus.Given },
+      include: catInclude,
+    });
+    await syncDewormerAnnouncement(tx, { catId: id, actorId });
+    return updated;
   });
 
   res.json({ cat });

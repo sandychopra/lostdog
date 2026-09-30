@@ -2,7 +2,7 @@ import { Router, type Response } from "express";
 import { TaskState } from "shared/constants/taskState.ts";
 import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
 import { prisma } from "../lib/prisma.ts";
-import { completeSignTask } from "../lib/catStatus.ts";
+import { completeSignTask, uncompleteSignTask, SignTaskConflictError } from "../lib/catStatus.ts";
 
 const router = Router();
 
@@ -41,6 +41,34 @@ router.patch("/:id/complete", requireAuth, async (req, res: Response) => {
   );
 
   res.json({ signTask });
+});
+
+router.patch("/:id/uncomplete", requireAuth, async (req, res: Response) => {
+  const id = Number(req.params.id);
+  const actorId = (req as AuthedRequest).session.user.id;
+
+  const existing = await prisma.signTask.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Sign task not found" });
+    return;
+  }
+  if (existing.state !== TaskState.Done) {
+    res.status(409).json({ error: "Sign task is not completed" });
+    return;
+  }
+
+  try {
+    const signTask = await prisma.$transaction((tx) =>
+      uncompleteSignTask(tx, { signTaskId: id, actorId }),
+    );
+    res.json({ signTask });
+  } catch (err) {
+    if (err instanceof SignTaskConflictError) {
+      res.status(409).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
 });
 
 export default router;

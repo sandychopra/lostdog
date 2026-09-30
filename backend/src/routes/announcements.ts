@@ -11,6 +11,7 @@ import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
 import { createChecklistTasks } from "../lib/kennelPrepChecklists.ts";
+import { getProbioticDoseLog } from "../lib/medicalAlerts.ts";
 
 const router = Router();
 
@@ -22,6 +23,9 @@ const announcementInclude = {
       status: true,
       pickupAt: true,
       pickedUpAt: true,
+      dewormerStatus: true,
+      dewormerDueDate: true,
+      needsProbiotic: true,
       kennel: { select: { id: true, number: true } },
     },
   },
@@ -35,6 +39,7 @@ const announcementInclude = {
           kennel: { select: { id: true, number: true } },
           cat: { select: { id: true, name: true } },
           group: { select: { id: true, cats: { select: { id: true, name: true } } } },
+          completedBy: { select: { id: true, name: true } },
         },
       },
     },
@@ -81,7 +86,31 @@ router.get("/", requireAuth, async (req, res: Response) => {
     orderBy: { createdAt: "desc" },
   });
 
-  res.json({ announcements });
+  // ProbioticNeeded rows carry a visible dose log — every probiotic-given entry
+  // logged since this episode's announcement was created (or, if resolved,
+  // until it was) — plus the precise last-dose timestamp the Overdue badge
+  // needs, scoped the same way: per project-scope, "if no dose has ever been
+  // logged since the flag was set, it's overdue from the moment the flag was
+  // set," not from some earlier episode.
+  const withDoseLogs = await Promise.all(
+    announcements.map(async (announcement) => {
+      if (announcement.type !== AnnouncementType.ProbioticNeeded || announcement.catId === null) {
+        return { ...announcement, doses: [], lastProbioticGivenAt: null as Date | null };
+      }
+      const doses = await getProbioticDoseLog(prisma, {
+        catId: announcement.catId,
+        since: announcement.createdAt,
+        until: announcement.resolvedAt ?? undefined,
+      });
+      const lastProbioticGivenAt =
+        doses.length > 0
+          ? new Date(Math.max(...doses.map((dose) => dose.givenAt.getTime())))
+          : null;
+      return { ...announcement, doses, lastProbioticGivenAt };
+    }),
+  );
+
+  res.json({ announcements: withDoseLogs });
 });
 
 router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {

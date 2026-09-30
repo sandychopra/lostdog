@@ -5,6 +5,8 @@ import { SignAction } from "shared/constants/signAction.ts";
 import { ChecklistActionType } from "shared/constants/checklistActionType.ts";
 import { TaskState } from "shared/constants/taskState.ts";
 import { Role } from "shared/constants/role.ts";
+import { DewormerStatus } from "shared/constants/dewormerStatus.ts";
+import { ShiftType } from "shared/constants/shiftType.ts";
 import { api } from "../lib/api";
 import { authClient } from "../lib/auth-client";
 import ErrorAlert from "./ErrorAlert";
@@ -34,7 +36,7 @@ import {
 } from "./ui/alert-dialog";
 import AnnouncementForm from "./AnnouncementForm";
 import Navbar from "./Navbar";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 
 interface AnnouncementCat {
   id: number;
@@ -42,7 +44,16 @@ interface AnnouncementCat {
   status: string;
   pickupAt: string | null;
   pickedUpAt: string | null;
+  dewormerStatus: DewormerStatus;
+  dewormerDueDate: string | null;
+  needsProbiotic: boolean;
   kennel: { id: number; number: number } | null;
+}
+
+interface ProbioticDose {
+  date: string;
+  shiftType: ShiftType;
+  submittedBy: string;
 }
 
 interface ChecklistActionItem {
@@ -89,6 +100,8 @@ interface Announcement {
   checklist: { id: number; actions: ChecklistActionItem[] } | null;
   signTasks: AnnouncementSignTask[];
   kennelMoveRequests: AnnouncementKennelMoveRequest[];
+  doses: ProbioticDose[];
+  lastProbioticGivenAt: string | null;
   resolved: boolean;
   resolvedAt: string | null;
   resolvedBy: { id: string; name: string } | null;
@@ -107,6 +120,8 @@ const ANNOUNCEMENT_TYPE_LABELS: Record<AnnouncementType, string> = {
   [AnnouncementType.ReturnedToRcc]: "Returned to RCC",
   [AnnouncementType.KennelMoveRequested]: "Kennel Move Requested",
   [AnnouncementType.KennelNeedsReset]: "Kennel Needs Reset",
+  [AnnouncementType.DewormerDue]: "Dewormer",
+  [AnnouncementType.ProbioticNeeded]: "Probiotic",
   [AnnouncementType.Manual]: "Announcement",
 };
 
@@ -117,8 +132,19 @@ const SIGN_ACTION_LABELS: Record<SignAction, string> = {
   [SignAction.RemoveAdopted]: "Remove Adopted sign",
 };
 
+const SHIFT_TYPE_LABELS: Record<ShiftType, string> = {
+  [ShiftType.Morning]: "Morning",
+  [ShiftType.MidDay]: "Midday",
+  [ShiftType.Evening]: "Evening",
+};
+
 type SubActionKind =
-  "signTask" | "confirmPickup" | "kennelMove" | "checklistAction" | "kennelReset";
+  | "signTask"
+  | "confirmPickup"
+  | "kennelMove"
+  | "checklistAction"
+  | "kennelReset"
+  | "dewormerGiven";
 
 interface SubAction {
   kind: SubActionKind;
@@ -135,6 +161,22 @@ function groupOrCatLabel(entry: {
   group: { cats: { name: string }[] } | null;
 }): string {
   return entry.cat?.name ?? entry.group!.cats.map((c) => c.name).join("/");
+}
+
+// Ported from the old Cats-page roster badge — a cat still Due past its due
+// date shows as Overdue.
+function isDewormerOverdue(cat: AnnouncementCat): boolean {
+  if (cat.dewormerStatus !== DewormerStatus.Due || !cat.dewormerDueDate) return false;
+  return new Date(cat.dewormerDueDate) < new Date();
+}
+
+// Same 24h-since-last-dose rule as before, now scoped to the current
+// ProbioticNeeded episode (lastProbioticGivenAt is null if no dose has been
+// logged since the announcement — i.e. since the flag was set — per
+// project-scope: overdue from the moment the flag was set in that case).
+function isProbioticOverdue(announcement: Announcement): boolean {
+  if (!announcement.lastProbioticGivenAt) return true;
+  return Date.now() - new Date(announcement.lastProbioticGivenAt).getTime() > 24 * 60 * 60 * 1000;
 }
 
 function getSubActions(announcement: Announcement): SubAction[] {
@@ -247,9 +289,136 @@ function getSubActions(announcement: Announcement): SubAction[] {
         },
       ];
     }
+    case AnnouncementType.DewormerDue: {
+      if (!announcement.cat) return [];
+      const overdue = isDewormerOverdue(announcement.cat);
+      const dueDate = announcement.cat.dewormerDueDate
+        ? new Date(announcement.cat.dewormerDueDate).toLocaleDateString()
+        : null;
+      return [
+        {
+          kind: "dewormerGiven",
+          id: announcement.cat.id,
+          label:
+            "Mark dewormer given" +
+            (dueDate ? (overdue ? ` — Overdue since ${dueDate}` : ` — due ${dueDate}`) : ""),
+          status: announcement.resolved ? "done" : "open",
+          completedByName: announcement.resolvedBy?.name,
+          completedAt: announcement.resolvedAt,
+          enabled: true,
+        },
+      ];
+    }
+    // ProbioticNeeded has no completable sub-action — only an Admin clears the
+    // "needs probiotic" flag, from the cat's edit form, not from here. Its
+    // status/dose-log render directly in the table body below instead.
     default:
       return [];
   }
+}
+
+function ActionRow({
+  action,
+  isBusy,
+  onComplete,
+  onUncomplete,
+  error,
+}: {
+  action: SubAction;
+  isBusy: boolean;
+  onComplete: () => void;
+  onUncomplete: () => void;
+  error?: unknown;
+}) {
+  const checked = action.status === "done";
+  const canUncheck = checked && (action.kind === "signTask" || action.kind === "kennelReset");
+
+  return (
+    <div className="flex items-start gap-2">
+      {action.status === "cancelled" ? (
+        <Badge variant="secondary" title="No longer applicable">
+          N/A
+        </Badge>
+      ) : (
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4 shrink-0 disabled:cursor-not-allowed"
+          checked={checked}
+          disabled={isBusy || (checked ? !canUncheck : !action.enabled)}
+          title={
+            !action.enabled && action.status === "open" ? "Complete earlier steps first" : undefined
+          }
+          onChange={() => {
+            if (isBusy) return;
+            if (checked) {
+              if (canUncheck) onUncomplete();
+            } else if (action.enabled) {
+              onComplete();
+            }
+          }}
+        />
+      )}
+      <div className="min-w-0 flex-1 text-sm whitespace-normal break-words">
+        {action.label}
+        {checked && action.completedByName && (
+          <div className="text-xs text-muted-foreground">
+            — {action.completedByName},{" "}
+            {action.completedAt ? new Date(action.completedAt).toLocaleString() : "—"}
+          </div>
+        )}
+        {error !== undefined && (
+          <div className="mt-1">
+            <ErrorAlert error={error} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ProbioticStatus({
+  announcement,
+  collapsed,
+  onToggle,
+}: {
+  announcement: Announcement;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
+  const overdue = isProbioticOverdue(announcement);
+  return (
+    <div>
+      <Badge variant={overdue ? "destructive" : "default"} className="w-fit">
+        {overdue ? "Overdue" : "Needs Probiotic"}
+      </Badge>
+      {announcement.doses.length > 0 && (
+        <div className="mt-2">
+          <button
+            type="button"
+            className="flex items-center gap-1 text-sm font-medium"
+            onClick={onToggle}
+          >
+            {collapsed ? (
+              <ChevronRight className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5" />
+            )}
+            {announcement.doses.length} dose{announcement.doses.length === 1 ? "" : "s"} logged
+          </button>
+          {!collapsed && (
+            <ul className="mt-1 flex flex-col gap-0.5 text-xs text-muted-foreground">
+              {announcement.doses.map((dose, index) => (
+                <li key={index}>
+                  {new Date(dose.date).toLocaleDateString()} · {SHIFT_TYPE_LABELS[dose.shiftType]} —{" "}
+                  {dose.submittedBy}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function statusBadge(announcement: Announcement): {
@@ -262,7 +431,7 @@ function statusBadge(announcement: Announcement): {
   return { label: "Open", variant: "warning" };
 }
 
-type SortColumn = "type" | "cat" | "kennel" | "created" | "closed" | "status";
+type SortColumn = "type" | "cat" | "kennel" | "created" | "status";
 
 function sortValue(announcement: Announcement, column: SortColumn): string | number {
   switch (column) {
@@ -274,9 +443,6 @@ function sortValue(announcement: Announcement, column: SortColumn): string | num
       return announcement.cat?.kennel?.number ?? announcement.kennel?.number ?? -1;
     case "created":
       return new Date(announcement.createdAt).getTime();
-    case "closed":
-      // Unresolved rows sort as if closed at the epoch — oldest, either end.
-      return announcement.resolvedAt ? new Date(announcement.resolvedAt).getTime() : 0;
     case "status":
       return statusBadge(announcement).label;
   }
@@ -316,6 +482,7 @@ export default function AnnouncementsPage() {
   });
   const [commentEditingId, setCommentEditingId] = useState<number | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
+  const [collapsedIds, setCollapsedIds] = useState<Set<number>>(new Set());
   const [dialog, setDialog] = useState<DialogState>(null);
   const [deletingAnnouncement, setDeletingAnnouncement] = useState<{
     id: number;
@@ -360,6 +527,18 @@ export default function AnnouncementsPage() {
     );
   }
 
+  function toggleCollapsed(id: number) {
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ["announcements"] });
   };
@@ -398,6 +577,24 @@ export default function AnnouncementsPage() {
       queryClient.invalidateQueries({ queryKey: ["kennels"] });
     },
   });
+  const markDewormerGiven = useMutation({
+    mutationFn: (catId: number) => api.patch(`/api/cats/${catId}/dewormer`),
+    onSuccess: () => {
+      invalidateAll();
+      queryClient.invalidateQueries({ queryKey: ["cats"] });
+    },
+  });
+  const uncompleteSignTask = useMutation({
+    mutationFn: (id: number) => api.patch(`/api/sign-tasks/${id}/uncomplete`),
+    onSuccess: invalidateAll,
+  });
+  const uncompleteKennelReset = useMutation({
+    mutationFn: (kennelId: number) => api.patch(`/api/kennels/${kennelId}/uncomplete-reset`),
+    onSuccess: () => {
+      invalidateAll();
+      queryClient.invalidateQueries({ queryKey: ["kennels"] });
+    },
+  });
   const resolveManual = useMutation({
     mutationFn: (id: number) => api.patch(`/api/announcements/${id}/resolve`),
     onSuccess: invalidateAll,
@@ -421,7 +618,10 @@ export default function AnnouncementsPage() {
   function isBusy(kind: SubActionKind, id: number): boolean {
     switch (kind) {
       case "signTask":
-        return completeSignTask.isPending && completeSignTask.variables === id;
+        return (
+          (completeSignTask.isPending && completeSignTask.variables === id) ||
+          (uncompleteSignTask.isPending && uncompleteSignTask.variables === id)
+        );
       case "confirmPickup":
         return confirmPickup.isPending && confirmPickup.variables === id;
       case "kennelMove":
@@ -429,7 +629,12 @@ export default function AnnouncementsPage() {
       case "checklistAction":
         return completeChecklistAction.isPending && completeChecklistAction.variables === id;
       case "kennelReset":
-        return completeKennelReset.isPending && completeKennelReset.variables === id;
+        return (
+          (completeKennelReset.isPending && completeKennelReset.variables === id) ||
+          (uncompleteKennelReset.isPending && uncompleteKennelReset.variables === id)
+        );
+      case "dewormerGiven":
+        return markDewormerGiven.isPending && markDewormerGiven.variables === id;
     }
   }
 
@@ -450,6 +655,37 @@ export default function AnnouncementsPage() {
       case "kennelReset":
         completeKennelReset.mutate(action.id);
         break;
+      case "dewormerGiven":
+        markDewormerGiven.mutate(action.id);
+        break;
+    }
+  }
+
+  function triggerUncomplete(action: SubAction) {
+    switch (action.kind) {
+      case "signTask":
+        uncompleteSignTask.mutate(action.id);
+        break;
+      case "kennelReset":
+        uncompleteKennelReset.mutate(action.id);
+        break;
+      default:
+        break;
+    }
+  }
+
+  function uncompleteErrorFor(kind: SubActionKind, id: number): unknown {
+    switch (kind) {
+      case "signTask":
+        return uncompleteSignTask.isError && uncompleteSignTask.variables === id
+          ? uncompleteSignTask.error
+          : undefined;
+      case "kennelReset":
+        return uncompleteKennelReset.isError && uncompleteKennelReset.variables === id
+          ? uncompleteKennelReset.error
+          : undefined;
+      default:
+        return undefined;
     }
   }
 
@@ -504,10 +740,11 @@ export default function AnnouncementsPage() {
         {error ? (
           <ErrorAlert message="Failed to fetch announcements" />
         ) : (
-          <Table>
+          <Table className="table-fixed">
             <TableHeader>
               <TableRow>
                 <SortableTableHead
+                  className="w-28"
                   active={sort.column === "type"}
                   direction={sort.direction}
                   onSort={() => toggleSort("type")}
@@ -515,6 +752,7 @@ export default function AnnouncementsPage() {
                   Type
                 </SortableTableHead>
                 <SortableTableHead
+                  className="w-24"
                   active={sort.column === "cat"}
                   direction={sort.direction}
                   onSort={() => toggleSort("cat")}
@@ -522,6 +760,7 @@ export default function AnnouncementsPage() {
                   Cat
                 </SortableTableHead>
                 <SortableTableHead
+                  className="w-20"
                   active={sort.column === "kennel"}
                   direction={sort.direction}
                   onSort={() => toggleSort("kennel")}
@@ -529,8 +768,8 @@ export default function AnnouncementsPage() {
                   Kennel
                 </SortableTableHead>
                 <TableHead>Action</TableHead>
-                <TableHead>Done</TableHead>
                 <SortableTableHead
+                  className="w-32"
                   active={sort.column === "created"}
                   direction={sort.direction}
                   onSort={() => toggleSort("created")}
@@ -538,28 +777,22 @@ export default function AnnouncementsPage() {
                   Created
                 </SortableTableHead>
                 <SortableTableHead
-                  active={sort.column === "closed"}
-                  direction={sort.direction}
-                  onSort={() => toggleSort("closed")}
-                >
-                  Closed
-                </SortableTableHead>
-                <SortableTableHead
+                  className="w-36"
                   active={sort.column === "status"}
                   direction={sort.direction}
                   onSort={() => toggleSort("status")}
                 >
                   Status
                 </SortableTableHead>
-                <TableHead>Comment</TableHead>
-                {isAdmin && <TableHead>Admin</TableHead>}
+                <TableHead className="w-64">Comment</TableHead>
+                {isAdmin && <TableHead className="w-20">Admin</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading
                 ? Array.from({ length: 3 }).map((_, i) => (
                     <TableRow key={i}>
-                      {Array.from({ length: isAdmin ? 10 : 9 }).map((_, j) => (
+                      {Array.from({ length: isAdmin ? 8 : 7 }).map((_, j) => (
                         <TableCell key={j}>
                           <Skeleton className="h-4 w-20" />
                         </TableCell>
@@ -587,86 +820,75 @@ export default function AnnouncementsPage() {
                             announcement.message && (
                               <p className="text-muted-foreground">{announcement.message}</p>
                             )}
-                          {subActions.length === 0 ? (
+                          {announcement.type === AnnouncementType.ProbioticNeeded ? (
+                            <ProbioticStatus
+                              announcement={announcement}
+                              collapsed={collapsedIds.has(announcement.id)}
+                              onToggle={() => toggleCollapsed(announcement.id)}
+                            />
+                          ) : subActions.length === 0 ? (
                             announcement.type !== AnnouncementType.Manual && "—"
-                          ) : (
-                            <div className="flex flex-col gap-1">
-                              {subActions.map((action) => (
-                                <div key={`${action.kind}-${action.id}`} className="text-sm">
-                                  {action.label}
-                                  {action.status === "done" && action.completedByName && (
-                                    <span className="text-muted-foreground">
-                                      {" "}
-                                      — {action.completedByName},{" "}
-                                      {action.completedAt
-                                        ? new Date(action.completedAt).toLocaleString()
-                                        : "—"}
-                                    </span>
+                          ) : announcement.checklist && subActions.length > 1 ? (
+                            (() => {
+                              const collapsed = collapsedIds.has(announcement.id);
+                              const doneCount = subActions.filter(
+                                (a) => a.status === "done",
+                              ).length;
+                              return (
+                                <div>
+                                  <button
+                                    type="button"
+                                    className="flex items-center gap-1 text-sm font-medium"
+                                    onClick={() => toggleCollapsed(announcement.id)}
+                                  >
+                                    {collapsed ? (
+                                      <ChevronRight className="h-3.5 w-3.5" />
+                                    ) : (
+                                      <ChevronDown className="h-3.5 w-3.5" />
+                                    )}
+                                    {doneCount} of {subActions.length} steps done
+                                  </button>
+                                  {!collapsed && (
+                                    <div className="mt-2 flex flex-col gap-2">
+                                      {subActions.map((action) => (
+                                        <ActionRow
+                                          key={`${action.kind}-${action.id}`}
+                                          action={action}
+                                          isBusy={isBusy(action.kind, action.id)}
+                                          onComplete={() => triggerComplete(action)}
+                                          onUncomplete={() => triggerUncomplete(action)}
+                                          error={uncompleteErrorFor(action.kind, action.id)}
+                                        />
+                                      ))}
+                                    </div>
                                   )}
                                 </div>
-                              ))}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {subActions.length === 0 ? (
-                            "—"
+                              );
+                            })()
                           ) : (
-                            <div className="flex flex-col gap-1">
+                            <div className="flex flex-col gap-2">
                               {subActions.map((action) => (
-                                <div
+                                <ActionRow
                                   key={`${action.kind}-${action.id}`}
-                                  className="flex h-5 items-center"
-                                >
-                                  {action.status === "cancelled" ? (
-                                    <Badge variant="secondary" title="No longer applicable">
-                                      N/A
-                                    </Badge>
-                                  ) : (
-                                    <input
-                                      type="checkbox"
-                                      className="h-4 w-4 disabled:cursor-not-allowed"
-                                      checked={action.status === "done"}
-                                      disabled={
-                                        action.status === "done" ||
-                                        !action.enabled ||
-                                        isBusy(action.kind, action.id)
-                                      }
-                                      title={
-                                        !action.enabled && action.status === "open"
-                                          ? "Complete earlier steps first"
-                                          : undefined
-                                      }
-                                      onChange={() => {
-                                        if (action.status === "open" && action.enabled) {
-                                          triggerComplete(action);
-                                        }
-                                      }}
-                                    />
-                                  )}
-                                </div>
+                                  action={action}
+                                  isBusy={isBusy(action.kind, action.id)}
+                                  onComplete={() => triggerComplete(action)}
+                                  onUncomplete={() => triggerUncomplete(action)}
+                                  error={uncompleteErrorFor(action.kind, action.id)}
+                                />
                               ))}
                             </div>
                           )}
                         </TableCell>
                         <TableCell>{new Date(announcement.createdAt).toLocaleString()}</TableCell>
                         <TableCell>
-                          {announcement.resolvedAt ? (
-                            <>
-                              {new Date(announcement.resolvedAt).toLocaleString()}
-                              {announcement.resolvedBy && (
-                                <span className="text-muted-foreground">
-                                  {" "}
-                                  — {announcement.resolvedBy.name}
-                                </span>
-                              )}
-                            </>
-                          ) : (
-                            "—"
-                          )}
-                        </TableCell>
-                        <TableCell>
                           <Badge variant={status.variant}>{status.label}</Badge>
+                          {announcement.resolvedAt && (
+                            <div className="text-xs text-muted-foreground">
+                              {new Date(announcement.resolvedAt).toLocaleString()}
+                              {announcement.resolvedBy && ` — ${announcement.resolvedBy.name}`}
+                            </div>
+                          )}
                           {announcement.type === AnnouncementType.Manual &&
                             !announcement.resolved &&
                             isAdmin && (
@@ -681,7 +903,7 @@ export default function AnnouncementsPage() {
                               </Button>
                             )}
                         </TableCell>
-                        <TableCell className="min-w-48">
+                        <TableCell>
                           {isCommenting ? (
                             <div className="space-y-1">
                               <textarea
@@ -784,7 +1006,7 @@ export default function AnnouncementsPage() {
               {!isLoading && sorted.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={isAdmin ? 10 : 9}
+                    colSpan={isAdmin ? 8 : 7}
                     className="text-center text-muted-foreground"
                   >
                     No announcements to show.

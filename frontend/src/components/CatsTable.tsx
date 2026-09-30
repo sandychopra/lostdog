@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   Pencil,
   Trash2,
@@ -39,10 +39,12 @@ export interface Cat {
   kennelId: number | null;
   groupId: number | null;
   status: CatStatus;
+  // Still needed by CatForm/CatEntryFields/GroupCatEntryFields (editing and the
+  // shift-report entry checkboxes) even though this table no longer renders
+  // them itself — the Overdue-style badges moved to the Announcements page.
   dewormerStatus: DewormerStatus;
   dewormerDueDate: string | null;
   needsProbiotic: boolean;
-  lastProbioticGivenAt: string | null;
   pickupAt: string | null;
   kennel: { id: number; number: number } | null;
   group: { id: number; bonded: boolean; kennel: { id: number; number: number } | null } | null;
@@ -91,20 +93,6 @@ function ageLabel(cat: Cat): string {
   return parts.length > 0 ? parts.join(" ") : "—";
 }
 
-function isOverdue(cat: Cat): boolean {
-  if (cat.dewormerStatus !== DewormerStatus.Due || !cat.dewormerDueDate) return false;
-  return new Date(cat.dewormerDueDate) < new Date();
-}
-
-// Same 24h-since-last-dose pattern as dewormer's isOverdue() above, but the
-// "dose" here is derived server-side from CatEntry/GroupEntryCatDetail history
-// rather than a stored due date.
-function isProbioticOverdue(cat: Cat): boolean {
-  if (!cat.needsProbiotic) return false;
-  if (!cat.lastProbioticGivenAt) return true;
-  return Date.now() - new Date(cat.lastProbioticGivenAt).getTime() > 24 * 60 * 60 * 1000;
-}
-
 function siblingsLabel(cat: Cat): string {
   const names = cat.litter?.cats.filter((c) => c.id !== cat.id).map((c) => c.name) ?? [];
   return names.length > 0 ? names.join(", ") : "—";
@@ -121,7 +109,6 @@ export default function CatsTable({
 }: CatsTableProps) {
   const { data: session } = authClient.useSession();
   const isAdmin = session?.user.role === Role.Admin;
-  const queryClient = useQueryClient();
 
   const {
     data: cats,
@@ -132,13 +119,6 @@ export default function CatsTable({
     queryFn: async () => {
       const { data } = await api.get<{ cats: Cat[] }>("/api/cats");
       return data.cats;
-    },
-  });
-
-  const dewormerMutation = useMutation({
-    mutationFn: (id: number) => api.patch(`/api/cats/${id}/dewormer`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cats"] });
     },
   });
 
@@ -156,7 +136,6 @@ export default function CatsTable({
           <TableHead>Sex</TableHead>
           <TableHead>Color/Pattern</TableHead>
           <TableHead>Kennel</TableHead>
-          <TableHead>Dewormer</TableHead>
           <TableHead>Flags</TableHead>
           {isAdmin && <TableHead>Actions</TableHead>}
         </TableRow>
@@ -184,9 +163,6 @@ export default function CatsTable({
                   <Skeleton className="h-4 w-8" />
                 </TableCell>
                 <TableCell>
-                  <Skeleton className="h-5 w-20 rounded-full" />
-                </TableCell>
-                <TableCell>
                   <Skeleton className="h-4 w-24" />
                 </TableCell>
                 {isAdmin && (
@@ -209,46 +185,8 @@ export default function CatsTable({
                 <TableCell>{cat.colorPattern}</TableCell>
                 <TableCell>{kennelLabel(cat)}</TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      variant={
-                        cat.dewormerStatus === DewormerStatus.Given
-                          ? "secondary"
-                          : isOverdue(cat)
-                            ? "destructive"
-                            : "default"
-                      }
-                    >
-                      {isOverdue(cat) ? "Overdue" : cat.dewormerStatus}
-                    </Badge>
-                    {cat.dewormerStatus === DewormerStatus.Due && cat.dewormerDueDate && (
-                      <span className="text-sm text-muted-foreground">
-                        {new Date(cat.dewormerDueDate).toLocaleDateString()}
-                      </span>
-                    )}
-                    {cat.dewormerStatus === DewormerStatus.Due && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={dewormerMutation.isPending}
-                        onClick={() => dewormerMutation.mutate(cat.id)}
-                      >
-                        Mark Given
-                      </Button>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {cat.needsProbiotic || cat.pickupAt || cat.litter ? (
+                  {cat.pickupAt || cat.litter ? (
                     <div className="flex flex-col gap-1 text-sm">
-                      {cat.needsProbiotic && (
-                        <Badge
-                          variant={isProbioticOverdue(cat) ? "destructive" : "default"}
-                          className="w-fit"
-                        >
-                          {isProbioticOverdue(cat) ? "Probiotic Overdue" : "Needs Probiotic"}
-                        </Badge>
-                      )}
                       {cat.pickupAt && (
                         <span className="text-muted-foreground">
                           Pickup: {new Date(cat.pickupAt).toLocaleString()}

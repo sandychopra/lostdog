@@ -6,6 +6,8 @@ export const AnnouncementType = {
   ReturnedToRcc: "ReturnedToRcc",
   KennelMoveRequested: "KennelMoveRequested",
   KennelNeedsReset: "KennelNeedsReset",
+  DewormerDue: "DewormerDue",
+  ProbioticNeeded: "ProbioticNeeded",
   Manual: "Manual",
 } as const;
 

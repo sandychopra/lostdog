@@ -6,9 +6,11 @@ import { VALID_STATUS_TRANSITIONS } from "shared/constants/catStatusTransitions.
 import type { CreateCatInput } from "shared/schemas/cats.ts";
 import type { Prisma } from "../generated/prisma/client.ts";
 import { markKennelNeedsReset } from "./kennelResets.ts";
+import { syncDewormerAnnouncement, syncProbioticAnnouncement } from "./medicalAlerts.ts";
 
 export class InvalidCatStatusTransitionError extends Error {}
 export class InvalidPickupError extends Error {}
+export class SignTaskConflictError extends Error {}
 
 type Tx = Prisma.TransactionClient;
 
@@ -246,16 +248,35 @@ export async function returnCatToRcc(
     await markKennelNeedsReset(tx, cat.kennelId);
   }
 
+  // Leaving the active roster makes any open dewormer/probiotic reminder about
+  // this cat unactionable noise — close both out, without touching the
+  // underlying dewormerStatus/needsProbiotic flags themselves.
+  await tx.announcement.updateMany({
+    where: {
+      catId: args.catId,
+      type: { in: [AnnouncementType.DewormerDue, AnnouncementType.ProbioticNeeded] },
+      resolved: false,
+    },
+    data: { resolved: true, resolvedAt: new Date(), resolvedById: args.actorId },
+  });
+
   return tx.cat.update({
     where: { id: args.catId },
     data: { active: false, inactiveReason: args.reason ?? null },
   });
 }
 
-/** Creates a new Cat (always `Available`) and its NewArrival Announcement together. */
-export async function createCatWithArrivalAnnouncement(tx: Tx, data: CreateCatInput) {
+/** Creates a new Cat (always `Available`) and its NewArrival Announcement together,
+ * plus a DewormerDue/ProbioticNeeded announcement if it arrives already needing either. */
+export async function createCatWithArrivalAnnouncement(
+  tx: Tx,
+  data: CreateCatInput,
+  args?: { actorId?: string },
+) {
   const cat = await tx.cat.create({ data });
   await tx.announcement.create({ data: { type: AnnouncementType.NewArrival, catId: cat.id } });
+  await syncDewormerAnnouncement(tx, { catId: cat.id, actorId: args?.actorId });
+  await syncProbioticAnnouncement(tx, { catId: cat.id, actorId: args?.actorId });
   return cat;
 }
 
@@ -283,6 +304,43 @@ export async function completeSignTask(tx: Tx, args: { signTaskId: number; actor
     await tx.announcement.update({
       where: { id: updated.announcementId },
       data: { resolved: true, resolvedAt: new Date(), resolvedById: args.actorId },
+    });
+  }
+
+  return updated;
+}
+
+/** Reverts a completed SignTask back to Open, undoing whatever completeSignTask did.
+ * Only legal if nothing has happened for this cat since — see the conflict check below. */
+export async function uncompleteSignTask(tx: Tx, args: { signTaskId: number; actorId: string }) {
+  const task = await tx.signTask.findUniqueOrThrow({ where: { id: args.signTaskId } });
+  if (task.state !== TaskState.Done) {
+    throw new Error(`Sign task ${args.signTaskId} is not completed`);
+  }
+
+  // A newer SignTask row for this cat (any state) means the cat has gone
+  // through a further status transition since — undoing now would misrepresent
+  // reality (mirrors the cancelOpenSignTasks/wasSignPosted invariant above).
+  const newer = await tx.signTask.findFirst({
+    where: { catId: task.catId, id: { gt: task.id } },
+    select: { id: true },
+  });
+  if (newer) {
+    throw new SignTaskConflictError(
+      `Cannot undo — cat ${task.catId} has had further sign activity since this task was completed`,
+    );
+  }
+
+  const updated = await tx.signTask.update({
+    where: { id: args.signTaskId },
+    data: { state: TaskState.Open, completedById: null, completedAt: null },
+  });
+
+  // Mirror image of completeSignTask's resolution side effect.
+  if (updated.action === SignAction.RemovePending || updated.action === SignAction.RemoveAdopted) {
+    await tx.announcement.update({
+      where: { id: updated.announcementId },
+      data: { resolved: false, resolvedAt: null, resolvedById: null },
     });
   }
 

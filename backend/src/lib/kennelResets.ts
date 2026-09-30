@@ -3,6 +3,7 @@ import { AnnouncementType } from "shared/constants/announcementType.ts";
 import type { Prisma } from "../generated/prisma/client.ts";
 
 export class KennelResetNotFoundError extends Error {}
+export class KennelResetConflictError extends Error {}
 
 type Tx = Prisma.TransactionClient;
 
@@ -42,5 +43,33 @@ export async function completeKennelReset(
   await tx.announcement.update({
     where: { id: announcement.id },
     data: { resolved: true, resolvedAt: new Date(), resolvedById: args.actorId },
+  });
+}
+
+/** Reverts a completed kennel reset: flips the kennel back to NeedsReset and
+ * reopens the announcement completeKennelReset resolved. */
+export async function uncompleteKennelReset(
+  tx: Tx,
+  args: { kennelId: number; actorId: string },
+): Promise<void> {
+  const kennel = await tx.kennel.findUniqueOrThrow({ where: { id: args.kennelId } });
+  if (kennel.state !== KennelState.Ready) {
+    throw new KennelResetConflictError(
+      `Cannot undo — kennel ${args.kennelId} is no longer Ready (state: ${kennel.state})`,
+    );
+  }
+
+  const announcement = await tx.announcement.findFirst({
+    where: { type: AnnouncementType.KennelNeedsReset, kennelId: args.kennelId, resolved: true },
+    orderBy: [{ resolvedAt: "desc" }, { id: "desc" }],
+  });
+  if (!announcement) {
+    throw new KennelResetNotFoundError(`No resolved reset announcement for kennel ${args.kennelId}`);
+  }
+
+  await tx.kennel.update({ where: { id: args.kennelId }, data: { state: KennelState.NeedsReset } });
+  await tx.announcement.update({
+    where: { id: announcement.id },
+    data: { resolved: false, resolvedAt: null, resolvedById: null },
   });
 }

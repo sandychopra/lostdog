@@ -95,6 +95,8 @@ enum AnnouncementType {
   ReturnedToRcc
   KennelMoveRequested
   KennelNeedsReset
+  DewormerDue
+  ProbioticNeeded
   Manual
 }
 
