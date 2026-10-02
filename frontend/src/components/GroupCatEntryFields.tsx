@@ -1,19 +1,23 @@
+import { useState } from "react";
 import { useFieldArray, useWatch, type UseFormReturn } from "react-hook-form";
-import { Trash2 } from "lucide-react";
-import { DewormerStatus } from "shared/constants/dewormerStatus.ts";
 import { SnackTreat } from "shared/constants/snackTreat.ts";
 import type { CreateShiftReportInput } from "shared/schemas/shiftReports.ts";
-import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
+import { Badge } from "./ui/badge";
 import FoodAmountPicker from "./FoodAmountPicker";
 import FecalScorePicker from "./FecalScorePicker";
+import CollapsibleEntryCard from "./CollapsibleEntryCard";
 import PhotoUploadSection, {
   type QueuedPhoto,
   type UploadedPhotoSummary,
 } from "./PhotoUploadSection";
 import type { Cat } from "./CatsTable";
 import type { Kennel } from "./KennelsTable";
+
+// Per-cat detail rows default collapsed when there are more than this many,
+// matching the top-level entry threshold in ShiftReportForm.tsx.
+const AUTO_COLLAPSE_THRESHOLD = 3;
 
 const selectClassName =
   "flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -29,6 +33,8 @@ interface GroupCatEntryFieldsProps {
   queuedPhotos: QueuedPhoto[];
   onQueuedPhotosChange: (next: QueuedPhoto[]) => void;
   uploadedPhotos: UploadedPhotoSummary[];
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }
 
 function GroupCatDetailFields({
@@ -36,19 +42,36 @@ function GroupCatDetailFields({
   entryIndex,
   detailIndex,
   cat,
+  collapsed,
+  onToggleCollapsed,
 }: {
   form: UseFormReturn<CreateShiftReportInput>;
   entryIndex: number;
   detailIndex: number;
   cat: Cat;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }) {
   const { control, register, setValue } = form;
   const base = `catEntries.${entryIndex}.catDetails.${detailIndex}` as const;
   const wetFoodAmount = useWatch({ control, name: `${base}.wetFoodAmount` as const });
+  const nailTrim = useWatch({ control, name: `${base}.nailTrim` as const });
+
+  const summary = (
+    <>
+      {wetFoodAmount !== undefined && <Badge variant="outline">Wet: {wetFoodAmount}</Badge>}
+      {nailTrim && <Badge variant="outline">Nail trim ✓</Badge>}
+    </>
+  );
 
   return (
-    <div className="space-y-2 rounded-md border border-input/60 bg-muted/30 p-3">
-      <p className="text-sm font-medium">{cat.name}</p>
+    <CollapsibleEntryCard
+      title={cat.name}
+      summary={summary}
+      collapsed={collapsed}
+      onToggleCollapsed={onToggleCollapsed}
+      variant="nested"
+    >
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label>Wet Food</Label>
@@ -99,28 +122,6 @@ function GroupCatDetailFields({
           {...register(`${base}.medicalNotes` as const)}
         />
       </div>
-      {cat.dewormerStatus === DewormerStatus.Due && (
-        <div className="flex items-center gap-2">
-          <input
-            id={`${base}.dewormerGiven`}
-            type="checkbox"
-            className="h-4 w-4"
-            {...register(`${base}.dewormerGiven` as const)}
-          />
-          <Label htmlFor={`${base}.dewormerGiven`}>Dewormer given</Label>
-        </div>
-      )}
-      {cat.needsProbiotic && (
-        <div className="flex items-center gap-2">
-          <input
-            id={`${base}.probioticGiven`}
-            type="checkbox"
-            className="h-4 w-4"
-            {...register(`${base}.probioticGiven` as const)}
-          />
-          <Label htmlFor={`${base}.probioticGiven`}>Probiotic given</Label>
-        </div>
-      )}
       <div className="space-y-1">
         <Label htmlFor={`${base}.behaviorNotes`}>Behavior Notes</Label>
         <textarea
@@ -146,7 +147,7 @@ function GroupCatDetailFields({
         />
         <Label htmlFor={`${base}.nailTrim`}>Nail trim</Label>
       </div>
-    </div>
+    </CollapsibleEntryCard>
   );
 }
 
@@ -159,6 +160,8 @@ export default function GroupCatEntryFields({
   queuedPhotos,
   onQueuedPhotosChange,
   uploadedPhotos,
+  collapsed,
+  onToggleCollapsed,
 }: GroupCatEntryFieldsProps) {
   const { control, register, setValue } = form;
   const base = `catEntries.${index}` as const;
@@ -173,9 +176,44 @@ export default function GroupCatEntryFields({
     name: `${base}.catDetails` as const,
   });
 
+  // Keyed by catId, local to this entry — nothing outside needs to know which
+  // per-cat detail rows are collapsed. Defaults collapsed for a group this
+  // large, same threshold as the top-level entries in ShiftReportForm.tsx.
+  const [collapsedDetailIds, setCollapsedDetailIds] = useState<Set<number>>(() =>
+    detailFields.length > AUTO_COLLAPSE_THRESHOLD
+      ? new Set(detailFields.map((f) => f.catId))
+      : new Set(),
+  );
+
+  function toggleDetailCollapsed(catId: number) {
+    setCollapsedDetailIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(catId)) next.delete(catId);
+      else next.add(catId);
+      return next;
+    });
+  }
+
   // Native <select> values are always strings — coerce before comparing.
   const selectedGroup = groups.find((g) => g.id === Number(groupId));
   const groupCats = selectedGroup?.cats ?? [];
+
+  const photoCount = queuedPhotos.length + uploadedPhotos.length;
+  const summary = (
+    <>
+      {fecalScore !== undefined && <Badge variant="outline">FS {fecalScore}</Badge>}
+      {photoCount > 0 && (
+        <Badge variant="outline">
+          {photoCount} photo{photoCount === 1 ? "" : "s"}
+        </Badge>
+      )}
+      {detailFields.length > 0 && (
+        <Badge variant="outline">
+          {detailFields.length} cat{detailFields.length === 1 ? "" : "s"}
+        </Badge>
+      )}
+    </>
+  );
 
   function handleGroupChange(newGroupId: number) {
     const group = groups.find((g) => g.id === newGroupId);
@@ -183,29 +221,22 @@ export default function GroupCatEntryFields({
       `${base}.catDetails` as const,
       (group?.cats ?? []).map((c) => ({
         catId: c.id,
-        dewormerGiven: false,
-        probioticGiven: false,
         nailTrim: false,
       })),
       { shouldValidate: true },
     );
+    // A new group's members start expanded, same as a freshly-added entry.
+    setCollapsedDetailIds(new Set());
   }
 
   return (
-    <div className="space-y-3 rounded-md border border-input p-4">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold">Group Entry</span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={onRemove}
-          aria-label="Remove entry"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-
+    <CollapsibleEntryCard
+      title={selectedGroup ? selectedGroup.cats.map((c) => c.name).join(" / ") : "Group Entry"}
+      summary={summary}
+      collapsed={collapsed}
+      onToggleCollapsed={onToggleCollapsed}
+      onRemove={onRemove}
+    >
       <div className="space-y-2">
         <Label htmlFor={`${base}.groupId`}>Group</Label>
         <select
@@ -291,6 +322,8 @@ export default function GroupCatEntryFields({
                   entryIndex={index}
                   detailIndex={detailIndex}
                   cat={cat}
+                  collapsed={collapsedDetailIds.has(field.catId)}
+                  onToggleCollapsed={() => toggleDetailCollapsed(field.catId)}
                 />
               );
             })}
@@ -308,6 +341,6 @@ export default function GroupCatEntryFields({
           showTagPicker
         />
       </div>
-    </div>
+    </CollapsibleEntryCard>
   );
 }

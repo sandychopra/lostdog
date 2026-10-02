@@ -102,10 +102,7 @@ router.get("/", requireAuth, async (req, res: Response) => {
         since: announcement.createdAt,
         until: announcement.resolvedAt ?? undefined,
       });
-      const lastProbioticGivenAt =
-        doses.length > 0
-          ? new Date(Math.max(...doses.map((dose) => dose.givenAt.getTime())))
-          : null;
+      const lastProbioticGivenAt = doses[0]?.loggedAt ?? null;
       return { ...announcement, doses, lastProbioticGivenAt };
     }),
   );

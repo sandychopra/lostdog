@@ -16,7 +16,11 @@ import {
   returnCatToRcc,
 } from "../lib/catStatus.ts";
 import { markKennelNeedsReset } from "../lib/kennelResets.ts";
-import { syncDewormerAnnouncement, syncProbioticAnnouncement } from "../lib/medicalAlerts.ts";
+import {
+  syncDewormerAnnouncement,
+  syncProbioticAnnouncement,
+  logProbioticDose,
+} from "../lib/medicalAlerts.ts";
 
 const router = Router();
 
@@ -35,31 +39,7 @@ router.get("/", requireAuth, async (_req, res: Response) => {
     orderBy: { name: "asc" },
   });
 
-  // "Last probiotic given" has no dedicated dose-log table — it's derived from
-  // the most recent probiotic-given CatEntry/GroupEntryCatDetail per cat.
-  // GroupEntryCatDetail has no timestamp of its own, so its parent CatEntry's
-  // createdAt is the timestamp used for a group dose too.
-  const doses = await prisma.$queryRaw<{ catId: number; lastGivenAt: Date }[]>`
-    SELECT cat_id AS "catId", MAX(given_at) AS "lastGivenAt" FROM (
-      SELECT cat_id, created_at AS given_at
-      FROM cat_entry
-      WHERE entry_type = 'Individual' AND probiotic_given = true
-      UNION ALL
-      SELECT gd.cat_id, ce.created_at AS given_at
-      FROM group_entry_cat_detail gd
-      JOIN cat_entry ce ON ce.id = gd.cat_entry_id
-      WHERE gd.probiotic_given = true
-    ) doses
-    GROUP BY cat_id
-  `;
-  const lastGivenByCatId = new Map(doses.map((dose) => [dose.catId, dose.lastGivenAt]));
-
-  res.json({
-    cats: cats.map((cat) => ({
-      ...cat,
-      lastProbioticGivenAt: lastGivenByCatId.get(cat.id) ?? null,
-    })),
-  });
+  res.json({ cats });
 });
 
 router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
@@ -210,6 +190,21 @@ router.patch("/:id/dewormer", requireAuth, async (req, res: Response) => {
   });
 
   res.json({ cat });
+});
+
+router.post("/:id/probiotic-dose", requireAuth, async (req, res: Response) => {
+  const id = Number(req.params.id);
+  const actorId = (req as AuthedRequest).session.user.id;
+
+  const existing = await prisma.cat.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Cat not found" });
+    return;
+  }
+
+  await prisma.$transaction((tx) => logProbioticDose(tx, { catId: id, actorId }));
+
+  res.status(201).json({ message: "Dose logged" });
 });
 
 router.patch("/:id/status", requireAuth, requireAdmin, async (req, res: Response) => {

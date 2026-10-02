@@ -1,13 +1,11 @@
 import { hashPassword } from "better-auth/crypto";
 import {
   AnnouncementType,
-  CatEntryType,
   CatStatus,
   ChecklistActionType,
   DewormerStatus,
   KennelState,
   Role,
-  ShiftType,
   SignAction,
   TaskState,
 } from "../src/generated/prisma/enums.ts";
@@ -252,19 +250,12 @@ async function seedAnnouncements() {
     // One logged dose today, so Pepsi's ProbioticNeeded announcement has a
     // non-empty dose log to render instead of always showing "Overdue" with
     // nothing underneath.
-    const pepsiHasLoggedDose = await tx.catEntry.findFirst({
-      where: { catId: pepsi.id, entryType: CatEntryType.Individual, probioticGiven: true },
+    const pepsiHasLoggedDose = await tx.probioticDose.findFirst({
+      where: { catId: pepsi.id },
     });
     if (!pepsiHasLoggedDose) {
-      await tx.shiftReport.create({
-        data: {
-          authorId: volunteer.id,
-          shiftType: ShiftType.Morning,
-          date: new Date(),
-          catEntries: {
-            create: [{ entryType: CatEntryType.Individual, catId: pepsi.id, probioticGiven: true }],
-          },
-        },
+      await tx.probioticDose.create({
+        data: { catId: pepsi.id, loggedById: volunteer.id },
       });
     }
 

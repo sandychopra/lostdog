@@ -39,9 +39,9 @@ export interface Cat {
   kennelId: number | null;
   groupId: number | null;
   status: CatStatus;
-  // Still needed by CatForm/CatEntryFields/GroupCatEntryFields (editing and the
-  // shift-report entry checkboxes) even though this table no longer renders
-  // them itself — the Overdue-style badges moved to the Announcements page.
+  // Still needed by CatForm (editing) even though this table no longer
+  // renders them itself — dewormer/probiotic are managed entirely from the
+  // Announcements page now, not the roster or the shift report.
   dewormerStatus: DewormerStatus;
   dewormerDueDate: string | null;
   needsProbiotic: boolean;

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "../test/render";
 
@@ -14,7 +14,20 @@ const get = mock(async (url: string) => {
             groupId: null,
             dewormerStatus: "Given",
             needsProbiotic: false,
-            lastProbioticGivenAt: null,
+          },
+          {
+            id: 2,
+            name: "Sprite",
+            groupId: 10,
+            dewormerStatus: "Given",
+            needsProbiotic: false,
+          },
+          {
+            id: 3,
+            name: "Nehi",
+            groupId: 10,
+            dewormerStatus: "Given",
+            needsProbiotic: false,
           },
         ],
       },
@@ -23,7 +36,23 @@ const get = mock(async (url: string) => {
   if (url === "/api/kennels") {
     return {
       data: {
-        kennels: [{ id: 5, number: 5, state: "Ready", cats: [], groups: [] }],
+        kennels: [
+          {
+            id: 5,
+            number: 5,
+            state: "Ready",
+            cats: [],
+            groups: [
+              {
+                id: 10,
+                cats: [
+                  { id: 2, name: "Sprite" },
+                  { id: 3, name: "Nehi" },
+                ],
+              },
+            ],
+          },
+        ],
       },
     };
   }
@@ -111,7 +140,9 @@ describe("ShiftReportForm", () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
-    await user.click(screen.getByRole("button", { name: "Add Individual Entry" }));
+    await user.selectOptions(await screen.findByRole("combobox", { name: /add a cat entry/i }), [
+      "cat:1",
+    ]);
 
     expect(screen.queryByText("Free-fed")).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Most" }).length).toBeGreaterThan(0);
@@ -121,9 +152,23 @@ describe("ShiftReportForm", () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
-    await user.click(screen.getByRole("button", { name: "Add Group Entry" }));
+    await user.selectOptions(await screen.findByRole("combobox", { name: /add a cat entry/i }), [
+      "group:10",
+    ]);
 
     expect(screen.queryByText("Water noted (shared)")).not.toBeInTheDocument();
+  });
+
+  test("picking a cat or group removes it from the add-entry picker", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+
+    const picker = await screen.findByRole("combobox", { name: /add a cat entry/i });
+    expect(within(picker).getByRole("option", { name: "Pepsi" })).toBeInTheDocument();
+
+    await user.selectOptions(picker, ["cat:1"]);
+
+    expect(within(picker).queryByRole("option", { name: "Pepsi" })).not.toBeInTheDocument();
   });
 
   test("has a Kennel Notes field after Kennel Status", () => {
@@ -138,18 +183,19 @@ describe("ShiftReportForm", () => {
     expect(await screen.findByLabelText("Kennel 5")).toHaveValue("Ready");
   });
 
-  test("reporting a state that conflicts with the current one requires a note", async () => {
+  test("reporting a state that conflicts with the current one submits fine, no note needed", async () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
     await user.selectOptions(await screen.findByLabelText("Kennel 5"), "Occupied");
     await user.click(screen.getByRole("button", { name: "Submit Report" }));
 
-    expect(await screen.findByText(/a note is required/i)).toBeInTheDocument();
-    expect(post).not.toHaveBeenCalled();
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    const payload = post.mock.calls[0]?.[1] as { kennelsStatus: unknown[] };
+    expect(payload.kennelsStatus[0]).toMatchObject({ kennelId: 5, reportedState: "Occupied" });
   });
 
-  test("confirming the current state needs no note", async () => {
+  test("confirming the current state submits as-is", async () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 

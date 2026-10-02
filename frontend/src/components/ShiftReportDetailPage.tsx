@@ -88,14 +88,6 @@ function CatEntrySummary({ entry }: { entry: CatEntry }) {
         )}
         <dt className="text-muted-foreground">Nail trim</dt>
         <dd>{entry.nailTrim ? "Yes" : "No"}</dd>
-        {entry.entryType === CatEntryType.Individual && (
-          <>
-            <dt className="text-muted-foreground">Dewormer given</dt>
-            <dd>{entry.dewormerGiven ? "Yes" : "No"}</dd>
-            <dt className="text-muted-foreground">Probiotic given</dt>
-            <dd>{entry.probioticGiven ? "Yes" : "No"}</dd>
-          </>
-        )}
       </dl>
       {entry.entryType === CatEntryType.Group && entry.groupDetails.length > 0 && (
         <div className="space-y-2">
@@ -103,9 +95,7 @@ function CatEntrySummary({ entry }: { entry: CatEntry }) {
             <div key={detail.id} className="rounded-md bg-muted/40 p-2 text-sm">
               <p className="font-medium">{detail.cat.name}</p>
               <p className="text-muted-foreground">
-                Wet food: {detail.wetFoodAmount ?? "—"} · Dewormer:{" "}
-                {detail.dewormerGiven ? "Given" : "No"} · Probiotic:{" "}
-                {detail.probioticGiven ? "Given" : "No"} · Nail trim:{" "}
+                Wet food: {detail.wetFoodAmount ?? "—"} · Nail trim:{" "}
                 {detail.nailTrim ? "Yes" : "No"}
               </p>
               {detail.behaviorNotes && <p>{detail.behaviorNotes}</p>}
@@ -217,12 +207,9 @@ export default function ShiftReportDetailPage() {
                 <h2 className="text-lg font-semibold">Kennel Status</h2>
                 <div className="flex flex-wrap gap-2">
                   {report.kennelsStatus.map((k) => (
-                    <div key={k.kennelId} className="rounded-md border border-input p-2 text-sm">
-                      <Badge variant={k.note ? "destructive" : "secondary"}>
-                        #{k.kennel.number}: {k.reportedState}
-                      </Badge>
-                      {k.note && <p className="mt-1">{k.note}</p>}
-                    </div>
+                    <Badge key={k.kennelId} variant="secondary">
+                      #{k.kennel.number}: {k.reportedState}
+                    </Badge>
                   ))}
                 </div>
               </section>

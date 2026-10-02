@@ -6,7 +6,6 @@ import { ChecklistActionType } from "shared/constants/checklistActionType.ts";
 import { TaskState } from "shared/constants/taskState.ts";
 import { Role } from "shared/constants/role.ts";
 import { DewormerStatus } from "shared/constants/dewormerStatus.ts";
-import { ShiftType } from "shared/constants/shiftType.ts";
 import { api } from "../lib/api";
 import { authClient } from "../lib/auth-client";
 import ErrorAlert from "./ErrorAlert";
@@ -51,9 +50,8 @@ interface AnnouncementCat {
 }
 
 interface ProbioticDose {
-  date: string;
-  shiftType: ShiftType;
-  submittedBy: string;
+  loggedAt: string;
+  loggedBy: string;
 }
 
 interface ChecklistActionItem {
@@ -132,19 +130,8 @@ const SIGN_ACTION_LABELS: Record<SignAction, string> = {
   [SignAction.RemoveAdopted]: "Remove Adopted sign",
 };
 
-const SHIFT_TYPE_LABELS: Record<ShiftType, string> = {
-  [ShiftType.Morning]: "Morning",
-  [ShiftType.MidDay]: "Midday",
-  [ShiftType.Evening]: "Evening",
-};
-
 type SubActionKind =
-  | "signTask"
-  | "confirmPickup"
-  | "kennelMove"
-  | "checklistAction"
-  | "kennelReset"
-  | "dewormerGiven";
+  "signTask" | "confirmPickup" | "kennelMove" | "checklistAction" | "kennelReset" | "dewormerGiven";
 
 interface SubAction {
   kind: SubActionKind;
@@ -309,9 +296,10 @@ function getSubActions(announcement: Announcement): SubAction[] {
         },
       ];
     }
-    // ProbioticNeeded has no completable sub-action — only an Admin clears the
-    // "needs probiotic" flag, from the cat's edit form, not from here. Its
-    // status/dose-log render directly in the table body below instead.
+    // ProbioticNeeded has no completable sub-action in the generic sense — only
+    // an Admin clears the "needs probiotic" flag, from the cat's edit form, to
+    // resolve it. Its status/dose-log/"Log dose" button render directly in the
+    // table body below instead, since logging a dose never resolves anything.
     default:
       return [];
   }
@@ -380,17 +368,33 @@ function ProbioticStatus({
   announcement,
   collapsed,
   onToggle,
+  onLogDose,
+  isLoggingDose,
+  logDoseError,
 }: {
   announcement: Announcement;
   collapsed: boolean;
   onToggle: () => void;
+  onLogDose: () => void;
+  isLoggingDose: boolean;
+  logDoseError: unknown;
 }) {
   const overdue = isProbioticOverdue(announcement);
   return (
     <div>
-      <Badge variant={overdue ? "destructive" : "default"} className="w-fit">
-        {overdue ? "Overdue" : "Needs Probiotic"}
-      </Badge>
+      <div className="flex items-center gap-2">
+        <Badge variant={overdue ? "destructive" : "default"} className="w-fit">
+          {overdue ? "Overdue" : "Needs Probiotic"}
+        </Badge>
+        <Button size="sm" variant="outline" disabled={isLoggingDose} onClick={onLogDose}>
+          Log dose
+        </Button>
+      </div>
+      {logDoseError !== undefined && (
+        <div className="mt-1">
+          <ErrorAlert error={logDoseError} />
+        </div>
+      )}
       {announcement.doses.length > 0 && (
         <div className="mt-2">
           <button
@@ -409,8 +413,7 @@ function ProbioticStatus({
             <ul className="mt-1 flex flex-col gap-0.5 text-xs text-muted-foreground">
               {announcement.doses.map((dose, index) => (
                 <li key={index}>
-                  {new Date(dose.date).toLocaleDateString()} · {SHIFT_TYPE_LABELS[dose.shiftType]} —{" "}
-                  {dose.submittedBy}
+                  {new Date(dose.loggedAt).toLocaleString()} — {dose.loggedBy}
                 </li>
               ))}
             </ul>
@@ -583,6 +586,10 @@ export default function AnnouncementsPage() {
       invalidateAll();
       queryClient.invalidateQueries({ queryKey: ["cats"] });
     },
+  });
+  const logProbioticDose = useMutation({
+    mutationFn: (catId: number) => api.post(`/api/cats/${catId}/probiotic-dose`),
+    onSuccess: invalidateAll,
   });
   const uncompleteSignTask = useMutation({
     mutationFn: (id: number) => api.patch(`/api/sign-tasks/${id}/uncomplete`),
@@ -825,6 +832,17 @@ export default function AnnouncementsPage() {
                               announcement={announcement}
                               collapsed={collapsedIds.has(announcement.id)}
                               onToggle={() => toggleCollapsed(announcement.id)}
+                              onLogDose={() => logProbioticDose.mutate(announcement.cat!.id)}
+                              isLoggingDose={
+                                logProbioticDose.isPending &&
+                                logProbioticDose.variables === announcement.cat?.id
+                              }
+                              logDoseError={
+                                logProbioticDose.isError &&
+                                logProbioticDose.variables === announcement.cat?.id
+                                  ? logProbioticDose.error
+                                  : undefined
+                              }
                             />
                           ) : subActions.length === 0 ? (
                             announcement.type !== AnnouncementType.Manual && "—"

@@ -1,14 +1,13 @@
 import { useWatch, type UseFormReturn } from "react-hook-form";
-import { Trash2 } from "lucide-react";
-import { DewormerStatus } from "shared/constants/dewormerStatus.ts";
 import { SnackTreat } from "shared/constants/snackTreat.ts";
 import type { CreateShiftReportInput } from "shared/schemas/shiftReports.ts";
-import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
+import { Badge } from "./ui/badge";
 import ErrorMessage from "./ErrorMessage";
 import FecalScorePicker from "./FecalScorePicker";
 import FoodAmountPicker from "./FoodAmountPicker";
+import CollapsibleEntryCard from "./CollapsibleEntryCard";
 import PhotoUploadSection, {
   type QueuedPhoto,
   type UploadedPhotoSummary,
@@ -28,6 +27,8 @@ interface CatEntryFieldsProps {
   queuedPhotos: QueuedPhoto[];
   onQueuedPhotosChange: (next: QueuedPhoto[]) => void;
   uploadedPhotos: UploadedPhotoSummary[];
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }
 
 export default function CatEntryFields({
@@ -38,6 +39,8 @@ export default function CatEntryFields({
   queuedPhotos,
   onQueuedPhotosChange,
   uploadedPhotos,
+  collapsed,
+  onToggleCollapsed,
 }: CatEntryFieldsProps) {
   const { control, register, formState, setValue } = form;
   const base = `catEntries.${index}` as const;
@@ -46,6 +49,7 @@ export default function CatEntryFields({
   const fecalScore = useWatch({ control, name: `${base}.fecalScore` as const });
   const dryFoodAmount = useWatch({ control, name: `${base}.dryFoodAmount` as const });
   const wetFoodAmount = useWatch({ control, name: `${base}.wetFoodAmount` as const });
+  const nailTrim = useWatch({ control, name: `${base}.nailTrim` as const });
 
   // Native <select> values are always strings, even though the schema's
   // parsed/output type is number — coerce before comparing against numeric ids.
@@ -57,21 +61,27 @@ export default function CatEntryFields({
     { message?: string } | undefined
   >;
 
-  return (
-    <div className="space-y-3 rounded-md border border-input p-4">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold">Individual Entry</span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={onRemove}
-          aria-label="Remove entry"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
+  const photoCount = queuedPhotos.length + uploadedPhotos.length;
+  const summary = (
+    <>
+      {fecalScore !== undefined && <Badge variant="outline">FS {fecalScore}</Badge>}
+      {photoCount > 0 && (
+        <Badge variant="outline">
+          {photoCount} photo{photoCount === 1 ? "" : "s"}
+        </Badge>
+      )}
+      {nailTrim && <Badge variant="outline">Nail trim ✓</Badge>}
+    </>
+  );
 
+  return (
+    <CollapsibleEntryCard
+      title={selectedCat?.name ?? "Individual Entry"}
+      summary={summary}
+      collapsed={collapsed}
+      onToggleCollapsed={onToggleCollapsed}
+      onRemove={onRemove}
+    >
       <div className="space-y-2">
         <Label htmlFor={`${base}.catId`}>Cat</Label>
         <select
@@ -184,30 +194,6 @@ export default function CatEntryFields({
         />
       </div>
 
-      {selectedCat?.dewormerStatus === DewormerStatus.Due && (
-        <div className="flex items-center gap-2">
-          <input
-            id={`${base}.dewormerGiven`}
-            type="checkbox"
-            className="h-4 w-4"
-            {...register(`${base}.dewormerGiven` as const)}
-          />
-          <Label htmlFor={`${base}.dewormerGiven`}>Dewormer given</Label>
-        </div>
-      )}
-
-      {selectedCat?.needsProbiotic && (
-        <div className="flex items-center gap-2">
-          <input
-            id={`${base}.probioticGiven`}
-            type="checkbox"
-            className="h-4 w-4"
-            {...register(`${base}.probioticGiven` as const)}
-          />
-          <Label htmlFor={`${base}.probioticGiven`}>Probiotic given</Label>
-        </div>
-      )}
-
       <div className="space-y-2">
         <Label htmlFor={`${base}.behaviorNotes`}>Behavior Notes</Label>
         <textarea
@@ -246,6 +232,6 @@ export default function CatEntryFields({
           showTagPicker={false}
         />
       </div>
-    </div>
+    </CollapsibleEntryCard>
   );
 }

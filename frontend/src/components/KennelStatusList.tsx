@@ -2,14 +2,11 @@ import { useEffect } from "react";
 import { useFieldArray, useWatch, type UseFormReturn } from "react-hook-form";
 import type { CreateShiftReportInput } from "shared/schemas/shiftReports.ts";
 import { KennelState, toReportableKennelState } from "shared/constants/kennelState.ts";
-import { cn } from "../lib/utils";
 import { Label } from "./ui/label";
 import ErrorMessage from "./ErrorMessage";
 
 const selectClassName =
   "flex h-9 w-full rounded-md border border-input bg-white px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
-const textareaClassName =
-  "flex min-h-16 w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 interface KennelStatusListProps {
   form: UseFormReturn<CreateShiftReportInput>;
@@ -18,10 +15,11 @@ interface KennelStatusListProps {
 
 // Every kennel gets a reported state each shift (Ready/Occupied/NeedsReset) —
 // defaulted to its current recorded state, so confirming "yes, still what the
-// system shows" takes no action. A note is only required when the reported
-// state disagrees with the kennel's current state (enforced authoritatively
-// in the backend; this just mirrors that as an inline hint). This is purely
-// observational — submitting never changes Kennel.state or announcements.
+// system shows" takes no action. A reported state that disagrees with the
+// kennel's current state is just logged as-is, same as any other value — no
+// note required; anything worth explaining goes in the report's general
+// Kennel Notes field instead. This is purely observational — submitting
+// never changes Kennel.state or announcements.
 export default function KennelStatusList({ form, kennelOptions }: KennelStatusListProps) {
   const { control, register, formState } = form;
   const fieldArray = useFieldArray({ control, name: "kennelsStatus" });
@@ -41,7 +39,6 @@ export default function KennelStatusList({ form, kennelOptions }: KennelStatusLi
         missing.map((k) => ({
           kennelId: k.id,
           reportedState: toReportableKennelState(k.state),
-          note: "",
         })),
       );
     }
@@ -59,17 +56,12 @@ export default function KennelStatusList({ form, kennelOptions }: KennelStatusLi
   return (
     <section className="space-y-3">
       <h2 className="text-lg font-semibold">Kennel Status</h2>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
         {orderedFields.map(([index, field]) => {
           const kennel = kennelById.get(field.kennelId);
-          const reportedState = values[index]?.reportedState;
-          const mismatch =
-            !!kennel &&
-            reportedState !== undefined &&
-            reportedState !== toReportableKennelState(kennel.state);
 
           return (
-            <div key={field.id} className={cn("space-y-1", mismatch && "col-span-full")}>
+            <div key={field.id} className="space-y-1">
               <Label htmlFor={`kennelsStatus.${index}.reportedState`} className="text-xs">
                 Kennel {kennel?.number ?? "—"}
               </Label>
@@ -82,16 +74,6 @@ export default function KennelStatusList({ form, kennelOptions }: KennelStatusLi
                 <option value={KennelState.Occupied}>Occupied</option>
                 <option value={KennelState.NeedsReset}>Needs Reset</option>
               </select>
-              {mismatch && (
-                <>
-                  <textarea
-                    className={textareaClassName}
-                    placeholder={`Doesn't match the system's current state (${kennel!.state}) — what did you see?`}
-                    {...register(`kennelsStatus.${index}.note` as const)}
-                  />
-                  <ErrorMessage message={formState.errors.kennelsStatus?.[index]?.note?.message} />
-                </>
-              )}
             </div>
           );
         })}

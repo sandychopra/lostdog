@@ -64,8 +64,6 @@ function mapReportToDefaultValues(report: ShiftReport): CreateShiftReportInput {
             snackTreat: entry.snackTreat ?? undefined,
             snackTreatNote: entry.snackTreatNote ?? "",
             medicalNotes: entry.medicalNotes ?? "",
-            dewormerGiven: entry.dewormerGiven,
-            probioticGiven: entry.probioticGiven,
             behaviorNotes: entry.behaviorNotes ?? "",
             otherNotes: entry.otherNotes ?? "",
             nailTrim: entry.nailTrim,
@@ -88,8 +86,6 @@ function mapReportToDefaultValues(report: ShiftReport): CreateShiftReportInput {
               snackTreatNote: detail.snackTreatNote ?? "",
               foodNotes: detail.foodNotes ?? "",
               medicalNotes: detail.medicalNotes ?? "",
-              dewormerGiven: detail.dewormerGiven,
-              probioticGiven: detail.probioticGiven,
               behaviorNotes: detail.behaviorNotes ?? "",
               otherNotes: detail.otherNotes ?? "",
               nailTrim: detail.nailTrim,
@@ -109,7 +105,6 @@ function mapReportToDefaultValues(report: ShiftReport): CreateShiftReportInput {
     kennelsStatus: report.kennelsStatus.map((k) => ({
       kennelId: k.kennelId,
       reportedState: k.reportedState,
-      note: k.note ?? "",
     })),
   };
 }
@@ -169,9 +164,29 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
         },
   });
 
-  const { control, register, formState, setError } = form;
+  const { control, register, formState } = form;
 
   const catEntries = useFieldArray({ control, name: "catEntries" });
+
+  // Keyed by useFieldArray's stable field.id (not array index, which shifts on
+  // add/remove). Entries default collapsed when editing a report with enough
+  // of them that the form becomes scroll-heavy; a brand-new report starts
+  // empty, and a freshly-added entry is never added to this set, so both open
+  // expanded.
+  const [collapsedEntryIds, setCollapsedEntryIds] = useState<Set<string>>(() =>
+    report && catEntries.fields.length > 3
+      ? new Set(catEntries.fields.map((f) => f.id))
+      : new Set(),
+  );
+
+  function toggleEntryCollapsed(id: string) {
+    setCollapsedEntryIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   const shiftType = useWatch({ control, name: "shiftType" });
   const isSplitShift = useWatch({ control, name: "isSplitShift" });
@@ -192,21 +207,6 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
   });
 
   async function onSubmit(data: CreateShiftReportInput) {
-    // A note is only required when the reported state disagrees with the
-    // kennel's current state — checked here for immediate feedback, since
-    // the schema can't see live kennel state; the backend re-checks this
-    // authoritatively regardless.
-    const kennelById = new Map((kennels ?? []).map((k) => [k.id, k]));
-    for (const [index, status] of data.kennelsStatus.entries()) {
-      const kennel = kennelById.get(status.kennelId);
-      if (kennel && status.reportedState !== kennel.state && !status.note) {
-        setError(`kennelsStatus.${index}.note`, {
-          message: `Doesn't match the system's current state (${kennel.state}) — a note is required`,
-        });
-        return;
-      }
-    }
-
     const saved = await mutation.mutateAsync(data);
 
     const knownIds = new Set(
@@ -251,28 +251,66 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
     queryClient.invalidateQueries({ queryKey: ["shiftReports"] });
     queryClient.invalidateQueries({ queryKey: ["cats"] });
     queryClient.invalidateQueries({ queryKey: ["kennels"] });
-    queryClient.invalidateQueries({ queryKey: ["announcements"] });
     onSuccess(saved.id);
   }
 
-  function addIndividualEntry() {
+  function addIndividualEntry(catId: number) {
     catEntries.append({
       entryType: CatEntryType.Individual,
-      catId: undefined as unknown as number,
+      catId,
       pee: false,
-      dewormerGiven: false,
-      probioticGiven: false,
       nailTrim: false,
     });
   }
 
-  function addGroupEntry() {
+  function addGroupEntry(groupId: number) {
+    const group = (kennels ?? []).flatMap((k) => k.groups).find((g) => g.id === groupId);
     catEntries.append({
       entryType: CatEntryType.Group,
-      groupId: undefined as unknown as number,
+      groupId,
       pee: false,
-      catDetails: [],
+      catDetails: (group?.cats ?? []).map((c) => ({ catId: c.id, nailTrim: false })),
     });
+  }
+
+  // A single picker replaces separate "Add Individual/Group Entry" buttons —
+  // which kind of entry a cat needs is roster trivia (is it currently housed
+  // solo or with others), not something a volunteer should have to already
+  // know. Picking a cat/group here decides the entry shape automatically.
+  // Not a registered form field — just a transient "pick something to add"
+  // trigger, reset after each use.
+  const [pickerValue, setPickerValue] = useState("");
+
+  const catEntryValues = useWatch({ control, name: "catEntries" }) ?? [];
+  const usedCatIds = new Set(
+    catEntryValues
+      .filter((e) => e.entryType === CatEntryType.Individual)
+      .map((e) => e.catId)
+      .filter((id): id is number => id !== undefined),
+  );
+  const usedGroupIds = new Set(
+    catEntryValues
+      .filter((e) => e.entryType === CatEntryType.Group)
+      .map((e) => e.groupId)
+      .filter((id): id is number => id !== undefined),
+  );
+  const pickerOptions = [
+    ...(cats ?? [])
+      .filter((c) => c.groupId === null && !usedCatIds.has(c.id))
+      .map((c) => ({ value: `cat:${c.id}`, label: c.name })),
+    ...(kennels ?? [])
+      .flatMap((k) => k.groups)
+      .filter((g) => g.cats.length > 0 && !usedGroupIds.has(g.id))
+      .map((g) => ({ value: `group:${g.id}`, label: g.cats.map((c) => c.name).join(" / ") })),
+  ].sort((a, b) => a.label.localeCompare(b.label));
+
+  function handlePickerChange(value: string) {
+    if (!value) return;
+    const [kind, idStr] = value.split(":");
+    const id = Number(idStr);
+    if (kind === "cat") addIndividualEntry(id);
+    else addGroupEntry(id);
+    setPickerValue("");
   }
 
   return (
@@ -330,12 +368,39 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Cat Entries</h2>
           <div className="flex gap-2">
-            <Button type="button" variant="secondary" onClick={addIndividualEntry}>
-              Add Individual Entry
-            </Button>
-            <Button type="button" variant="secondary" onClick={addGroupEntry}>
-              Add Group Entry
-            </Button>
+            {catEntries.fields.length > 1 && (
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCollapsedEntryIds(new Set())}
+                >
+                  Expand all
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCollapsedEntryIds(new Set(catEntries.fields.map((f) => f.id)))}
+                >
+                  Collapse all
+                </Button>
+              </>
+            )}
+            <select
+              aria-label="Add a cat entry"
+              className="flex h-9 w-56 rounded-md border border-input bg-white px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              value={pickerValue}
+              onChange={(e) => handlePickerChange(e.target.value)}
+            >
+              <option value="">Add a cat entry…</option>
+              {pickerOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
         {catEntries.fields.map((field, index) => {
@@ -343,6 +408,8 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
           const entryId = form.getValues(`catEntries.${index}.id`);
           const key = queueKeyForEntry(field.id, entryId);
           const uploaded = entryId !== undefined ? (uploadedByEntryId.get(entryId) ?? []) : [];
+          const collapsed = collapsedEntryIds.has(field.id);
+          const onToggleCollapsed = () => toggleEntryCollapsed(field.id);
           return entryType === CatEntryType.Individual ? (
             <CatEntryFields
               key={field.id}
@@ -353,6 +420,8 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
               queuedPhotos={photoQueue[key] ?? []}
               onQueuedPhotosChange={(next) => setPhotoQueue((prev) => ({ ...prev, [key]: next }))}
               uploadedPhotos={uploaded}
+              collapsed={collapsed}
+              onToggleCollapsed={onToggleCollapsed}
             />
           ) : (
             <GroupCatEntryFields
@@ -365,6 +434,8 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
               queuedPhotos={photoQueue[key] ?? []}
               onQueuedPhotosChange={(next) => setPhotoQueue((prev) => ({ ...prev, [key]: next }))}
               uploadedPhotos={uploaded}
+              collapsed={collapsed}
+              onToggleCollapsed={onToggleCollapsed}
             />
           );
         })}

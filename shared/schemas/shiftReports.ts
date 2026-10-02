@@ -41,8 +41,6 @@ const groupEntryCatDetailSchema = z.object({
   snackTreatNote: z.string().trim().optional().transform(emptyToUndefined),
   foodNotes: z.string().trim().optional().transform(emptyToUndefined),
   medicalNotes: z.string().trim().optional().transform(emptyToUndefined),
-  dewormerGiven: z.boolean().default(false),
-  probioticGiven: z.boolean().default(false),
   behaviorNotes: z.string().trim().optional().transform(emptyToUndefined),
   otherNotes: z.string().trim().optional().transform(emptyToUndefined),
   nailTrim: z.boolean().default(false),
@@ -62,8 +60,6 @@ const individualCatEntrySchema = z.object({
   snackTreat: snackTreatField,
   snackTreatNote: z.string().trim().optional().transform(emptyToUndefined),
   medicalNotes: z.string().trim().optional().transform(emptyToUndefined),
-  dewormerGiven: z.boolean().default(false),
-  probioticGiven: z.boolean().default(false),
   behaviorNotes: z.string().trim().optional().transform(emptyToUndefined),
   otherNotes: z.string().trim().optional().transform(emptyToUndefined),
   nailTrim: z.boolean().default(false),
@@ -102,14 +98,12 @@ const meetAndGreetSchema = z.object({
 
 // reportedState excludes Planned on purpose — that value stays admin-only,
 // set from the Kennel edit form, not something a volunteer reports during a
-// shift. note is optional here; whether it's actually required depends on
-// whether reportedState conflicts with the kennel's current state, which can
-// only be checked server-side (shiftReports.ts's validateReferences) against
-// live kennel data, not statically in this schema.
+// shift. No note field: a reported state that conflicts with the kennel's
+// current state is just logged as-is — anything worth explaining goes in the
+// report's general Kennel Notes field instead.
 const kennelStatusSchema = z.object({
   kennelId: z.coerce.number("Kennel is required").int().positive("Kennel is required"),
   reportedState: z.enum(ReportableKennelState),
-  note: z.string().trim().optional().transform(emptyToUndefined),
 });
 
 // Same shape as meetAndGreetSchema — kept separate since they're different

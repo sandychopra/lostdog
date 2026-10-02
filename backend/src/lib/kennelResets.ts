@@ -64,7 +64,9 @@ export async function uncompleteKennelReset(
     orderBy: [{ resolvedAt: "desc" }, { id: "desc" }],
   });
   if (!announcement) {
-    throw new KennelResetNotFoundError(`No resolved reset announcement for kennel ${args.kennelId}`);
+    throw new KennelResetNotFoundError(
+      `No resolved reset announcement for kennel ${args.kennelId}`,
+    );
   }
 
   await tx.kennel.update({ where: { id: args.kennelId }, data: { state: KennelState.NeedsReset } });

@@ -6,14 +6,12 @@ import {
   type GroupEntryCatDetailInput,
 } from "shared/schemas/shiftReports.ts";
 import { CatEntryType } from "shared/constants/catEntryType.ts";
-import { DewormerStatus } from "shared/constants/dewormerStatus.ts";
 import { Role } from "shared/constants/role.ts";
 import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
 import { storage } from "../lib/storage.ts";
-import { syncDewormerAnnouncement } from "../lib/medicalAlerts.ts";
 import { Prisma } from "../generated/prisma/client.ts";
 
 const router = Router();
@@ -57,8 +55,6 @@ function detailFields(detail: GroupEntryCatDetailInput) {
     snackTreatNote: detail.snackTreatNote,
     foodNotes: detail.foodNotes,
     medicalNotes: detail.medicalNotes,
-    dewormerGiven: detail.dewormerGiven,
-    probioticGiven: detail.probioticGiven,
     behaviorNotes: detail.behaviorNotes,
     otherNotes: detail.otherNotes,
     nailTrim: detail.nailTrim,
@@ -82,8 +78,6 @@ function buildCatEntryCreate(
       snackTreat: entry.snackTreat,
       snackTreatNote: entry.snackTreatNote,
       medicalNotes: entry.medicalNotes,
-      dewormerGiven: entry.dewormerGiven,
-      probioticGiven: entry.probioticGiven,
       behaviorNotes: entry.behaviorNotes,
       otherNotes: entry.otherNotes,
       nailTrim: entry.nailTrim,
@@ -136,20 +130,6 @@ function collectReferencedGroupIds(data: CreateShiftReportInput): number[] {
   ];
 }
 
-function collectDewormerGivenCatIds(data: CreateShiftReportInput): number[] {
-  const ids = new Set<number>();
-  for (const entry of data.catEntries) {
-    if (entry.entryType === CatEntryType.Individual) {
-      if (entry.dewormerGiven) ids.add(entry.catId);
-    } else {
-      for (const detail of entry.catDetails) {
-        if (detail.dewormerGiven) ids.add(detail.catId);
-      }
-    }
-  }
-  return [...ids];
-}
-
 // Runs every existence/membership check before any write — returns false (and
 // has already written the error response) if something doesn't check out.
 async function validateReferences(data: CreateShiftReportInput, res: Response): Promise<boolean> {
@@ -176,20 +156,6 @@ async function validateReferences(data: CreateShiftReportInput, res: Response): 
   if (kennels.length !== kennelIds.length) {
     res.status(404).json({ error: "One or more kennels not found" });
     return false;
-  }
-
-  // A note is only required when the volunteer's reported state disagrees
-  // with what the system currently has on file for that kennel — otherwise
-  // this is just a routine confirmation, not a discrepancy worth explaining.
-  const kennelById = new Map(kennels.map((kennel) => [kennel.id, kennel]));
-  for (const status of data.kennelsStatus) {
-    const kennel = kennelById.get(status.kennelId)!;
-    if (status.reportedState !== kennel.state && !status.note) {
-      res.status(400).json({
-        error: `Kennel ${kennel.number}'s reported state doesn't match its current state — a note is required`,
-      });
-      return false;
-    }
   }
 
   const groupById = new Map(groups.map((group) => [group.id, group]));
@@ -269,22 +235,10 @@ router.post("/", requireAuth, async (req, res: Response) => {
           create: data.kennelsStatus.map((k) => ({
             kennelId: k.kennelId,
             reportedState: k.reportedState,
-            note: k.note ?? null,
           })),
         },
       },
     });
-
-    const dewormerCatIds = collectDewormerGivenCatIds(data);
-    if (dewormerCatIds.length > 0) {
-      await tx.cat.updateMany({
-        where: { id: { in: dewormerCatIds } },
-        data: { dewormerStatus: DewormerStatus.Given },
-      });
-      for (const catId of dewormerCatIds) {
-        await syncDewormerAnnouncement(tx, { catId, actorId: authorId });
-      }
-    }
 
     return tx.shiftReport.findUniqueOrThrow({
       where: { id: created.id },
@@ -371,8 +325,6 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
               snackTreat: entry.snackTreat,
               snackTreatNote: entry.snackTreatNote,
               medicalNotes: entry.medicalNotes,
-              dewormerGiven: entry.dewormerGiven,
-              probioticGiven: entry.probioticGiven,
               behaviorNotes: entry.behaviorNotes,
               otherNotes: entry.otherNotes,
               nailTrim: entry.nailTrim,
@@ -447,7 +399,6 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
             shiftReportId: id,
             kennelId: k.kennelId,
             reportedState: k.reportedState,
-            note: k.note ?? null,
           })),
         });
       }
@@ -465,17 +416,6 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
           otherNotes: data.otherNotes,
         },
       });
-
-      const dewormerCatIds = collectDewormerGivenCatIds(data);
-      if (dewormerCatIds.length > 0) {
-        await tx.cat.updateMany({
-          where: { id: { in: dewormerCatIds } },
-          data: { dewormerStatus: DewormerStatus.Given },
-        });
-        for (const catId of dewormerCatIds) {
-          await syncDewormerAnnouncement(tx, { catId, actorId: session.user.id });
-        }
-      }
     },
     { timeout: 15_000 },
   );

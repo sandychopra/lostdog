@@ -1,7 +1,5 @@
 import { AnnouncementType } from "shared/constants/announcementType.ts";
 import { DewormerStatus } from "shared/constants/dewormerStatus.ts";
-import { CatEntryType } from "shared/constants/catEntryType.ts";
-import { ShiftType } from "shared/constants/shiftType.ts";
 import type { Prisma } from "../generated/prisma/client.ts";
 
 type Tx = Prisma.TransactionClient;
@@ -20,9 +18,9 @@ async function resolveOpenAnnouncements(
  * Ensures a Cat's DewormerDue announcement matches its current dewormerStatus:
  * exactly one open announcement while Due, resolved once Given. Call this after
  * any write that can change dewormerStatus (cat creation, cat edit, marking
- * given, a shift report's dewormer-given checkbox) rather than touching the
- * Announcement table directly, mirroring markKennelNeedsReset's guarded-create
- * pattern in kennelResets.ts.
+ * given from the announcement) rather than touching the Announcement table
+ * directly, mirroring markKennelNeedsReset's guarded-create pattern in
+ * kennelResets.ts.
  */
 export async function syncDewormerAnnouncement(
   tx: Tx,
@@ -80,103 +78,38 @@ export async function syncProbioticAnnouncement(
 }
 
 export interface ProbioticDoseLogEntry {
-  date: Date;
-  shiftType: ShiftType;
-  submittedBy: string;
-  // The CatEntry's own createdAt — precise to the second, unlike `date` (the
-  // shift report's calendar date) — used for the 24h-since-last-dose Overdue
-  // rule, same precision cats.ts's existing lastProbioticGivenAt query uses.
-  givenAt: Date;
+  loggedAt: Date;
+  loggedBy: string;
 }
 
-// Morning/MidDay/Evening in chronological shift order, for sorting doses given
-// on the same date — ShiftType's declaration order already matches this, but
-// spelling it out here doesn't depend on that staying true.
-const SHIFT_ORDER: Record<ShiftType, number> = {
-  [ShiftType.Morning]: 0,
-  [ShiftType.MidDay]: 1,
-  [ShiftType.Evening]: 2,
-};
-
-function startOfDay(date: Date): Date {
-  const start = new Date(date);
-  start.setHours(0, 0, 0, 0);
-  return start;
-}
-
-function endOfDay(date: Date): Date {
-  const end = new Date(date);
-  end.setHours(23, 59, 59, 999);
-  return end;
+/** Logs a probiotic dose for a Cat, from the "Log dose" action on its
+ * ProbioticNeeded announcement. Doesn't touch needsProbiotic or the
+ * announcement itself — only an Admin clearing the flag resolves that. */
+export async function logProbioticDose(
+  tx: Tx,
+  args: { catId: number; actorId: string },
+): Promise<void> {
+  await tx.probioticDose.create({
+    data: { catId: args.catId, loggedById: args.actorId },
+  });
 }
 
 /**
  * Every logged probiotic dose for a cat within [since, until] (inclusive),
- * merged from the Individual CatEntry and GroupEntryCatDetail variants (a
- * group entry's per-cat "probiotic given" checkbox), each read off its parent
- * ShiftReport's date/shift/author — there's no separate dose-log table, same
- * as the existing lastProbioticGivenAt derivation in routes/cats.ts. `since`/
- * `until` are widened to whole calendar days before filtering, since
- * ShiftReport.date is date-only — comparing it directly against `since`'s exact
- * time of day would wrongly drop a dose logged earlier the same day the flag
- * was turned on.
+ * newest first.
  */
 export async function getProbioticDoseLog(
   tx: Tx,
   args: { catId: number; since: Date; until?: Date },
 ): Promise<ProbioticDoseLogEntry[]> {
-  const dateFilter = {
-    gte: startOfDay(args.since),
-    ...(args.until && { lte: endOfDay(args.until) }),
-  };
-
-  const [individualEntries, groupDetails] = await Promise.all([
-    tx.catEntry.findMany({
-      where: {
-        catId: args.catId,
-        entryType: CatEntryType.Individual,
-        probioticGiven: true,
-        shiftReport: { date: dateFilter },
-      },
-      select: {
-        createdAt: true,
-        shiftReport: { select: { date: true, shiftType: true, author: { select: { name: true } } } },
-      },
-    }),
-    tx.groupEntryCatDetail.findMany({
-      where: {
-        catId: args.catId,
-        probioticGiven: true,
-        catEntry: { shiftReport: { date: dateFilter } },
-      },
-      select: {
-        catEntry: {
-          select: {
-            createdAt: true,
-            shiftReport: { select: { date: true, shiftType: true, author: { select: { name: true } } } },
-          },
-        },
-      },
-    }),
-  ]);
-
-  const doses: ProbioticDoseLogEntry[] = [
-    ...individualEntries.map((entry) => ({
-      date: entry.shiftReport.date,
-      shiftType: entry.shiftReport.shiftType,
-      submittedBy: entry.shiftReport.author.name,
-      givenAt: entry.createdAt,
-    })),
-    ...groupDetails.map((detail) => ({
-      date: detail.catEntry.shiftReport.date,
-      shiftType: detail.catEntry.shiftReport.shiftType,
-      submittedBy: detail.catEntry.shiftReport.author.name,
-      givenAt: detail.catEntry.createdAt,
-    })),
-  ];
-
-  return doses.sort((a, b) => {
-    const dateDiff = a.date.getTime() - b.date.getTime();
-    return dateDiff !== 0 ? dateDiff : SHIFT_ORDER[a.shiftType] - SHIFT_ORDER[b.shiftType];
+  const doses = await tx.probioticDose.findMany({
+    where: {
+      catId: args.catId,
+      loggedAt: { gte: args.since, ...(args.until && { lte: args.until }) },
+    },
+    select: { loggedAt: true, loggedBy: { select: { name: true } } },
+    orderBy: { loggedAt: "desc" },
   });
+
+  return doses.map((dose) => ({ loggedAt: dose.loggedAt, loggedBy: dose.loggedBy.name }));
 }

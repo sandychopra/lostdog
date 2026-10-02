@@ -132,6 +132,7 @@ model User {
   resolvedAnnouncements     Announcement[]        @relation("AnnouncementResolvedBy")
   createdAnnouncements      Announcement[]        @relation("AnnouncementCreatedBy")
   commentedAnnouncements    Announcement[]        @relation("AnnouncementCommentedBy")
+  loggedProbioticDoses      ProbioticDose[]
 
   @@unique([email])
   @@map("user")
@@ -224,6 +225,7 @@ model Cat {
   signTasks          SignTask[]
   checklistActions   ChecklistAction[]
   kennelMoveRequests KennelMoveRequest[]
+  probioticDoses     ProbioticDose[]
 
   @@index([kennelId])
   @@index([groupId])
@@ -309,17 +311,16 @@ model ShiftReport {
 // each shift (Ready/Occupied/NeedsReset — never Planned, which stays admin-
 // only), not just ones a volunteer flags. Purely observational — reporting a
 // state here never touches Kennel.state or creates/resolves an Announcement,
-// unlike every other place in the app that sets a kennel's state. `note` is
-// required only when `reportedState` conflicts with the kennel's actual state
-// at submission time (enforced in the route, not the DB, since it's a
-// point-in-time comparison against another table).
+// unlike every other place in the app that sets a kennel's state. No note
+// field — a reportedState that conflicts with the kennel's actual state is
+// just logged as-is; anything worth explaining goes in the report's general
+// kennelNotes field instead.
 model ShiftReportKennelStatus {
   shiftReportId Int         @map("shift_report_id")
   shiftReport   ShiftReport @relation(fields: [shiftReportId], references: [id], onDelete: Cascade)
   kennelId      Int         @map("kennel_id")
   kennel        Kennel      @relation(fields: [kennelId], references: [id])
   reportedState KennelState @map("reported_state")
-  note          String?
 
   @@id([shiftReportId, kennelId])
   @@map("shift_report_kennel_status")
@@ -354,8 +355,6 @@ model CatEntry {
   snackTreat     SnackTreat? @map("snack_treat")
   snackTreatNote String?     @map("snack_treat_note")
   medicalNotes   String?     @map("medical_notes")
-  dewormerGiven  Boolean     @default(false) @map("dewormer_given")
-  probioticGiven Boolean     @default(false) @map("probiotic_given")
   behaviorNotes  String?     @map("behavior_notes")
   nailTrim       Boolean     @default(false) @map("nail_trim")
 
@@ -386,14 +385,27 @@ model GroupEntryCatDetail {
   snackTreatNote String?     @map("snack_treat_note")
   foodNotes      String?     @map("food_notes")
   medicalNotes   String?     @map("medical_notes")
-  dewormerGiven  Boolean     @default(false) @map("dewormer_given")
-  probioticGiven Boolean     @default(false) @map("probiotic_given")
   behaviorNotes  String?     @map("behavior_notes")
   otherNotes     String?     @map("other_notes")
   nailTrim       Boolean     @default(false) @map("nail_trim")
 
   @@unique([catEntryId, catId])
   @@map("group_entry_cat_detail")
+}
+
+// Replaces the old CatEntry/GroupEntryCatDetail probiotic-given checkboxes —
+// probiotic dosing is managed entirely from the Probiotic announcement now
+// (see medicalAlerts.ts), not tied to a shift report.
+model ProbioticDose {
+  id         Int      @id @default(autoincrement())
+  catId      Int      @map("cat_id")
+  cat        Cat      @relation(fields: [catId], references: [id])
+  loggedById String   @map("logged_by_id")
+  loggedBy   User     @relation(fields: [loggedById], references: [id])
+  loggedAt   DateTime @default(now()) @map("logged_at")
+
+  @@index([catId])
+  @@map("probiotic_dose")
 }
 
 model Photo {

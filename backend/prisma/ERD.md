@@ -121,7 +121,6 @@ erDiagram
     Int shift_report_id 
     Int kennel_id 
     KennelState reported_state 
-    String note "❓"
     }
   
 
@@ -142,8 +141,6 @@ erDiagram
     SnackTreat snack_treat "❓"
     String snack_treat_note "❓"
     String medical_notes "❓"
-    Boolean dewormer_given 
-    Boolean probiotic_given 
     String behavior_notes "❓"
     Boolean nail_trim 
     DateTime created_at 
@@ -161,11 +158,17 @@ erDiagram
     String snack_treat_note "❓"
     String food_notes "❓"
     String medical_notes "❓"
-    Boolean dewormer_given 
-    Boolean probiotic_given 
     String behavior_notes "❓"
     String other_notes "❓"
     Boolean nail_trim 
+    }
+  
+
+  "probiotic_dose" {
+    Int id "🗝️"
+    Int cat_id 
+    String logged_by_id 
+    DateTime logged_at 
     }
   
 
@@ -297,6 +300,8 @@ erDiagram
     "cat_entry" }o--|o "group" : "group"
     "group_entry_cat_detail" }o--|| "cat_entry" : "catEntry"
     "group_entry_cat_detail" }o--|| "cat" : "cat"
+    "probiotic_dose" }o--|| "cat" : "cat"
+    "probiotic_dose" }o--|| "user" : "loggedBy"
     "photo" }o--|| "shift_report" : "shiftReport"
     "photo" }o--|| "user" : "uploadedBy"
     "photo" }o--|o "cat_entry" : "catEntry"

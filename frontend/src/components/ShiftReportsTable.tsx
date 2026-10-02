@@ -35,8 +35,6 @@ export interface GroupEntryCatDetail {
   snackTreatNote: string | null;
   foodNotes: string | null;
   medicalNotes: string | null;
-  dewormerGiven: boolean;
-  probioticGiven: boolean;
   behaviorNotes: string | null;
   otherNotes: string | null;
   nailTrim: boolean;
@@ -60,8 +58,6 @@ export interface CatEntry {
   snackTreat: SnackTreat | null;
   snackTreatNote: string | null;
   medicalNotes: string | null;
-  dewormerGiven: boolean;
-  probioticGiven: boolean;
   behaviorNotes: string | null;
   nailTrim: boolean;
   groupDetails: GroupEntryCatDetail[];
@@ -100,7 +96,6 @@ export interface ShiftReport {
   kennelsStatus: {
     kennelId: number;
     reportedState: ReportableKennelState;
-    note: string | null;
     kennel: { id: number; number: number };
   }[];
   photos: ShiftReportPhoto[];
