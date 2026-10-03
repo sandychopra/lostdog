@@ -14,6 +14,7 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "express-rate-limit": "^8.2.1",
+    "multer": "^2.4.0",
     "prisma": "7.10.0",
     "shared": "workspace:*",
     "zod": "^4.6.5"
@@ -21,7 +22,9 @@
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
+    "@types/multer": "^2.2.0",
     "bun-types": "latest",
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "prisma-erd-generator": "^3.2.1"
   }
 }

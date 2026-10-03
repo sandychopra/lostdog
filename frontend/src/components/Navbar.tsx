@@ -23,6 +23,26 @@ export default function Navbar() {
       }}
     >
       <div className="flex items-center gap-4">
+        {session && (
+          <Link to="/cats" className="text-sm font-medium text-blue hover:underline">
+            Cats
+          </Link>
+        )}
+        {session && (
+          <Link to="/kennels" className="text-sm font-medium text-blue hover:underline">
+            Kennels
+          </Link>
+        )}
+        {session && (
+          <Link to="/shift-reports" className="text-sm font-medium text-blue hover:underline">
+            Shift Reports
+          </Link>
+        )}
+        {session && (
+          <Link to="/announcements" className="text-sm font-medium text-blue hover:underline">
+            Announcements
+          </Link>
+        )}
         {session?.user.role === Role.Admin && (
           <Link to="/users" className="text-sm font-medium text-blue hover:underline">
             Users

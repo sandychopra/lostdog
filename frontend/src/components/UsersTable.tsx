@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Pencil, Trash2 } from "lucide-react";
 import { Role } from "shared/constants/role.ts";
 import { api } from "../lib/api";
+import { authClient } from "../lib/auth-client";
 import ErrorAlert from "./ErrorAlert";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -22,6 +23,7 @@ interface UsersTableProps {
 }
 
 export default function UsersTable({ onEdit, onDelete }: UsersTableProps) {
+  const { data: session } = authClient.useSession();
   const {
     data: users,
     isLoading,
@@ -89,7 +91,7 @@ export default function UsersTable({ onEdit, onDelete }: UsersTableProps) {
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  {user.role !== Role.Admin && (
+                  {user.id !== session?.user.id && (
                     <Button
                       variant="ghost"
                       size="icon"

@@ -8,6 +8,15 @@ generator client {
   output   = "../src/generated/prisma"
 }
 
+// Regenerates prisma/ERD.md (a Mermaid ER diagram) on every `prisma generate`,
+// so it can't drift from the schema. Text output only (no mermaid-cli/Chromium
+// dependency) since GitHub renders Mermaid fenced code blocks natively.
+generator erd {
+  provider    = "prisma-erd-generator"
+  output      = "ERD.md"
+  ignoreEnums = true
+}
+
 datasource db {
   provider = "postgresql"
 }
@@ -17,18 +26,118 @@ enum Role {
   Admin
 }
 
+enum CatStatus {
+  Available
+  PendingAdoption
+  Adopted
+  PickedUp
+}
+
+enum DewormerStatus {
+  Due
+  Given
+}
+
+enum KennelState {
+  Ready
+  Occupied
+  NeedsReset
+  Planned
+}
+
+enum ShiftType {
+  Morning
+  MidDay
+  Evening
+}
+
+enum ShiftReportStatus {
+  Draft
+  Submitted
+}
+
+enum CatEntryType {
+  Individual
+  Group
+}
+
+enum FoodAmount {
+  None
+  Some
+  Most
+  All
+}
+
+enum SplitShiftPosition {
+  First
+  Second
+}
+
+enum SnackTreat {
+  Churu
+  Greenies
+  Other
+}
+
+enum ChecklistActionType {
+  ResetKennel
+  MoveCat
+  FreeText
+}
+
+enum SignAction {
+  PostPending
+  PostAdopted
+  RemovePending
+  RemoveAdopted
+}
+
+enum AnnouncementType {
+  NewArrival
+  PendingAdoption
+  Adopted
+  BackAvailable
+  ReturnedToRcc
+  KennelMoveRequested
+  KennelNeedsReset
+  DewormerDue
+  ProbioticNeeded
+  Manual
+}
+
+// Shared by SignTask and KennelMoveRequest — both are volunteer-completable
+// action items with the same open/done/cancelled lifecycle.
+enum TaskState {
+  Open
+  Done
+  Cancelled
+}
+
 model User {
   id            String    @id
   name          String
   email         String
-  emailVerified Boolean   @default(false)
+  emailVerified Boolean   @default(false) @map("email_verified")
   image         String?
   role          Role      @default(Volunteer)
-  deletedAt     DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime? @map("deleted_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
   sessions      Session[]
   accounts      Account[]
+
+  shiftReports              ShiftReport[]
+  uploadedPhotos            Photo[]
+  createdChecklists         KennelPrepChecklist[]
+  completedChecklistActions ChecklistAction[]
+  completedSignTasks        SignTask[]
+  requestedKennelMoves      KennelMoveRequest[]   @relation("KennelMoveRequestRequestedBy")
+  completedKennelMoves      KennelMoveRequest[]   @relation("KennelMoveRequestCompletedBy")
+  pickedUpCats              Cat[]                 @relation("CatPickedUpBy")
+  resolvedAnnouncements     Announcement[]        @relation("AnnouncementResolvedBy")
+  createdAnnouncements      Announcement[]        @relation("AnnouncementCreatedBy")
+  commentedAnnouncements    Announcement[]        @relation("AnnouncementCommentedBy")
+  loggedProbioticDoses      ProbioticDose[]
 
   @@unique([email])
   @@map("user")
@@ -36,13 +145,13 @@ model User {
 
 model Session {
   id        String   @id
-  expiresAt DateTime
+  expiresAt DateTime @map("expires_at")
   token     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  ipAddress String?
-  userAgent String?
-  userId    String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  userId    String   @map("user_id")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([token])
@@ -52,19 +161,19 @@ model Session {
 
 model Account {
   id                    String    @id
-  accountId             String
-  providerId            String
-  userId                String
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  userId                String    @map("user_id")
   user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  accessToken           String?
-  refreshToken          String?
-  idToken               String?
-  accessTokenExpiresAt  DateTime?
-  refreshTokenExpiresAt DateTime?
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
   scope                 String?
   password              String?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
 
   @@index([userId])
   @@map("account")
@@ -74,10 +183,431 @@ model Verification {
   id         String   @id
   identifier String
   value      String
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@index([identifier])
   @@map("verification")
+}
+
+// --- Roster ---
+
+model Cat {
+  id              Int            @id @default(autoincrement())
+  name            String
+  ageYears        Int?           @map("age_years")
+  ageMonths       Int?           @map("age_months")
+  sex             String
+  colorPattern    String         @map("color_pattern")
+  collarColor     String?        @map("collar_color")
+  microchipNumber String?        @map("microchip_number")
+  kennelId        Int?           @map("kennel_id")
+  kennel          Kennel?        @relation(fields: [kennelId], references: [id])
+  groupId         Int?           @map("group_id")
+  group           Group?         @relation(fields: [groupId], references: [id])
+  status          CatStatus      @default(Available)
+  pickupAt        DateTime?      @map("pickup_at")
+  pickedUpById    String?        @map("picked_up_by_id")
+  pickedUpBy      User?          @relation("CatPickedUpBy", fields: [pickedUpById], references: [id])
+  pickedUpAt      DateTime?      @map("picked_up_at")
+  dewormerStatus  DewormerStatus @default(Due) @map("dewormer_status")
+  dewormerDueDate DateTime?      @map("dewormer_due_date") @db.Date
+  needsProbiotic  Boolean        @default(false) @map("needs_probiotic")
+  litterId        Int?           @map("litter_id")
+  litter          Litter?        @relation(fields: [litterId], references: [id])
+  active          Boolean        @default(true)
+  inactiveReason  String?        @map("inactive_reason")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  individualEntries  CatEntry[]
+  groupEntryDetails  GroupEntryCatDetail[]
+  photoTags          PhotoCatTag[]
+  meetAndGreetTags   MeetAndGreetCat[]
+  playGroupTags      PlayGroupCat[]
+  announcements      Announcement[]
+  signTasks          SignTask[]
+  checklistActions   ChecklistAction[]
+  kennelMoveRequests KennelMoveRequest[]
+  probioticDoses     ProbioticDose[]
+
+  @@index([kennelId])
+  @@index([groupId])
+  @@index([litterId])
+  @@map("cat")
+}
+
+model Group {
+  id        Int      @id @default(autoincrement())
+  bonded    Boolean  @default(false)
+  kennelId  Int?     @map("kennel_id")
+  kennel    Kennel?  @relation(fields: [kennelId], references: [id])
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  cats               Cat[]
+  catEntries         CatEntry[]
+  checklistActions   ChecklistAction[]
+  kennelMoveRequests KennelMoveRequest[]
+
+  @@index([kennelId])
+  @@map("group")
+}
+
+// Membership is entirely via Cat.litterId — no scalar fields of its own.
+model Litter {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  cats Cat[]
+
+  @@map("litter")
+}
+
+// No occupant column: occupancy is derived from the Cat.kennelId / Group.kennelId
+// reverse relations below, rather than a polymorphic "occupant" column.
+model Kennel {
+  id     Int         @id @default(autoincrement())
+  number Int         @unique
+  state  KennelState @default(Ready)
+
+  cats                   Cat[]
+  groups                 Group[]
+  checklistActions       ChecklistAction[]
+  signTasks              SignTask[]
+  kennelMoveRequestsFrom KennelMoveRequest[]       @relation("KennelMoveRequestFromKennel")
+  kennelMoveRequestsTo   KennelMoveRequest[]       @relation("KennelMoveRequestToKennel")
+  kennelsStatus          ShiftReportKennelStatus[]
+  announcements          Announcement[]
+
+  @@map("kennel")
+}
+
+// --- Shift reports ---
+
+model ShiftReport {
+  id                 Int                 @id @default(autoincrement())
+  authorId           String              @map("author_id")
+  author             User                @relation(fields: [authorId], references: [id])
+  shiftType          ShiftType           @map("shift_type")
+  date               DateTime            @db.Date
+  isSplitShift       Boolean             @default(false) @map("is_split_shift")
+  splitShiftPosition SplitShiftPosition? @map("split_shift_position")
+  status             ShiftReportStatus   @default(Draft) @map("status")
+  submittedAt        DateTime?           @map("submitted_at")
+  cleaningNotes      String?             @map("cleaning_notes")
+  suppliesNotes      String?             @map("supplies_notes")
+  kennelNotes        String?             @map("kennel_notes")
+  otherNotes         String?             @map("other_notes")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+
+  catEntries    CatEntry[]
+  photos        Photo[]
+  meetAndGreets MeetAndGreet[]
+  playGroups    PlayGroup[]
+  kennelsStatus ShiftReportKennelStatus[]
+
+  @@index([authorId])
+  @@index([date])
+  @@map("shift_report")
+}
+
+// Replaces ShiftReportKennelDiscrepancy: every kennel gets a reported state
+// each shift (Ready/Occupied/NeedsReset — never Planned, which stays admin-
+// only), not just ones a volunteer flags. Purely observational — reporting a
+// state here never touches Kennel.state or creates/resolves an Announcement,
+// unlike every other place in the app that sets a kennel's state. No note
+// field — a reportedState that conflicts with the kennel's actual state is
+// just logged as-is; anything worth explaining goes in the report's general
+// kennelNotes field instead.
+model ShiftReportKennelStatus {
+  shiftReportId Int         @map("shift_report_id")
+  shiftReport   ShiftReport @relation(fields: [shiftReportId], references: [id], onDelete: Cascade)
+  kennelId      Int         @map("kennel_id")
+  kennel        Kennel      @relation(fields: [kennelId], references: [id])
+  reportedState KennelState @map("reported_state")
+
+  @@id([shiftReportId, kennelId])
+  @@map("shift_report_kennel_status")
+}
+
+// Holds both the Individual variant's fields and the Group variant's *shared*
+// fields. A CHECK constraint (added by hand to the generated migration, since
+// Prisma can't express one) enforces exactly one of catId/groupId is set,
+// matching entryType. Per-cat fields for a Group entry live on
+// GroupEntryCatDetail instead.
+model CatEntry {
+  id            Int          @id @default(autoincrement())
+  shiftReportId Int          @map("shift_report_id")
+  shiftReport   ShiftReport  @relation(fields: [shiftReportId], references: [id], onDelete: Cascade)
+  entryType     CatEntryType @map("entry_type")
+  catId         Int?         @map("cat_id")
+  cat           Cat?         @relation(fields: [catId], references: [id])
+  groupId       Int?         @map("group_id")
+  group         Group?       @relation(fields: [groupId], references: [id])
+
+  // Shared by both variants
+  fecalScore    Int?        @map("fecal_score")
+  pee           Boolean     @default(false)
+  peePooNotes   String?     @map("pee_poo_notes")
+  dryFoodAmount FoodAmount? @map("dry_food_amount")
+  foodNotes     String?     @map("food_notes")
+  otherNotes    String?     @map("other_notes")
+
+  // Individual-only
+  wetFoodAmount FoodAmount? @map("wet_food_amount")
+  wetFoodBrand  String?     @map("wet_food_brand")
+  snackTreat    SnackTreat? @map("snack_treat")
+  medicalNotes  String?     @map("medical_notes")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  groupDetails GroupEntryCatDetail[]
+  photos       Photo[]
+
+  @@index([shiftReportId])
+  @@index([catId])
+  @@index([groupId])
+  @@map("cat_entry")
+}
+
+// Per-cat fields for a Group-variant CatEntry — one row per cat in the group
+// for that entry. Not named as its own entity in project-scope.md.
+model GroupEntryCatDetail {
+  id         Int      @id @default(autoincrement())
+  catEntryId Int      @map("cat_entry_id")
+  catEntry   CatEntry @relation(fields: [catEntryId], references: [id], onDelete: Cascade)
+  catId      Int      @map("cat_id")
+  cat        Cat      @relation(fields: [catId], references: [id])
+
+  wetFoodAmount FoodAmount? @map("wet_food_amount")
+  wetFoodBrand  String?     @map("wet_food_brand")
+  snackTreat    SnackTreat? @map("snack_treat")
+  foodNotes     String?     @map("food_notes")
+  medicalNotes  String?     @map("medical_notes")
+  otherNotes    String?     @map("other_notes")
+
+  @@unique([catEntryId, catId])
+  @@map("group_entry_cat_detail")
+}
+
+// Replaces the old CatEntry/GroupEntryCatDetail probiotic-given checkboxes —
+// probiotic dosing is managed entirely from the Probiotic announcement now
+// (see medicalAlerts.ts), not tied to a shift report.
+model ProbioticDose {
+  id         Int      @id @default(autoincrement())
+  catId      Int      @map("cat_id")
+  cat        Cat      @relation(fields: [catId], references: [id])
+  loggedById String   @map("logged_by_id")
+  loggedBy   User     @relation(fields: [loggedById], references: [id])
+  loggedAt   DateTime @default(now()) @map("logged_at")
+
+  @@index([catId])
+  @@map("probiotic_dose")
+}
+
+model Photo {
+  id            Int         @id @default(autoincrement())
+  shiftReportId Int         @map("shift_report_id")
+  shiftReport   ShiftReport @relation(fields: [shiftReportId], references: [id], onDelete: Cascade)
+  uploadedById  String      @map("uploaded_by_id")
+  uploadedBy    User        @relation(fields: [uploadedById], references: [id])
+  storageKey    String      @map("storage_key")
+  uploadedAt    DateTime    @default(now()) @map("uploaded_at")
+  catEntryId    Int?        @map("cat_entry_id")
+  catEntry      CatEntry?   @relation(fields: [catEntryId], references: [id])
+
+  tags PhotoCatTag[]
+
+  @@index([shiftReportId])
+  @@index([catEntryId])
+  @@map("photo")
+}
+
+// A photo with no rows here is "unassigned".
+model PhotoCatTag {
+  photoId Int   @map("photo_id")
+  photo   Photo @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  catId   Int   @map("cat_id")
+  cat     Cat   @relation(fields: [catId], references: [id])
+
+  @@id([photoId, catId])
+  @@map("photo_cat_tag")
+}
+
+model MeetAndGreet {
+  id            Int         @id @default(autoincrement())
+  shiftReportId Int         @map("shift_report_id")
+  shiftReport   ShiftReport @relation(fields: [shiftReportId], references: [id], onDelete: Cascade)
+  note          String
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  cats MeetAndGreetCat[]
+
+  @@index([shiftReportId])
+  @@map("meet_and_greet")
+}
+
+model MeetAndGreetCat {
+  meetAndGreetId Int          @map("meet_and_greet_id")
+  meetAndGreet   MeetAndGreet @relation(fields: [meetAndGreetId], references: [id], onDelete: Cascade)
+  catId          Int          @map("cat_id")
+  cat            Cat          @relation(fields: [catId], references: [id])
+
+  @@id([meetAndGreetId, catId])
+  @@map("meet_and_greet_cat")
+}
+
+// A repeatable "play group" — some cats that played together during the
+// shift, plus a note about that group. Structurally identical to
+// MeetAndGreet/MeetAndGreetCat above.
+model PlayGroup {
+  id            Int         @id @default(autoincrement())
+  shiftReportId Int         @map("shift_report_id")
+  shiftReport   ShiftReport @relation(fields: [shiftReportId], references: [id], onDelete: Cascade)
+  note          String
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  cats PlayGroupCat[]
+
+  @@index([shiftReportId])
+  @@map("play_group")
+}
+
+model PlayGroupCat {
+  playGroupId Int       @map("play_group_id")
+  playGroup   PlayGroup @relation(fields: [playGroupId], references: [id], onDelete: Cascade)
+  catId       Int       @map("cat_id")
+  cat         Cat       @relation(fields: [catId], references: [id])
+
+  @@id([playGroupId, catId])
+  @@map("play_group_cat")
+}
+
+// --- Status & announcements ---
+
+model KennelPrepChecklist {
+  id          Int      @id @default(autoincrement())
+  createdById String   @map("created_by_id")
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  actions       ChecklistAction[]
+  announcements Announcement[]
+
+  @@map("kennel_prep_checklist")
+}
+
+// A CHECK constraint (added by hand to the generated migration) enforces, per
+// actionType: ResetKennel needs kennelId only; MoveCat needs kennelId plus
+// exactly one of catId/groupId; FreeText needs description only (no kennel/
+// cat/group) — used for ad-hoc, non-kennel tasks on a Manual announcement.
+model ChecklistAction {
+  id            Int                 @id @default(autoincrement())
+  checklistId   Int                 @map("checklist_id")
+  checklist     KennelPrepChecklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  order         Int
+  actionType    ChecklistActionType @map("action_type")
+  kennelId      Int?                @map("kennel_id")
+  kennel        Kennel?             @relation(fields: [kennelId], references: [id])
+  catId         Int?                @map("cat_id")
+  cat           Cat?                @relation(fields: [catId], references: [id])
+  groupId       Int?                @map("group_id")
+  group         Group?              @relation(fields: [groupId], references: [id])
+  description   String?
+  completed     Boolean             @default(false)
+  completedById String?             @map("completed_by_id")
+  completedBy   User?               @relation(fields: [completedById], references: [id])
+  completedAt   DateTime?           @map("completed_at")
+
+  @@unique([checklistId, order])
+  @@map("checklist_action")
+}
+
+// kennelId is only set for KennelNeedsReset; title/message are only set for
+// Manual (ad-hoc) announcements — every other type resolves to a Cat or a
+// Checklist (or transitively a KennelMoveRequest via its own relation).
+// comment/commentedAt/commentedBy is a single free-text note any Volunteer or
+// Admin can add to any announcement — not a threaded log, just overwritten.
+model Announcement {
+  id            Int                  @id @default(autoincrement())
+  type          AnnouncementType
+  catId         Int?                 @map("cat_id")
+  cat           Cat?                 @relation(fields: [catId], references: [id])
+  checklistId   Int?                 @map("checklist_id")
+  checklist     KennelPrepChecklist? @relation(fields: [checklistId], references: [id])
+  kennelId      Int?                 @map("kennel_id")
+  kennel        Kennel?              @relation(fields: [kennelId], references: [id])
+  title         String?
+  message       String?
+  resolved      Boolean              @default(false)
+  resolvedAt    DateTime?            @map("resolved_at")
+  resolvedById  String?              @map("resolved_by_id")
+  resolvedBy    User?                @relation("AnnouncementResolvedBy", fields: [resolvedById], references: [id])
+  createdById   String?              @map("created_by_id")
+  createdBy     User?                @relation("AnnouncementCreatedBy", fields: [createdById], references: [id])
+  comment       String?
+  commentedAt   DateTime?            @map("commented_at")
+  commentedById String?              @map("commented_by_id")
+  commentedBy   User?                @relation("AnnouncementCommentedBy", fields: [commentedById], references: [id])
+  emailSent     Boolean              @default(false) @map("email_sent")
+  createdAt     DateTime             @default(now()) @map("created_at")
+
+  signTasks          SignTask[]
+  kennelMoveRequests KennelMoveRequest[]
+
+  @@index([catId])
+  @@index([checklistId])
+  @@index([kennelId])
+  @@map("announcement")
+}
+
+model SignTask {
+  id             Int          @id @default(autoincrement())
+  catId          Int          @map("cat_id")
+  cat            Cat          @relation(fields: [catId], references: [id])
+  kennelId       Int          @map("kennel_id")
+  kennel         Kennel       @relation(fields: [kennelId], references: [id])
+  action         SignAction
+  announcementId Int          @map("announcement_id")
+  announcement   Announcement @relation(fields: [announcementId], references: [id])
+  state          TaskState    @default(Open)
+  completedById  String?      @map("completed_by_id")
+  completedBy    User?        @relation(fields: [completedById], references: [id])
+  completedAt    DateTime?    @map("completed_at")
+
+  @@index([catId])
+  @@index([announcementId])
+  @@map("sign_task")
+}
+
+// A CHECK constraint (added by hand to the generated migration) enforces
+// exactly one of catId/groupId is set — the occupant being moved.
+model KennelMoveRequest {
+  id             Int           @id @default(autoincrement())
+  catId          Int?          @map("cat_id")
+  cat            Cat?          @relation(fields: [catId], references: [id])
+  groupId        Int?          @map("group_id")
+  group          Group?        @relation(fields: [groupId], references: [id])
+  fromKennelId   Int           @map("from_kennel_id")
+  fromKennel     Kennel        @relation("KennelMoveRequestFromKennel", fields: [fromKennelId], references: [id])
+  toKennelId     Int           @map("to_kennel_id")
+  toKennel       Kennel        @relation("KennelMoveRequestToKennel", fields: [toKennelId], references: [id])
+  requestedById  String        @map("requested_by_id")
+  requestedBy    User          @relation("KennelMoveRequestRequestedBy", fields: [requestedById], references: [id])
+  reason         String?
+  state          TaskState     @default(Open)
+  completedById  String?       @map("completed_by_id")
+  completedBy    User?         @relation("KennelMoveRequestCompletedBy", fields: [completedById], references: [id])
+  completedAt    DateTime?     @map("completed_at")
+  announcementId Int?          @map("announcement_id")
+  announcement   Announcement? @relation(fields: [announcementId], references: [id])
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  @@index([catId])
+  @@index([groupId])
+  @@map("kennel_move_request")
 }

@@ -3,8 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --hot src/index.ts",
-    "build": "bun build ./src/index.html --outdir ./dist"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -30,7 +31,10 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "bun-plugin-tailwind": "^0.1.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@tailwindcss/vite": "^4.1.18",
+    "vite": "^6.0.0",
+    "vite-plugin-pwa": "^0.21.1",
     "@happy-dom/global-registrator": "^19.0.2",
     "bun-types": "latest",
     "tailwindcss": "^4.1.18"

@@ -3,3 +3,6 @@ node_modules
 .env
 
 /src/generated/prisma
+
+# Local-disk photo storage (dev only — production uses Cloudflare R2)
+/uploads
