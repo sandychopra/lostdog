@@ -108,6 +108,8 @@ erDiagram
     DateTime date 
     Boolean is_split_shift 
     SplitShiftPosition split_shift_position "❓"
+    ShiftReportStatus status 
+    DateTime submitted_at "❓"
     String cleaning_notes "❓"
     String supplies_notes "❓"
     String kennel_notes "❓"
@@ -139,10 +141,7 @@ erDiagram
     FoodAmount wet_food_amount "❓"
     String wet_food_brand "❓"
     SnackTreat snack_treat "❓"
-    String snack_treat_note "❓"
     String medical_notes "❓"
-    String behavior_notes "❓"
-    Boolean nail_trim 
     DateTime created_at 
     DateTime updated_at 
     }
@@ -155,12 +154,9 @@ erDiagram
     FoodAmount wet_food_amount "❓"
     String wet_food_brand "❓"
     SnackTreat snack_treat "❓"
-    String snack_treat_note "❓"
     String food_notes "❓"
     String medical_notes "❓"
-    String behavior_notes "❓"
     String other_notes "❓"
-    Boolean nail_trim 
     }
   
 

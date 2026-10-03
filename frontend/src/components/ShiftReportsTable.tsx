@@ -5,6 +5,7 @@ import { CatEntryType } from "shared/constants/catEntryType.ts";
 import { FoodAmount } from "shared/constants/foodAmount.ts";
 import { SnackTreat } from "shared/constants/snackTreat.ts";
 import { SplitShiftPosition } from "shared/constants/splitShiftPosition.ts";
+import { ShiftReportStatus } from "shared/constants/shiftReportStatus.ts";
 import type { ReportableKennelState } from "shared/constants/kennelState.ts";
 import { api } from "../lib/api";
 import ErrorAlert from "./ErrorAlert";
@@ -32,12 +33,9 @@ export interface GroupEntryCatDetail {
   wetFoodAmount: FoodAmount | null;
   wetFoodBrand: string | null;
   snackTreat: SnackTreat | null;
-  snackTreatNote: string | null;
   foodNotes: string | null;
   medicalNotes: string | null;
-  behaviorNotes: string | null;
   otherNotes: string | null;
-  nailTrim: boolean;
 }
 
 export interface CatEntry {
@@ -56,10 +54,7 @@ export interface CatEntry {
   wetFoodAmount: FoodAmount | null;
   wetFoodBrand: string | null;
   snackTreat: SnackTreat | null;
-  snackTreatNote: string | null;
   medicalNotes: string | null;
-  behaviorNotes: string | null;
-  nailTrim: boolean;
   groupDetails: GroupEntryCatDetail[];
   photos: ShiftReportPhoto[];
 }
@@ -84,6 +79,8 @@ export interface ShiftReport {
   date: string;
   isSplitShift: boolean;
   splitShiftPosition: SplitShiftPosition | null;
+  status: ShiftReportStatus;
+  submittedAt: string | null;
   cleaningNotes: string | null;
   suppliesNotes: string | null;
   kennelNotes: string | null;
@@ -135,6 +132,7 @@ export default function ShiftReportsTable() {
           <TableHead>Shift</TableHead>
           <TableHead>Author</TableHead>
           <TableHead>Split</TableHead>
+          <TableHead>Status</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -149,6 +147,9 @@ export default function ShiftReportsTable() {
                 </TableCell>
                 <TableCell>
                   <Skeleton className="h-4 w-24" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-5 w-16 rounded-full" />
                 </TableCell>
                 <TableCell>
                   <Skeleton className="h-5 w-16 rounded-full" />
@@ -176,6 +177,11 @@ export default function ShiftReportsTable() {
                     "—"
                   )}
                 </TableCell>
+                <TableCell>
+                  <Badge variant={shiftReportStatusBadgeVariant(report.status)}>
+                    {SHIFT_REPORT_STATUS_LABELS[report.status]}
+                  </Badge>
+                </TableCell>
               </TableRow>
             ))}
       </TableBody>
@@ -190,4 +196,13 @@ function shiftTypeLabel(shiftType: ShiftType): string {
 
 export function splitShiftPositionLabel(position: SplitShiftPosition): string {
   return position === SplitShiftPosition.First ? "First" : "Second";
+}
+
+export const SHIFT_REPORT_STATUS_LABELS: Record<ShiftReportStatus, string> = {
+  [ShiftReportStatus.Draft]: "Draft",
+  [ShiftReportStatus.Submitted]: "Submitted",
+};
+
+export function shiftReportStatusBadgeVariant(status: ShiftReportStatus): "outline" | "default" {
+  return status === ShiftReportStatus.Draft ? "outline" : "default";
 }

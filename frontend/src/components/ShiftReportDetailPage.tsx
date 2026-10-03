@@ -24,6 +24,8 @@ import AuthenticatedImage from "./AuthenticatedImage";
 import {
   formatReportDate,
   splitShiftPositionLabel,
+  SHIFT_REPORT_STATUS_LABELS,
+  shiftReportStatusBadgeVariant,
   type CatEntry,
   type ShiftReport,
 } from "./ShiftReportsTable";
@@ -74,31 +76,19 @@ function CatEntrySummary({ entry }: { entry: CatEntry }) {
             <dd>{entry.medicalNotes}</dd>
           </>
         )}
-        {entry.behaviorNotes && (
-          <>
-            <dt className="text-muted-foreground">Behavior notes</dt>
-            <dd>{entry.behaviorNotes}</dd>
-          </>
-        )}
         {entry.otherNotes && (
           <>
             <dt className="text-muted-foreground">Other notes</dt>
             <dd>{entry.otherNotes}</dd>
           </>
         )}
-        <dt className="text-muted-foreground">Nail trim</dt>
-        <dd>{entry.nailTrim ? "Yes" : "No"}</dd>
       </dl>
       {entry.entryType === CatEntryType.Group && entry.groupDetails.length > 0 && (
         <div className="space-y-2">
           {entry.groupDetails.map((detail) => (
             <div key={detail.id} className="rounded-md bg-muted/40 p-2 text-sm">
               <p className="font-medium">{detail.cat.name}</p>
-              <p className="text-muted-foreground">
-                Wet food: {detail.wetFoodAmount ?? "—"} · Nail trim:{" "}
-                {detail.nailTrim ? "Yes" : "No"}
-              </p>
-              {detail.behaviorNotes && <p>{detail.behaviorNotes}</p>}
+              <p className="text-muted-foreground">Wet food: {detail.wetFoodAmount ?? "—"}</p>
             </div>
           ))}
         </div>
@@ -169,9 +159,14 @@ export default function ShiftReportDetailPage() {
           <>
             <div className="mt-4 flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-semibold tracking-tight">
-                  {formatReportDate(report.date)} — {shiftTypeLabel(report.shiftType)}
-                </h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-semibold tracking-tight">
+                    {formatReportDate(report.date)} — {shiftTypeLabel(report.shiftType)}
+                  </h1>
+                  <Badge variant={shiftReportStatusBadgeVariant(report.status)}>
+                    {SHIFT_REPORT_STATUS_LABELS[report.status]}
+                  </Badge>
+                </div>
                 <p className="text-sm text-muted-foreground">
                   By {report.author.name}
                   {report.isSplitShift &&

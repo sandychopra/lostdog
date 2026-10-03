@@ -8,6 +8,7 @@ interface CollapsibleEntryCardProps {
   collapsed: boolean;
   onToggleCollapsed: () => void;
   onRemove?: () => void;
+  onSave?: () => void;
   variant?: "default" | "nested";
   children: ReactNode;
 }
@@ -21,6 +22,7 @@ export default function CollapsibleEntryCard({
   collapsed,
   onToggleCollapsed,
   onRemove,
+  onSave,
   variant = "default",
   children,
 }: CollapsibleEntryCardProps) {
@@ -66,7 +68,16 @@ export default function CollapsibleEntryCard({
           </Button>
         )}
       </div>
-      <div className={collapsed ? "hidden" : nested ? "space-y-2" : "space-y-3"}>{children}</div>
+      <div className={collapsed ? "hidden" : nested ? "space-y-2" : "space-y-3"}>
+        {children}
+        {onSave && (
+          <div className="flex justify-end">
+            <Button type="button" variant="secondary" size="sm" onClick={onSave}>
+              Save
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

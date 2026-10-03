@@ -55,14 +55,15 @@ function GroupCatDetailFields({
   const { control, register, setValue } = form;
   const base = `catEntries.${entryIndex}.catDetails.${detailIndex}` as const;
   const wetFoodAmount = useWatch({ control, name: `${base}.wetFoodAmount` as const });
-  const nailTrim = useWatch({ control, name: `${base}.nailTrim` as const });
 
   const summary = (
-    <>
-      {wetFoodAmount !== undefined && <Badge variant="outline">Wet: {wetFoodAmount}</Badge>}
-      {nailTrim && <Badge variant="outline">Nail trim ✓</Badge>}
-    </>
+    <>{wetFoodAmount !== undefined && <Badge variant="outline">Wet: {wetFoodAmount}</Badge>}</>
   );
+
+  async function handleSave() {
+    const valid = await form.trigger(`catEntries.${entryIndex}.catDetails.${detailIndex}` as const);
+    if (valid) onToggleCollapsed();
+  }
 
   return (
     <CollapsibleEntryCard
@@ -70,6 +71,7 @@ function GroupCatDetailFields({
       summary={summary}
       collapsed={collapsed}
       onToggleCollapsed={onToggleCollapsed}
+      onSave={handleSave}
       variant="nested"
     >
       <div className="grid grid-cols-2 gap-3">
@@ -91,24 +93,18 @@ function GroupCatDetailFields({
           />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label htmlFor={`${base}.snackTreat`}>Snack/Treat</Label>
-          <select
-            id={`${base}.snackTreat`}
-            className={selectClassName}
-            {...register(`${base}.snackTreat` as const)}
-          >
-            <option value="">None</option>
-            <option value={SnackTreat.Churu}>Churu</option>
-            <option value={SnackTreat.Greenies}>Greenies</option>
-            <option value={SnackTreat.Other}>Other</option>
-          </select>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={`${base}.snackTreatNote`}>Snack/Treat Note</Label>
-          <Input id={`${base}.snackTreatNote`} {...register(`${base}.snackTreatNote` as const)} />
-        </div>
+      <div className="space-y-1">
+        <Label htmlFor={`${base}.snackTreat`}>Snack/Treat</Label>
+        <select
+          id={`${base}.snackTreat`}
+          className={selectClassName}
+          {...register(`${base}.snackTreat` as const)}
+        >
+          <option value="">None</option>
+          <option value={SnackTreat.Churu}>Churu</option>
+          <option value={SnackTreat.Greenies}>Greenies</option>
+          <option value={SnackTreat.Other}>Other</option>
+        </select>
       </div>
       <div className="space-y-1">
         <Label htmlFor={`${base}.foodNotes`}>Food Notes</Label>
@@ -123,29 +119,12 @@ function GroupCatDetailFields({
         />
       </div>
       <div className="space-y-1">
-        <Label htmlFor={`${base}.behaviorNotes`}>Behavior Notes</Label>
-        <textarea
-          id={`${base}.behaviorNotes`}
-          className={textareaClassName}
-          {...register(`${base}.behaviorNotes` as const)}
-        />
-      </div>
-      <div className="space-y-1">
         <Label htmlFor={`${base}.otherNotes`}>Other Notes</Label>
         <textarea
           id={`${base}.otherNotes`}
           className={textareaClassName}
           {...register(`${base}.otherNotes` as const)}
         />
-      </div>
-      <div className="flex items-center gap-2">
-        <input
-          id={`${base}.nailTrim`}
-          type="checkbox"
-          className="h-4 w-4"
-          {...register(`${base}.nailTrim` as const)}
-        />
-        <Label htmlFor={`${base}.nailTrim`}>Nail trim</Label>
       </div>
     </CollapsibleEntryCard>
   );

@@ -2,11 +2,13 @@ import { Router, type Response } from "express";
 import {
   createShiftReportSchema,
   updateShiftReportSchema,
+  draftShiftReportSchema,
   type CreateShiftReportInput,
   type GroupEntryCatDetailInput,
 } from "shared/schemas/shiftReports.ts";
 import { CatEntryType } from "shared/constants/catEntryType.ts";
 import { Role } from "shared/constants/role.ts";
+import { ShiftReportStatus } from "shared/constants/shiftReportStatus.ts";
 import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { validate } from "../lib/validate.ts";
@@ -47,17 +49,20 @@ const shiftReportInclude = {
   },
 } as const;
 
+function resolveRequestedStatus(body: unknown): ShiftReportStatus {
+  return (body as { status?: unknown })?.status === ShiftReportStatus.Draft
+    ? ShiftReportStatus.Draft
+    : ShiftReportStatus.Submitted;
+}
+
 function detailFields(detail: GroupEntryCatDetailInput) {
   return {
     wetFoodAmount: detail.wetFoodAmount,
     wetFoodBrand: detail.wetFoodBrand,
     snackTreat: detail.snackTreat,
-    snackTreatNote: detail.snackTreatNote,
     foodNotes: detail.foodNotes,
     medicalNotes: detail.medicalNotes,
-    behaviorNotes: detail.behaviorNotes,
     otherNotes: detail.otherNotes,
-    nailTrim: detail.nailTrim,
   };
 }
 
@@ -76,11 +81,8 @@ function buildCatEntryCreate(
       wetFoodBrand: entry.wetFoodBrand,
       foodNotes: entry.foodNotes,
       snackTreat: entry.snackTreat,
-      snackTreatNote: entry.snackTreatNote,
       medicalNotes: entry.medicalNotes,
-      behaviorNotes: entry.behaviorNotes,
       otherNotes: entry.otherNotes,
-      nailTrim: entry.nailTrim,
     };
   }
 
@@ -199,7 +201,10 @@ router.get("/:id", requireAuth, async (req, res: Response) => {
 });
 
 router.post("/", requireAuth, async (req, res: Response) => {
-  const data = validate(createShiftReportSchema, req.body, res);
+  const requestedStatus = resolveRequestedStatus(req.body);
+  const contentSchema =
+    requestedStatus === ShiftReportStatus.Draft ? draftShiftReportSchema : createShiftReportSchema;
+  const data = validate(contentSchema, req.body, res);
   if (!data) return;
 
   if (!(await validateReferences(data, res))) return;
@@ -214,6 +219,8 @@ router.post("/", requireAuth, async (req, res: Response) => {
         date: data.date,
         isSplitShift: data.isSplitShift,
         splitShiftPosition: data.splitShiftPosition ?? null,
+        status: requestedStatus,
+        submittedAt: requestedStatus === ShiftReportStatus.Submitted ? new Date() : null,
         cleaningNotes: data.cleaningNotes,
         suppliesNotes: data.suppliesNotes,
         kennelNotes: data.kennelNotes,
@@ -266,7 +273,17 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
     return;
   }
 
-  const data = validate(updateShiftReportSchema, req.body, res);
+  // A Submitted report can never go back to Draft — once submitted it always
+  // requires full/strict validation, regardless of what the client requests.
+  const clientRequestedStatus = resolveRequestedStatus(req.body);
+  const effectiveStatus =
+    existing.status === ShiftReportStatus.Submitted
+      ? ShiftReportStatus.Submitted
+      : clientRequestedStatus;
+  const contentSchema =
+    effectiveStatus === ShiftReportStatus.Draft ? draftShiftReportSchema : updateShiftReportSchema;
+
+  const data = validate(contentSchema, req.body, res);
   if (!data) return;
 
   if (!(await validateReferences(data, res))) return;
@@ -323,11 +340,8 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
               wetFoodBrand: entry.wetFoodBrand,
               foodNotes: entry.foodNotes,
               snackTreat: entry.snackTreat,
-              snackTreatNote: entry.snackTreatNote,
               medicalNotes: entry.medicalNotes,
-              behaviorNotes: entry.behaviorNotes,
               otherNotes: entry.otherNotes,
-              nailTrim: entry.nailTrim,
             },
           });
           continue;
@@ -410,6 +424,11 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
           date: data.date,
           isSplitShift: data.isSplitShift,
           splitShiftPosition: data.splitShiftPosition ?? null,
+          status: effectiveStatus,
+          submittedAt:
+            effectiveStatus === ShiftReportStatus.Submitted
+              ? (existing.submittedAt ?? new Date())
+              : null,
           cleaningNotes: data.cleaningNotes,
           suppliesNotes: data.suppliesNotes,
           kennelNotes: data.kennelNotes,

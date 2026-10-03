@@ -5,11 +5,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createShiftReportSchema,
   updateShiftReportSchema,
+  draftShiftReportSchema,
   type CreateShiftReportInput,
 } from "shared/schemas/shiftReports.ts";
 import { ShiftType } from "shared/constants/shiftType.ts";
 import { CatEntryType } from "shared/constants/catEntryType.ts";
 import { SplitShiftPosition } from "shared/constants/splitShiftPosition.ts";
+import { ShiftReportStatus } from "shared/constants/shiftReportStatus.ts";
 import { api } from "../lib/api";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
@@ -21,6 +23,8 @@ import GroupCatEntryFields from "./GroupCatEntryFields";
 import CatNoteGroupList from "./CatNoteGroupList";
 import KennelStatusList from "./KennelStatusList";
 import PhotoUploadSection, { type QueuedPhoto } from "./PhotoUploadSection";
+import CollapsibleSection from "./CollapsibleSection";
+import ShiftReportFormOutline, { type SectionKey } from "./ShiftReportFormOutline";
 import type { Cat } from "./CatsTable";
 import type { Kennel } from "./KennelsTable";
 import type { ShiftReport } from "./ShiftReportsTable";
@@ -62,11 +66,8 @@ function mapReportToDefaultValues(report: ShiftReport): CreateShiftReportInput {
             wetFoodBrand: entry.wetFoodBrand ?? "",
             foodNotes: entry.foodNotes ?? "",
             snackTreat: entry.snackTreat ?? undefined,
-            snackTreatNote: entry.snackTreatNote ?? "",
             medicalNotes: entry.medicalNotes ?? "",
-            behaviorNotes: entry.behaviorNotes ?? "",
             otherNotes: entry.otherNotes ?? "",
-            nailTrim: entry.nailTrim,
           }
         : {
             id: entry.id,
@@ -83,12 +84,9 @@ function mapReportToDefaultValues(report: ShiftReport): CreateShiftReportInput {
               wetFoodAmount: detail.wetFoodAmount ?? undefined,
               wetFoodBrand: detail.wetFoodBrand ?? "",
               snackTreat: detail.snackTreat ?? undefined,
-              snackTreatNote: detail.snackTreatNote ?? "",
               foodNotes: detail.foodNotes ?? "",
               medicalNotes: detail.medicalNotes ?? "",
-              behaviorNotes: detail.behaviorNotes ?? "",
               otherNotes: detail.otherNotes ?? "",
-              nailTrim: detail.nailTrim,
             })),
           },
     ),
@@ -126,9 +124,14 @@ async function uploadPhoto(args: {
 interface ShiftReportFormProps {
   report?: ShiftReport;
   onSuccess: (id: number) => void;
+  onDraftCreated?: (id: number) => void;
 }
 
-export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormProps) {
+export default function ShiftReportForm({
+  report,
+  onSuccess,
+  onDraftCreated,
+}: ShiftReportFormProps) {
   const isEdit = !!report;
   const queryClient = useQueryClient();
   const [photoQueue, setPhotoQueue] = useState<Record<string, QueuedPhoto[]>>({});
@@ -150,7 +153,12 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
   });
 
   const form = useForm<CreateShiftReportInput>({
-    resolver: zodResolver(isEdit ? updateShiftReportSchema : createShiftReportSchema),
+    // Always lenient — this only governs live inline field errors as the
+    // volunteer types. The hard Draft/Submit distinction is enforced
+    // explicitly in handleSubmitClick, not via the bound resolver, so saving
+    // a draft never blocks on an incomplete group entry/meet-and-greet/play
+    // group.
+    resolver: zodResolver(draftShiftReportSchema),
     defaultValues: report
       ? mapReportToDefaultValues(report)
       : {
@@ -165,6 +173,13 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
   });
 
   const { control, register, formState } = form;
+
+  // Tracks the authoritative saved report once one exists, independent of
+  // the `report` prop (which won't update after the parent's background
+  // re-fetch without a full remount — see handleSaveDraft/onDraftCreated).
+  const [createdReport, setCreatedReport] = useState<ShiftReport | undefined>(report);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [submitAttemptError, setSubmitAttemptError] = useState<string | null>(null);
 
   const catEntries = useFieldArray({ control, name: "catEntries" });
 
@@ -188,27 +203,48 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
     });
   }
 
+  // Computed once at mount, same as collapsedEntryIds above, so a section
+  // doesn't snap shut again if the volunteer empties it back out after
+  // expanding it.
+  const [collapsedSections, setCollapsedSections] = useState<Record<SectionKey, boolean>>(() => ({
+    // Unlike the sections below, Kennel Status is never meaningfully "empty"
+    // (every kennel is always auto-populated), so it always starts collapsed
+    // rather than only when its count is zero.
+    kennelStatus: true,
+    playGroups: (report?.playGroups.length ?? 0) === 0,
+    meetAndGreets: (report?.meetAndGreets.length ?? 0) === 0,
+    photos: (report?.photos.length ?? 0) === 0,
+    notes: !(report?.cleaningNotes || report?.suppliesNotes || report?.otherNotes),
+  }));
+
+  function toggleSection(key: SectionKey) {
+    setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
   const shiftType = useWatch({ control, name: "shiftType" });
   const isSplitShift = useWatch({ control, name: "isSplitShift" });
+  const cleaningNotes = useWatch({ control, name: "cleaningNotes" });
+  const suppliesNotes = useWatch({ control, name: "suppliesNotes" });
+  const otherNotes = useWatch({ control, name: "otherNotes" });
+  const notesCount = [cleaningNotes, suppliesNotes, otherNotes].filter(
+    (note) => note && note.length > 0,
+  ).length;
 
   const catOptions = (cats ?? []).map((c) => ({ id: c.id, name: c.name }));
 
   const uploadedByEntryId = new Map((report?.catEntries ?? []).map((e) => [e.id, e.photos]));
 
   const mutation = useMutation({
-    mutationFn: async (payload: CreateShiftReportInput) => {
-      if (isEdit) {
-        const { data } = await api.put(`/api/shift-reports/${report.id}`, payload);
-        return data.shiftReport as ShiftReport;
-      }
-      const { data } = await api.post("/api/shift-reports", payload);
+    mutationFn: async (payload: CreateShiftReportInput & { status: ShiftReportStatus }) => {
+      const existingId = createdReport?.id ?? report?.id;
+      const { data } = existingId
+        ? await api.put(`/api/shift-reports/${existingId}`, payload)
+        : await api.post("/api/shift-reports", payload);
       return data.shiftReport as ShiftReport;
     },
   });
 
-  async function onSubmit(data: CreateShiftReportInput) {
-    const saved = await mutation.mutateAsync(data);
-
+  async function syncQueuedPhotos(data: CreateShiftReportInput, saved: ShiftReport) {
     const knownIds = new Set(
       data.catEntries.map((entry) => entry.id).filter((id): id is number => id !== undefined),
     );
@@ -247,11 +283,63 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
       }
     }
     await Promise.allSettled(uploads);
+  }
 
+  function invalidateShiftReportQueries() {
     queryClient.invalidateQueries({ queryKey: ["shiftReports"] });
     queryClient.invalidateQueries({ queryKey: ["cats"] });
     queryClient.invalidateQueries({ queryKey: ["kennels"] });
+  }
+
+  async function handleSaveDraft(data: CreateShiftReportInput) {
+    const wasNew = createdReport === undefined && report === undefined;
+    const saved = await mutation.mutateAsync({ ...data, status: ShiftReportStatus.Draft });
+    await syncQueuedPhotos(data, saved);
+    setCreatedReport(saved);
+    setLastSavedAt(new Date());
+    setSubmitAttemptError(null);
+    invalidateShiftReportQueries();
+    if (wasNew) {
+      // Seed the cache for the edit-page query the URL swap below is about
+      // to trigger, so it resolves from cache instead of showing a loading
+      // skeleton for a report the volunteer is already looking at.
+      queryClient.setQueryData(["shiftReports", String(saved.id)], saved);
+      onDraftCreated?.(saved.id);
+    }
+  }
+
+  async function handleSubmitReport(data: CreateShiftReportInput) {
+    const saved = await mutation.mutateAsync({ ...data, status: ShiftReportStatus.Submitted });
+    await syncQueuedPhotos(data, saved);
+    invalidateShiftReportQueries();
     onSuccess(saved.id);
+  }
+
+  const isAlreadySubmitted =
+    (createdReport?.status ?? report?.status) === ShiftReportStatus.Submitted;
+
+  function handleSubmitClick() {
+    form.handleSubmit((data) => {
+      const strictSchema = isEdit ? updateShiftReportSchema : createShiftReportSchema;
+      const result = strictSchema.safeParse(data);
+      if (!result.success) {
+        for (const issue of result.error.issues) {
+          // Zod issue paths are dynamic (e.g. "catEntries.0.catDetails"), which
+          // doesn't line up with RHF's statically-typed FieldPath<T> — cast
+          // needed here since the path is only known at runtime.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          form.setError(issue.path.join(".") as any, { message: issue.message });
+        }
+        setSubmitAttemptError("Please complete the highlighted fields before submitting.");
+        return;
+      }
+      setSubmitAttemptError(null);
+      void handleSubmitReport(result.data);
+    })();
+  }
+
+  function handleSaveDraftClick() {
+    form.handleSubmit((data) => handleSaveDraft(data))();
   }
 
   function addIndividualEntry(catId: number) {
@@ -259,7 +347,6 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
       entryType: CatEntryType.Individual,
       catId,
       pee: false,
-      nailTrim: false,
     });
   }
 
@@ -269,7 +356,7 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
       entryType: CatEntryType.Group,
       groupId,
       pee: false,
-      catDetails: (group?.cats ?? []).map((c) => ({ catId: c.id, nailTrim: false })),
+      catDetails: (group?.cats ?? []).map((c) => ({ catId: c.id })),
     });
   }
 
@@ -282,6 +369,9 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
   const [pickerValue, setPickerValue] = useState("");
 
   const catEntryValues = useWatch({ control, name: "catEntries" }) ?? [];
+  const playGroupValues = useWatch({ control, name: "playGroups" }) ?? [];
+  const meetAndGreetValues = useWatch({ control, name: "meetAndGreets" }) ?? [];
+  const kennelsStatusValues = useWatch({ control, name: "kennelsStatus" }) ?? [];
   const usedCatIds = new Set(
     catEntryValues
       .filter((e) => e.entryType === CatEntryType.Individual)
@@ -314,7 +404,48 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
   }
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
+      <ShiftReportFormOutline
+        items={[
+          {
+            key: "kennelStatus",
+            label: "Kennel Status",
+            count: kennelsStatusValues.length,
+            anchorId: "section-kennel-status",
+          },
+          {
+            key: "catEntries",
+            label: "Cat Entries",
+            count: catEntries.fields.length,
+            anchorId: "section-cat-entries",
+          },
+          {
+            key: "playGroups",
+            label: "Play Groups",
+            count: playGroupValues.length,
+            anchorId: "section-playGroups",
+          },
+          {
+            key: "meetAndGreets",
+            label: "Meet & Greets",
+            count: meetAndGreetValues.length,
+            anchorId: "section-meetAndGreets",
+          },
+          {
+            key: "photos",
+            label: "Photos",
+            count: (report?.photos.length ?? 0) + (photoQueue.report?.length ?? 0),
+            anchorId: "section-photos",
+          },
+          {
+            key: "notes",
+            label: "Overall Notes",
+            count: notesCount,
+            anchorId: "section-notes",
+          },
+        ]}
+        onBeforeNavigate={(key) => setCollapsedSections((prev) => ({ ...prev, [key]: false }))}
+      />
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="shiftType">Shift Type</Label>
@@ -357,14 +488,14 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
         </div>
       )}
 
-      <KennelStatusList form={form} kennelOptions={kennels ?? []} />
+      <KennelStatusList
+        form={form}
+        kennelOptions={kennels ?? []}
+        collapsed={collapsedSections.kennelStatus}
+        onToggleCollapsed={() => toggleSection("kennelStatus")}
+      />
 
-      <div className="space-y-2">
-        <Label htmlFor="kennelNotes">Kennel Notes</Label>
-        <textarea id="kennelNotes" className={textareaClassName} {...register("kennelNotes")} />
-      </div>
-
-      <section className="space-y-3">
+      <section id="section-cat-entries" className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Cat Entries</h2>
           <div className="flex gap-2">
@@ -447,6 +578,8 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
         title="Play Groups"
         addLabel="Add Play Group"
         catOptions={catOptions}
+        collapsed={collapsedSections.playGroups}
+        onToggleCollapsed={() => toggleSection("playGroups")}
       />
 
       <CatNoteGroupList
@@ -455,10 +588,17 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
         title="Meet & Greets"
         addLabel="Add Meet & Greet"
         catOptions={catOptions}
+        collapsed={collapsedSections.meetAndGreets}
+        onToggleCollapsed={() => toggleSection("meetAndGreets")}
       />
 
-      <section className="space-y-2">
-        <h2 className="text-lg font-semibold">Photos</h2>
+      <CollapsibleSection
+        title="Photos"
+        count={(report?.photos.length ?? 0) + (photoQueue.report?.length ?? 0)}
+        collapsed={collapsedSections.photos}
+        onToggleCollapsed={() => toggleSection("photos")}
+        anchorId="section-photos"
+      >
         <PhotoUploadSection
           queued={photoQueue.report ?? []}
           onQueuedChange={(next) => setPhotoQueue((prev) => ({ ...prev, report: next }))}
@@ -466,10 +606,15 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
           catOptions={catOptions}
           showTagPicker
         />
-      </section>
+      </CollapsibleSection>
 
-      <section className="space-y-2">
-        <h2 className="text-lg font-semibold">Overall Notes</h2>
+      <CollapsibleSection
+        title="Overall Notes"
+        count={notesCount}
+        collapsed={collapsedSections.notes}
+        onToggleCollapsed={() => toggleSection("notes")}
+        anchorId="section-notes"
+      >
         <div className="space-y-2">
           <Label htmlFor="cleaningNotes">Cleaning Notes</Label>
           <textarea
@@ -490,21 +635,31 @@ export default function ShiftReportForm({ report, onSuccess }: ShiftReportFormPr
           <Label htmlFor="otherNotes">Other Notes</Label>
           <textarea id="otherNotes" className={textareaClassName} {...register("otherNotes")} />
         </div>
-      </section>
+      </CollapsibleSection>
 
+      {submitAttemptError && <ErrorAlert message={submitAttemptError} />}
       {mutation.error !== null && (
         <ErrorAlert error={mutation.error} fallback="Failed to save shift report" />
       )}
 
-      <div className="flex justify-end">
-        <Button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending
-            ? isEdit
-              ? "Saving..."
-              : "Creating..."
-            : isEdit
-              ? "Save Changes"
-              : "Submit Report"}
+      <div className="flex items-center justify-end gap-3">
+        {lastSavedAt && (
+          <span className="text-sm text-muted-foreground">
+            Saved as draft · {lastSavedAt.toLocaleTimeString()}
+          </span>
+        )}
+        {!isAlreadySubmitted && (
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={mutation.isPending}
+            onClick={handleSaveDraftClick}
+          >
+            {mutation.isPending ? "Saving..." : "Save Draft"}
+          </Button>
+        )}
+        <Button type="button" disabled={mutation.isPending} onClick={handleSubmitClick}>
+          {mutation.isPending ? "Saving..." : isAlreadySubmitted ? "Save Changes" : "Submit Report"}
         </Button>
       </div>
     </form>

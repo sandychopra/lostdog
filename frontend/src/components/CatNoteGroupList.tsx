@@ -3,6 +3,7 @@ import type { CreateShiftReportInput } from "shared/schemas/shiftReports.ts";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import CatMultiSelect from "./CatMultiSelect";
+import CollapsibleSection from "./CollapsibleSection";
 
 const textareaClassName =
   "flex min-h-16 w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -15,6 +16,8 @@ interface CatNoteGroupListProps {
   title: string;
   addLabel: string;
   catOptions: { id: number; name: string }[];
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }
 
 // Meet & Greets and Play Groups are the exact same shape ({ id?, note, catIds
@@ -49,22 +52,32 @@ export default function CatNoteGroupList({
   title,
   addLabel,
   catOptions,
+  collapsed,
+  onToggleCollapsed,
 }: CatNoteGroupListProps) {
   const { control, register } = form;
   const fieldArray = useFieldArray({ control, name });
 
   return (
-    <section className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">{title}</h2>
+    <CollapsibleSection
+      title={title}
+      count={fieldArray.fields.length}
+      collapsed={collapsed}
+      onToggleCollapsed={onToggleCollapsed}
+      anchorId={`section-${name}`}
+      headerExtra={
         <Button
           type="button"
           variant="secondary"
-          onClick={() => fieldArray.append({ note: "", catIds: [] })}
+          onClick={() => {
+            fieldArray.append({ note: "", catIds: [] });
+            if (collapsed) onToggleCollapsed();
+          }}
         >
           {addLabel}
         </Button>
-      </div>
+      }
+    >
       {fieldArray.fields.map((field, index) => (
         <div key={field.id} className="space-y-2 rounded-md border border-input p-3">
           <div className="flex items-center justify-between">
@@ -87,6 +100,6 @@ export default function CatNoteGroupList({
           <GroupCatIds form={form} name={name} index={index} catOptions={catOptions} />
         </div>
       ))}
-    </section>
+    </CollapsibleSection>
   );
 }

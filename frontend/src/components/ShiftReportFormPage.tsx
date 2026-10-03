@@ -44,6 +44,9 @@ export default function ShiftReportFormPage() {
           <ShiftReportForm
             report={report}
             onSuccess={(reportId) => navigate(`/shift-reports/${reportId}`)}
+            onDraftCreated={(newReportId) =>
+              navigate(`/shift-reports/${newReportId}/edit`, { replace: true })
+            }
           />
         )}
       </main>

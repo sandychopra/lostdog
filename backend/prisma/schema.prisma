@@ -51,6 +51,11 @@ enum ShiftType {
   Evening
 }
 
+enum ShiftReportStatus {
+  Draft
+  Submitted
+}
+
 enum CatEntryType {
   Individual
   Group
@@ -289,6 +294,8 @@ model ShiftReport {
   date               DateTime            @db.Date
   isSplitShift       Boolean             @default(false) @map("is_split_shift")
   splitShiftPosition SplitShiftPosition? @map("split_shift_position")
+  status             ShiftReportStatus   @default(Draft) @map("status")
+  submittedAt        DateTime?           @map("submitted_at")
   cleaningNotes      String?             @map("cleaning_notes")
   suppliesNotes      String?             @map("supplies_notes")
   kennelNotes        String?             @map("kennel_notes")
@@ -350,13 +357,10 @@ model CatEntry {
   otherNotes    String?     @map("other_notes")
 
   // Individual-only
-  wetFoodAmount  FoodAmount? @map("wet_food_amount")
-  wetFoodBrand   String?     @map("wet_food_brand")
-  snackTreat     SnackTreat? @map("snack_treat")
-  snackTreatNote String?     @map("snack_treat_note")
-  medicalNotes   String?     @map("medical_notes")
-  behaviorNotes  String?     @map("behavior_notes")
-  nailTrim       Boolean     @default(false) @map("nail_trim")
+  wetFoodAmount FoodAmount? @map("wet_food_amount")
+  wetFoodBrand  String?     @map("wet_food_brand")
+  snackTreat    SnackTreat? @map("snack_treat")
+  medicalNotes  String?     @map("medical_notes")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -379,15 +383,12 @@ model GroupEntryCatDetail {
   catId      Int      @map("cat_id")
   cat        Cat      @relation(fields: [catId], references: [id])
 
-  wetFoodAmount  FoodAmount? @map("wet_food_amount")
-  wetFoodBrand   String?     @map("wet_food_brand")
-  snackTreat     SnackTreat? @map("snack_treat")
-  snackTreatNote String?     @map("snack_treat_note")
-  foodNotes      String?     @map("food_notes")
-  medicalNotes   String?     @map("medical_notes")
-  behaviorNotes  String?     @map("behavior_notes")
-  otherNotes     String?     @map("other_notes")
-  nailTrim       Boolean     @default(false) @map("nail_trim")
+  wetFoodAmount FoodAmount? @map("wet_food_amount")
+  wetFoodBrand  String?     @map("wet_food_brand")
+  snackTreat    SnackTreat? @map("snack_treat")
+  foodNotes     String?     @map("food_notes")
+  medicalNotes  String?     @map("medical_notes")
+  otherNotes    String?     @map("other_notes")
 
   @@unique([catEntryId, catId])
   @@map("group_entry_cat_detail")

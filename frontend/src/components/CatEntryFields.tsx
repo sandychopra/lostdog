@@ -49,7 +49,6 @@ export default function CatEntryFields({
   const fecalScore = useWatch({ control, name: `${base}.fecalScore` as const });
   const dryFoodAmount = useWatch({ control, name: `${base}.dryFoodAmount` as const });
   const wetFoodAmount = useWatch({ control, name: `${base}.wetFoodAmount` as const });
-  const nailTrim = useWatch({ control, name: `${base}.nailTrim` as const });
 
   // Native <select> values are always strings, even though the schema's
   // parsed/output type is number — coerce before comparing against numeric ids.
@@ -70,9 +69,13 @@ export default function CatEntryFields({
           {photoCount} photo{photoCount === 1 ? "" : "s"}
         </Badge>
       )}
-      {nailTrim && <Badge variant="outline">Nail trim ✓</Badge>}
     </>
   );
+
+  async function handleSave() {
+    const valid = await form.trigger(`catEntries.${index}` as const);
+    if (valid) onToggleCollapsed();
+  }
 
   return (
     <CollapsibleEntryCard
@@ -81,6 +84,7 @@ export default function CatEntryFields({
       collapsed={collapsed}
       onToggleCollapsed={onToggleCollapsed}
       onRemove={onRemove}
+      onSave={handleSave}
     >
       <div className="space-y-2">
         <Label htmlFor={`${base}.catId`}>Cat</Label>
@@ -165,24 +169,18 @@ export default function CatEntryFields({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label htmlFor={`${base}.snackTreat`}>Snack/Treat</Label>
-          <select
-            id={`${base}.snackTreat`}
-            className={selectClassName}
-            {...register(`${base}.snackTreat` as const)}
-          >
-            <option value="">None</option>
-            <option value={SnackTreat.Churu}>Churu</option>
-            <option value={SnackTreat.Greenies}>Greenies</option>
-            <option value={SnackTreat.Other}>Other</option>
-          </select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor={`${base}.snackTreatNote`}>Snack/Treat Note</Label>
-          <Input id={`${base}.snackTreatNote`} {...register(`${base}.snackTreatNote` as const)} />
-        </div>
+      <div className="space-y-2">
+        <Label htmlFor={`${base}.snackTreat`}>Snack/Treat</Label>
+        <select
+          id={`${base}.snackTreat`}
+          className={selectClassName}
+          {...register(`${base}.snackTreat` as const)}
+        >
+          <option value="">None</option>
+          <option value={SnackTreat.Churu}>Churu</option>
+          <option value={SnackTreat.Greenies}>Greenies</option>
+          <option value={SnackTreat.Other}>Other</option>
+        </select>
       </div>
 
       <div className="space-y-2">
@@ -195,31 +193,12 @@ export default function CatEntryFields({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor={`${base}.behaviorNotes`}>Behavior Notes</Label>
-        <textarea
-          id={`${base}.behaviorNotes`}
-          className={textareaClassName}
-          {...register(`${base}.behaviorNotes` as const)}
-        />
-      </div>
-
-      <div className="space-y-2">
         <Label htmlFor={`${base}.otherNotes`}>Other Notes</Label>
         <textarea
           id={`${base}.otherNotes`}
           className={textareaClassName}
           {...register(`${base}.otherNotes` as const)}
         />
-      </div>
-
-      <div className="flex items-center gap-2">
-        <input
-          id={`${base}.nailTrim`}
-          type="checkbox"
-          className="h-4 w-4"
-          {...register(`${base}.nailTrim` as const)}
-        />
-        <Label htmlFor={`${base}.nailTrim`}>Nail trim</Label>
       </div>
 
       <div className="space-y-2">
