@@ -1,6 +1,6 @@
 # Cheat Sheet
 
-Quick-reference commands for Git, the Unix/macOS shell, Bun, and this machine's `~/.zshrc`.
+Quick-reference commands for Git, the Unix/macOS shell, macOS keyboard shortcuts, Bun, Claude Code, and this machine's `~/.zshrc`.
 
 ## Git
 
@@ -131,6 +131,47 @@ Quick-reference commands for Git, the Unix/macOS shell, Bun, and this machine's 
 - `brew update && brew upgrade` — update Homebrew and installed packages
 - `brew list` — list installed packages
 
+## macOS Keyboard Shortcuts
+
+### Window & app management
+
+- `Cmd+Tab` / `Cmd+Shift+Tab` — switch between open apps (forward/backward)
+- ``Cmd+` `` — switch between windows of the current app
+- `Cmd+Q` — quit the current app
+- `Cmd+W` — close the current window/tab
+- `Cmd+H` — hide the current app
+- `Cmd+Option+Esc` — force-quit an unresponsive app
+- `Cmd+Space` — open Spotlight search
+- `Ctrl+Up` / `F3` — Mission Control
+- `Ctrl+Left` / `Ctrl+Right` — switch between full-screen Spaces
+
+### Text editing (system-wide)
+
+- `Cmd+C` / `Cmd+V` / `Cmd+X` — copy / paste / cut
+- `Cmd+Z` / `Cmd+Shift+Z` — undo / redo
+- `Cmd+A` — select all
+- `Cmd+F` — find
+- `Cmd+Left` / `Cmd+Right` — jump to start/end of line
+- `Option+Left` / `Option+Right` — jump by word
+- `Cmd+Delete` — delete to start of line
+- `Option+Delete` — delete previous word
+
+### Screenshots
+
+- `Cmd+Shift+3` — capture the full screen
+- `Cmd+Shift+4` — capture a selected area
+- `Cmd+Shift+5` — open the screenshot/recording toolbar
+
+### Finder & misc
+
+- `Cmd+N` — new Finder window
+- `Cmd+Shift+N` — new folder
+- `Cmd+Delete` — move selected item to Trash
+- `Cmd+Shift+Delete` — empty Trash
+- `Cmd+,` — open preferences for the current app
+- `Ctrl+Cmd+Space` — emoji & symbol picker
+- `Ctrl+Cmd+Q` — lock the screen
+
 ## Bun
 
 ### Installing dependencies
@@ -159,6 +200,41 @@ Quick-reference commands for Git, the Unix/macOS shell, Bun, and this machine's 
 - `bun install` — installs all workspaces defined in the root `package.json` in one pass
 - `bun run --cwd <path> <script>` — run a script scoped to one workspace
 - `bun run --filter <name> <script>` — run a script in workspace(s) matching a name/glob
+
+## Claude Code
+
+### Starting a session
+
+- `claude` — start an interactive session in the current directory
+- `claude "prompt"` — start a session with an initial prompt
+- `claude -p "prompt"` — run a one-shot prompt non-interactively and print the result
+- `claude --continue` — resume the most recent session in this directory
+- `claude --resume` — pick a previous session to resume from a list
+
+### Slash commands (inside a session)
+
+- `/help` — show help for using Claude Code
+- `/clear` — clear the conversation and start fresh
+- `/compact` — summarize/compact the conversation to free up context
+- `/init` — generate a `CLAUDE.md` for the current repo
+- `/resume` — resume a different previous session
+- `/model` — switch the active model
+- `/agents` — manage subagents
+- `/permissions` — view/edit tool permission rules
+- `/mcp` — manage connected MCP servers
+- `/memory` — edit memory files
+- `/cost` — show token usage for the session
+- `/vim` — toggle vim-style key bindings
+- `/doctor` — diagnose installation/config issues
+- `/bug` — report a bug to Anthropic
+
+### Handy shortcuts
+
+- `! <command>` — run a shell command directly and show its output in the chat
+- `Esc` — interrupt Claude mid-response
+- `Esc` `Esc` — step back through earlier messages to edit/retry
+- `Ctrl+C` — cancel the current input/generation
+- `Ctrl+D` — exit Claude Code
 
 ## `~/.zshrc`
 
