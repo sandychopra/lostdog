@@ -73,12 +73,6 @@ enum SplitShiftPosition {
   Second
 }
 
-enum SnackTreat {
-  Churu
-  Greenies
-  Other
-}
-
 enum ChecklistActionType {
   ResetKennel
   MoveCat
@@ -358,8 +352,6 @@ model CatEntry {
 
   // Individual-only
   wetFoodAmount FoodAmount? @map("wet_food_amount")
-  wetFoodBrand  String?     @map("wet_food_brand")
-  snackTreat    SnackTreat? @map("snack_treat")
   medicalNotes  String?     @map("medical_notes")
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -384,8 +376,6 @@ model GroupEntryCatDetail {
   cat        Cat      @relation(fields: [catId], references: [id])
 
   wetFoodAmount FoodAmount? @map("wet_food_amount")
-  wetFoodBrand  String?     @map("wet_food_brand")
-  snackTreat    SnackTreat? @map("snack_treat")
   foodNotes     String?     @map("food_notes")
   medicalNotes  String?     @map("medical_notes")
   otherNotes    String?     @map("other_notes")

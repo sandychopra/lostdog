@@ -58,8 +58,6 @@ function resolveRequestedStatus(body: unknown): ShiftReportStatus {
 function detailFields(detail: GroupEntryCatDetailInput) {
   return {
     wetFoodAmount: detail.wetFoodAmount,
-    wetFoodBrand: detail.wetFoodBrand,
-    snackTreat: detail.snackTreat,
     foodNotes: detail.foodNotes,
     medicalNotes: detail.medicalNotes,
     otherNotes: detail.otherNotes,
@@ -78,9 +76,7 @@ function buildCatEntryCreate(
       peePooNotes: entry.peePooNotes,
       dryFoodAmount: entry.dryFoodAmount,
       wetFoodAmount: entry.wetFoodAmount,
-      wetFoodBrand: entry.wetFoodBrand,
       foodNotes: entry.foodNotes,
-      snackTreat: entry.snackTreat,
       medicalNotes: entry.medicalNotes,
       otherNotes: entry.otherNotes,
     };
@@ -337,9 +333,7 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
               peePooNotes: entry.peePooNotes,
               dryFoodAmount: entry.dryFoodAmount,
               wetFoodAmount: entry.wetFoodAmount,
-              wetFoodBrand: entry.wetFoodBrand,
               foodNotes: entry.foodNotes,
-              snackTreat: entry.snackTreat,
               medicalNotes: entry.medicalNotes,
               otherNotes: entry.otherNotes,
             },

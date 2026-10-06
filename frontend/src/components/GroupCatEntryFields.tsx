@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useFieldArray, useWatch, type UseFormReturn } from "react-hook-form";
-import { SnackTreat } from "shared/constants/snackTreat.ts";
 import type { CreateShiftReportInput } from "shared/schemas/shiftReports.ts";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
@@ -8,10 +7,6 @@ import { Badge } from "./ui/badge";
 import FoodAmountPicker from "./FoodAmountPicker";
 import FecalScorePicker from "./FecalScorePicker";
 import CollapsibleEntryCard from "./CollapsibleEntryCard";
-import PhotoUploadSection, {
-  type QueuedPhoto,
-  type UploadedPhotoSummary,
-} from "./PhotoUploadSection";
 import type { Cat } from "./CatsTable";
 import type { Kennel } from "./KennelsTable";
 
@@ -30,9 +25,6 @@ interface GroupCatEntryFieldsProps {
   cats: Cat[];
   kennels: Kennel[];
   onRemove: () => void;
-  queuedPhotos: QueuedPhoto[];
-  onQueuedPhotosChange: (next: QueuedPhoto[]) => void;
-  uploadedPhotos: UploadedPhotoSummary[];
   collapsed: boolean;
   onToggleCollapsed: () => void;
 }
@@ -74,37 +66,12 @@ function GroupCatDetailFields({
       onSave={handleSave}
       variant="nested"
     >
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label>Wet Food</Label>
-          <FoodAmountPicker
-            value={wetFoodAmount}
-            onChange={(v) =>
-              setValue(`${base}.wetFoodAmount` as const, v, { shouldValidate: true })
-            }
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={`${base}.wetFoodBrand`}>Wet Food Brand</Label>
-          <Input
-            id={`${base}.wetFoodBrand`}
-            placeholder="Hill's"
-            {...register(`${base}.wetFoodBrand` as const)}
-          />
-        </div>
-      </div>
       <div className="space-y-1">
-        <Label htmlFor={`${base}.snackTreat`}>Snack/Treat</Label>
-        <select
-          id={`${base}.snackTreat`}
-          className={selectClassName}
-          {...register(`${base}.snackTreat` as const)}
-        >
-          <option value="">None</option>
-          <option value={SnackTreat.Churu}>Churu</option>
-          <option value={SnackTreat.Greenies}>Greenies</option>
-          <option value={SnackTreat.Other}>Other</option>
-        </select>
+        <Label>Wet Food</Label>
+        <FoodAmountPicker
+          value={wetFoodAmount}
+          onChange={(v) => setValue(`${base}.wetFoodAmount` as const, v, { shouldValidate: true })}
+        />
       </div>
       <div className="space-y-1">
         <Label htmlFor={`${base}.foodNotes`}>Food Notes</Label>
@@ -136,9 +103,6 @@ export default function GroupCatEntryFields({
   cats,
   kennels,
   onRemove,
-  queuedPhotos,
-  onQueuedPhotosChange,
-  uploadedPhotos,
   collapsed,
   onToggleCollapsed,
 }: GroupCatEntryFieldsProps) {
@@ -177,15 +141,9 @@ export default function GroupCatEntryFields({
   const selectedGroup = groups.find((g) => g.id === Number(groupId));
   const groupCats = selectedGroup?.cats ?? [];
 
-  const photoCount = queuedPhotos.length + uploadedPhotos.length;
   const summary = (
     <>
       {fecalScore !== undefined && <Badge variant="outline">FS {fecalScore}</Badge>}
-      {photoCount > 0 && (
-        <Badge variant="outline">
-          {photoCount} photo{photoCount === 1 ? "" : "s"}
-        </Badge>
-      )}
       {detailFields.length > 0 && (
         <Badge variant="outline">
           {detailFields.length} cat{detailFields.length === 1 ? "" : "s"}
@@ -309,17 +267,6 @@ export default function GroupCatEntryFields({
           </div>
         </div>
       )}
-
-      <div className="space-y-2">
-        <Label>Photos</Label>
-        <PhotoUploadSection
-          queued={queuedPhotos}
-          onQueuedChange={onQueuedPhotosChange}
-          uploaded={uploadedPhotos}
-          catOptions={groupCats}
-          showTagPicker
-        />
-      </div>
     </CollapsibleEntryCard>
   );
 }

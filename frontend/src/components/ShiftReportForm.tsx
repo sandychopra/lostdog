@@ -38,10 +38,6 @@ function toDateInputValue(value: string | null | undefined): string {
   return value ? value.slice(0, 10) : "";
 }
 
-function queueKeyForEntry(fieldId: string, entryId: number | undefined): string {
-  return entryId !== undefined ? `existing-${entryId}` : `new-${fieldId}`;
-}
-
 function mapReportToDefaultValues(report: ShiftReport): CreateShiftReportInput {
   return {
     shiftType: report.shiftType,
@@ -63,9 +59,7 @@ function mapReportToDefaultValues(report: ShiftReport): CreateShiftReportInput {
             peePooNotes: entry.peePooNotes ?? "",
             dryFoodAmount: entry.dryFoodAmount ?? undefined,
             wetFoodAmount: entry.wetFoodAmount ?? undefined,
-            wetFoodBrand: entry.wetFoodBrand ?? "",
             foodNotes: entry.foodNotes ?? "",
-            snackTreat: entry.snackTreat ?? undefined,
             medicalNotes: entry.medicalNotes ?? "",
             otherNotes: entry.otherNotes ?? "",
           }
@@ -82,8 +76,6 @@ function mapReportToDefaultValues(report: ShiftReport): CreateShiftReportInput {
             catDetails: entry.groupDetails.map((detail) => ({
               catId: detail.catId,
               wetFoodAmount: detail.wetFoodAmount ?? undefined,
-              wetFoodBrand: detail.wetFoodBrand ?? "",
-              snackTreat: detail.snackTreat ?? undefined,
               foodNotes: detail.foodNotes ?? "",
               medicalNotes: detail.medicalNotes ?? "",
               otherNotes: detail.otherNotes ?? "",
@@ -107,16 +99,10 @@ function mapReportToDefaultValues(report: ShiftReport): CreateShiftReportInput {
   };
 }
 
-async function uploadPhoto(args: {
-  file: File;
-  shiftReportId: number;
-  catEntryId?: number;
-  catIds: number[];
-}) {
+async function uploadPhoto(args: { file: File; shiftReportId: number; catIds: number[] }) {
   const formData = new FormData();
   formData.append("photo", args.file);
   formData.append("shiftReportId", String(args.shiftReportId));
-  if (args.catEntryId !== undefined) formData.append("catEntryId", String(args.catEntryId));
   if (args.catIds.length > 0) formData.append("catIds", JSON.stringify(args.catIds));
   return api.post("/api/photos", formData);
 }
@@ -134,7 +120,7 @@ export default function ShiftReportForm({
 }: ShiftReportFormProps) {
   const isEdit = !!report;
   const queryClient = useQueryClient();
-  const [photoQueue, setPhotoQueue] = useState<Record<string, QueuedPhoto[]>>({});
+  const [photoQueue, setPhotoQueue] = useState<QueuedPhoto[]>([]);
 
   const { data: cats } = useQuery({
     queryKey: ["cats"],
@@ -232,8 +218,6 @@ export default function ShiftReportForm({
 
   const catOptions = (cats ?? []).map((c) => ({ id: c.id, name: c.name }));
 
-  const uploadedByEntryId = new Map((report?.catEntries ?? []).map((e) => [e.id, e.photos]));
-
   const mutation = useMutation({
     mutationFn: async (payload: CreateShiftReportInput & { status: ShiftReportStatus }) => {
       const existingId = createdReport?.id ?? report?.id;
@@ -244,45 +228,12 @@ export default function ShiftReportForm({
     },
   });
 
-  async function syncQueuedPhotos(data: CreateShiftReportInput, saved: ShiftReport) {
-    const knownIds = new Set(
-      data.catEntries.map((entry) => entry.id).filter((id): id is number => id !== undefined),
-    );
-    const submittedNewEntries = catEntries.fields
-      .map((field, i) => ({ field, entry: data.catEntries[i]! }))
-      .filter(({ entry }) => entry.id === undefined);
-    const responseNewEntries = saved.catEntries.filter((entry) => !knownIds.has(entry.id));
-
-    const resolvedIdByQueueKey = new Map<string, number>();
-    submittedNewEntries.forEach(({ field }, i) => {
-      const real = responseNewEntries[i];
-      if (real) resolvedIdByQueueKey.set(`new-${field.id}`, real.id);
-    });
-
-    const uploads: Promise<unknown>[] = [];
-    for (const photo of photoQueue.report ?? []) {
-      uploads.push(
+  async function syncQueuedPhotos(saved: ShiftReport) {
+    await Promise.allSettled(
+      photoQueue.map((photo) =>
         uploadPhoto({ file: photo.file, shiftReportId: saved.id, catIds: photo.catIds }),
-      );
-    }
-    for (const [key, photos] of Object.entries(photoQueue)) {
-      if (key === "report" || photos.length === 0) continue;
-      const catEntryId = key.startsWith("existing-")
-        ? Number(key.replace("existing-", ""))
-        : resolvedIdByQueueKey.get(key);
-      if (catEntryId === undefined) continue;
-      for (const photo of photos) {
-        uploads.push(
-          uploadPhoto({
-            file: photo.file,
-            shiftReportId: saved.id,
-            catEntryId,
-            catIds: photo.catIds,
-          }),
-        );
-      }
-    }
-    await Promise.allSettled(uploads);
+      ),
+    );
   }
 
   function invalidateShiftReportQueries() {
@@ -294,7 +245,7 @@ export default function ShiftReportForm({
   async function handleSaveDraft(data: CreateShiftReportInput) {
     const wasNew = createdReport === undefined && report === undefined;
     const saved = await mutation.mutateAsync({ ...data, status: ShiftReportStatus.Draft });
-    await syncQueuedPhotos(data, saved);
+    await syncQueuedPhotos(saved);
     setCreatedReport(saved);
     setLastSavedAt(new Date());
     setSubmitAttemptError(null);
@@ -310,7 +261,7 @@ export default function ShiftReportForm({
 
   async function handleSubmitReport(data: CreateShiftReportInput) {
     const saved = await mutation.mutateAsync({ ...data, status: ShiftReportStatus.Submitted });
-    await syncQueuedPhotos(data, saved);
+    await syncQueuedPhotos(saved);
     invalidateShiftReportQueries();
     onSuccess(saved.id);
   }
@@ -434,7 +385,7 @@ export default function ShiftReportForm({
           {
             key: "photos",
             label: "Photos",
-            count: (report?.photos.length ?? 0) + (photoQueue.report?.length ?? 0),
+            count: (report?.photos.length ?? 0) + photoQueue.length,
             anchorId: "section-photos",
           },
           {
@@ -536,9 +487,6 @@ export default function ShiftReportForm({
         </div>
         {catEntries.fields.map((field, index) => {
           const entryType = form.getValues(`catEntries.${index}.entryType`);
-          const entryId = form.getValues(`catEntries.${index}.id`);
-          const key = queueKeyForEntry(field.id, entryId);
-          const uploaded = entryId !== undefined ? (uploadedByEntryId.get(entryId) ?? []) : [];
           const collapsed = collapsedEntryIds.has(field.id);
           const onToggleCollapsed = () => toggleEntryCollapsed(field.id);
           return entryType === CatEntryType.Individual ? (
@@ -548,9 +496,6 @@ export default function ShiftReportForm({
               index={index}
               cats={cats ?? []}
               onRemove={() => catEntries.remove(index)}
-              queuedPhotos={photoQueue[key] ?? []}
-              onQueuedPhotosChange={(next) => setPhotoQueue((prev) => ({ ...prev, [key]: next }))}
-              uploadedPhotos={uploaded}
               collapsed={collapsed}
               onToggleCollapsed={onToggleCollapsed}
             />
@@ -562,9 +507,6 @@ export default function ShiftReportForm({
               cats={cats ?? []}
               kennels={kennels ?? []}
               onRemove={() => catEntries.remove(index)}
-              queuedPhotos={photoQueue[key] ?? []}
-              onQueuedPhotosChange={(next) => setPhotoQueue((prev) => ({ ...prev, [key]: next }))}
-              uploadedPhotos={uploaded}
               collapsed={collapsed}
               onToggleCollapsed={onToggleCollapsed}
             />
@@ -594,14 +536,14 @@ export default function ShiftReportForm({
 
       <CollapsibleSection
         title="Photos"
-        count={(report?.photos.length ?? 0) + (photoQueue.report?.length ?? 0)}
+        count={(report?.photos.length ?? 0) + photoQueue.length}
         collapsed={collapsedSections.photos}
         onToggleCollapsed={() => toggleSection("photos")}
         anchorId="section-photos"
       >
         <PhotoUploadSection
-          queued={photoQueue.report ?? []}
-          onQueuedChange={(next) => setPhotoQueue((prev) => ({ ...prev, report: next }))}
+          queued={photoQueue}
+          onQueuedChange={setPhotoQueue}
           uploaded={report?.photos ?? []}
           catOptions={catOptions}
           showTagPicker
