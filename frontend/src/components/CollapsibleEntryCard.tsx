@@ -72,8 +72,8 @@ export default function CollapsibleEntryCard({
         {children}
         {onSave && (
           <div className="flex justify-end">
-            <Button type="button" variant="secondary" size="sm" onClick={onSave}>
-              Save
+            <Button type="button" variant="secondary" onClick={onSave}>
+              Collapse
             </Button>
           </div>
         )}
