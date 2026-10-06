@@ -3,7 +3,6 @@ import { Link } from "react-router";
 import { ShiftType } from "shared/constants/shiftType.ts";
 import { CatEntryType } from "shared/constants/catEntryType.ts";
 import { FoodAmount } from "shared/constants/foodAmount.ts";
-import { SnackTreat } from "shared/constants/snackTreat.ts";
 import { SplitShiftPosition } from "shared/constants/splitShiftPosition.ts";
 import { ShiftReportStatus } from "shared/constants/shiftReportStatus.ts";
 import type { ReportableKennelState } from "shared/constants/kennelState.ts";
@@ -31,8 +30,6 @@ export interface GroupEntryCatDetail {
   catId: number;
   cat: { id: number; name: string };
   wetFoodAmount: FoodAmount | null;
-  wetFoodBrand: string | null;
-  snackTreat: SnackTreat | null;
   foodNotes: string | null;
   medicalNotes: string | null;
   otherNotes: string | null;
@@ -52,8 +49,6 @@ export interface CatEntry {
   foodNotes: string | null;
   otherNotes: string | null;
   wetFoodAmount: FoodAmount | null;
-  wetFoodBrand: string | null;
-  snackTreat: SnackTreat | null;
   medicalNotes: string | null;
   groupDetails: GroupEntryCatDetail[];
   photos: ShiftReportPhoto[];

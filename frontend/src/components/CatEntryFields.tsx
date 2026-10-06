@@ -1,17 +1,11 @@
 import { useWatch, type UseFormReturn } from "react-hook-form";
-import { SnackTreat } from "shared/constants/snackTreat.ts";
 import type { CreateShiftReportInput } from "shared/schemas/shiftReports.ts";
 import { Label } from "./ui/label";
-import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import ErrorMessage from "./ErrorMessage";
 import FecalScorePicker from "./FecalScorePicker";
 import FoodAmountPicker from "./FoodAmountPicker";
 import CollapsibleEntryCard from "./CollapsibleEntryCard";
-import PhotoUploadSection, {
-  type QueuedPhoto,
-  type UploadedPhotoSummary,
-} from "./PhotoUploadSection";
 import type { Cat } from "./CatsTable";
 
 const selectClassName =
@@ -24,9 +18,6 @@ interface CatEntryFieldsProps {
   index: number;
   cats: Cat[];
   onRemove: () => void;
-  queuedPhotos: QueuedPhoto[];
-  onQueuedPhotosChange: (next: QueuedPhoto[]) => void;
-  uploadedPhotos: UploadedPhotoSummary[];
   collapsed: boolean;
   onToggleCollapsed: () => void;
 }
@@ -36,9 +27,6 @@ export default function CatEntryFields({
   index,
   cats,
   onRemove,
-  queuedPhotos,
-  onQueuedPhotosChange,
-  uploadedPhotos,
   collapsed,
   onToggleCollapsed,
 }: CatEntryFieldsProps) {
@@ -60,16 +48,8 @@ export default function CatEntryFields({
     { message?: string } | undefined
   >;
 
-  const photoCount = queuedPhotos.length + uploadedPhotos.length;
   const summary = (
-    <>
-      {fecalScore !== undefined && <Badge variant="outline">FS {fecalScore}</Badge>}
-      {photoCount > 0 && (
-        <Badge variant="outline">
-          {photoCount} photo{photoCount === 1 ? "" : "s"}
-        </Badge>
-      )}
-    </>
+    <>{fecalScore !== undefined && <Badge variant="outline">FS {fecalScore}</Badge>}</>
   );
 
   async function handleSave() {
@@ -140,24 +120,12 @@ export default function CatEntryFields({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label>Wet Food</Label>
-          <FoodAmountPicker
-            value={wetFoodAmount}
-            onChange={(v) =>
-              setValue(`${base}.wetFoodAmount` as const, v, { shouldValidate: true })
-            }
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor={`${base}.wetFoodBrand`}>Wet Food Brand</Label>
-          <Input
-            id={`${base}.wetFoodBrand`}
-            placeholder="Hill's"
-            {...register(`${base}.wetFoodBrand` as const)}
-          />
-        </div>
+      <div className="space-y-2">
+        <Label>Wet Food</Label>
+        <FoodAmountPicker
+          value={wetFoodAmount}
+          onChange={(v) => setValue(`${base}.wetFoodAmount` as const, v, { shouldValidate: true })}
+        />
       </div>
 
       <div className="space-y-2">
@@ -167,20 +135,6 @@ export default function CatEntryFields({
           className={textareaClassName}
           {...register(`${base}.foodNotes` as const)}
         />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor={`${base}.snackTreat`}>Snack/Treat</Label>
-        <select
-          id={`${base}.snackTreat`}
-          className={selectClassName}
-          {...register(`${base}.snackTreat` as const)}
-        >
-          <option value="">None</option>
-          <option value={SnackTreat.Churu}>Churu</option>
-          <option value={SnackTreat.Greenies}>Greenies</option>
-          <option value={SnackTreat.Other}>Other</option>
-        </select>
       </div>
 
       <div className="space-y-2">
@@ -198,17 +152,6 @@ export default function CatEntryFields({
           id={`${base}.otherNotes`}
           className={textareaClassName}
           {...register(`${base}.otherNotes` as const)}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label>Photos</Label>
-        <PhotoUploadSection
-          queued={queuedPhotos}
-          onQueuedChange={onQueuedPhotosChange}
-          uploaded={uploadedPhotos}
-          catOptions={selectedCat ? [{ id: selectedCat.id, name: selectedCat.name }] : []}
-          showTagPicker={false}
         />
       </div>
     </CollapsibleEntryCard>

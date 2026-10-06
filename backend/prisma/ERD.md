@@ -139,8 +139,6 @@ erDiagram
     String food_notes "❓"
     String other_notes "❓"
     FoodAmount wet_food_amount "❓"
-    String wet_food_brand "❓"
-    SnackTreat snack_treat "❓"
     String medical_notes "❓"
     DateTime created_at 
     DateTime updated_at 
@@ -152,8 +150,6 @@ erDiagram
     Int cat_entry_id 
     Int cat_id 
     FoodAmount wet_food_amount "❓"
-    String wet_food_brand "❓"
-    SnackTreat snack_treat "❓"
     String food_notes "❓"
     String medical_notes "❓"
     String other_notes "❓"

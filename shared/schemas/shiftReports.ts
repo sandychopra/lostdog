@@ -2,7 +2,6 @@ import { z } from "zod";
 import { ShiftType } from "../constants/shiftType.ts";
 import { CatEntryType } from "../constants/catEntryType.ts";
 import { FoodAmount } from "../constants/foodAmount.ts";
-import { SnackTreat } from "../constants/snackTreat.ts";
 import { SplitShiftPosition } from "../constants/splitShiftPosition.ts";
 import { ReportableKennelState } from "../constants/kennelState.ts";
 
@@ -27,7 +26,6 @@ const fecalScoreField = z.preprocess(
 // option submits "" rather than omitting the field — z.enum(...).optional()
 // only accepts undefined, not "", so this coerces "" to undefined first.
 const foodAmountField = z.preprocess(emptyToUndefined, z.enum(FoodAmount).optional());
-const snackTreatField = z.preprocess(emptyToUndefined, z.enum(SnackTreat).optional());
 const splitShiftPositionField = z.preprocess(
   emptyToUndefined,
   z.enum(SplitShiftPosition).optional(),
@@ -36,8 +34,6 @@ const splitShiftPositionField = z.preprocess(
 const groupEntryCatDetailSchema = z.object({
   catId: z.coerce.number("Cat is required").int().positive("Cat is required"),
   wetFoodAmount: foodAmountField,
-  wetFoodBrand: z.string().trim().optional().transform(emptyToUndefined),
-  snackTreat: snackTreatField,
   foodNotes: z.string().trim().optional().transform(emptyToUndefined),
   medicalNotes: z.string().trim().optional().transform(emptyToUndefined),
   otherNotes: z.string().trim().optional().transform(emptyToUndefined),
@@ -52,9 +48,7 @@ const individualCatEntrySchema = z.object({
   peePooNotes: z.string().trim().optional().transform(emptyToUndefined),
   dryFoodAmount: foodAmountField,
   wetFoodAmount: foodAmountField,
-  wetFoodBrand: z.string().trim().optional().transform(emptyToUndefined),
   foodNotes: z.string().trim().optional().transform(emptyToUndefined),
-  snackTreat: snackTreatField,
   medicalNotes: z.string().trim().optional().transform(emptyToUndefined),
   otherNotes: z.string().trim().optional().transform(emptyToUndefined),
 });
