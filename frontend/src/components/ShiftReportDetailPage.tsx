@@ -52,10 +52,10 @@ function CatEntrySummary({ entry }: { entry: CatEntry }) {
         <dd>{entry.fecalScore ?? "None"}</dd>
         <dt className="text-muted-foreground">Pee</dt>
         <dd>{entry.pee ? "Yes" : "No"}</dd>
-        {entry.peePooNotes && (
+        {entry.peePoopNotes && (
           <>
-            <dt className="text-muted-foreground">Pee/Poo notes</dt>
-            <dd>{entry.peePooNotes}</dd>
+            <dt className="text-muted-foreground">Pee/Poop notes</dt>
+            <dd>{entry.peePoopNotes}</dd>
           </>
         )}
         {entry.dryFoodAmount && (

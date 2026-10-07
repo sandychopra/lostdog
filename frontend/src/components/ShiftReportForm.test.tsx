@@ -207,4 +207,29 @@ describe("ShiftReportForm", () => {
     expect(payload.kennelsStatus).toHaveLength(1);
     expect(payload.kennelsStatus[0]).toMatchObject({ kennelId: 5, reportedState: "Ready" });
   });
+
+  test("autosaves a draft when the page is hidden, and not again until something changes", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+
+    await user.selectOptions(screen.getByLabelText("Shift Type"), "Evening");
+
+    const hide = () => {
+      Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+    hide();
+
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(post).toHaveBeenCalledWith(
+      "/api/shift-reports",
+      expect.objectContaining({ shiftType: "Evening", status: "Draft" }),
+    );
+
+    hide();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(post).toHaveBeenCalledTimes(1);
+
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+  });
 });

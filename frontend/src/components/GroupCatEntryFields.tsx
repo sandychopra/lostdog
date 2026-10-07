@@ -113,6 +113,8 @@ export default function GroupCatEntryFields({
   const groupId = useWatch({ control, name: `${base}.groupId` as const });
   const fecalScore = useWatch({ control, name: `${base}.fecalScore` as const });
   const dryFoodAmount = useWatch({ control, name: `${base}.dryFoodAmount` as const });
+  const pee = useWatch({ control, name: `${base}.pee` as const });
+  const catDetails = useWatch({ control, name: `${base}.catDetails` as const });
 
   const { fields: detailFields } = useFieldArray({
     control,
@@ -143,7 +145,16 @@ export default function GroupCatEntryFields({
 
   const summary = (
     <>
-      {fecalScore !== undefined && <Badge variant="outline">FS {fecalScore}</Badge>}
+      {fecalScore !== undefined && <Badge variant="outline">Fecal Score: {fecalScore}</Badge>}
+      {dryFoodAmount && <Badge variant="outline">Dry: {dryFoodAmount}</Badge>}
+      {pee && <Badge variant="outline">Pee</Badge>}
+      {(catDetails ?? []).map((detail, i) =>
+        detail.wetFoodAmount && groupCats[i] ? (
+          <Badge key={detail.catId} variant="outline">
+            {groupCats[i].name} Wet: {detail.wetFoodAmount}
+          </Badge>
+        ) : null,
+      )}
       {detailFields.length > 0 && (
         <Badge variant="outline">
           {detailFields.length} cat{detailFields.length === 1 ? "" : "s"}
@@ -211,11 +222,11 @@ export default function GroupCatEntryFields({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor={`${base}.peePooNotes`}>Pee/Poo Notes (shared)</Label>
+        <Label htmlFor={`${base}.peePoopNotes`}>Pee/Poop Notes (shared)</Label>
         <textarea
-          id={`${base}.peePooNotes`}
+          id={`${base}.peePoopNotes`}
           className={textareaClassName}
-          {...register(`${base}.peePooNotes` as const)}
+          {...register(`${base}.peePoopNotes` as const)}
         />
       </div>
 
