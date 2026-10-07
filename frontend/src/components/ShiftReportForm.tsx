@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -22,7 +22,10 @@ import CatEntryFields from "./CatEntryFields";
 import GroupCatEntryFields from "./GroupCatEntryFields";
 import CatNoteGroupList from "./CatNoteGroupList";
 import KennelStatusList from "./KennelStatusList";
-import PhotoUploadSection, { type QueuedPhoto } from "./PhotoUploadSection";
+import PhotoUploadSection, {
+  type QueuedPhoto,
+  type UploadedPhotoSummary,
+} from "./PhotoUploadSection";
 import CollapsibleSection from "./CollapsibleSection";
 import ShiftReportFormOutline, { type SectionKey } from "./ShiftReportFormOutline";
 import type { Cat } from "./CatsTable";
@@ -33,6 +36,12 @@ const selectClassName =
   "flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const textareaClassName =
   "flex min-h-16 w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+// Autosave cadence: save shortly after the volunteer stops typing, with a
+// slower interval as a safety net during long continuous editing. Switching
+// apps/tabs (visibilitychange) saves immediately — see the effect below.
+const AUTOSAVE_IDLE_MS = 10_000;
+const AUTOSAVE_MAX_INTERVAL_MS = 60_000;
 
 function toDateInputValue(value: string | null | undefined): string {
   return value ? value.slice(0, 10) : "";
@@ -56,7 +65,7 @@ function mapReportToDefaultValues(report: ShiftReport): CreateShiftReportInput {
             catId: entry.catId!,
             fecalScore: entry.fecalScore ?? undefined,
             pee: entry.pee,
-            peePooNotes: entry.peePooNotes ?? "",
+            peePoopNotes: entry.peePoopNotes ?? "",
             dryFoodAmount: entry.dryFoodAmount ?? undefined,
             wetFoodAmount: entry.wetFoodAmount ?? undefined,
             foodNotes: entry.foodNotes ?? "",
@@ -69,7 +78,7 @@ function mapReportToDefaultValues(report: ShiftReport): CreateShiftReportInput {
             groupId: entry.groupId!,
             fecalScore: entry.fecalScore ?? undefined,
             pee: entry.pee,
-            peePooNotes: entry.peePooNotes ?? "",
+            peePoopNotes: entry.peePoopNotes ?? "",
             dryFoodAmount: entry.dryFoodAmount ?? undefined,
             foodNotes: entry.foodNotes ?? "",
             otherNotes: entry.otherNotes ?? "",
@@ -121,6 +130,11 @@ export default function ShiftReportForm({
   const isEdit = !!report;
   const queryClient = useQueryClient();
   const [photoQueue, setPhotoQueue] = useState<QueuedPhoto[]>([]);
+  // Photos already uploaded to this report. Seeded from the prop, then grown
+  // as queued photos finish uploading, since `report` doesn't re-fetch.
+  const [uploadedPhotos, setUploadedPhotos] = useState<UploadedPhotoSummary[]>(
+    report?.photos ?? [],
+  );
 
   const { data: cats } = useQuery({
     queryKey: ["cats"],
@@ -166,6 +180,12 @@ export default function ShiftReportForm({
   const [createdReport, setCreatedReport] = useState<ShiftReport | undefined>(report);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [submitAttemptError, setSubmitAttemptError] = useState<string | null>(null);
+  const [autosaveStatus, setAutosaveStatus] = useState<"idle" | "saving" | "error">("idle");
+  // Unsaved changes exist. A ref (not RHF's isDirty) so edits made while a
+  // save is in flight aren't wiped by a post-save reset.
+  const dirtyRef = useRef(false);
+  const autosavingRef = useRef(false);
+  const autosaveRef = useRef<() => Promise<void>>(async () => {});
 
   const catEntries = useFieldArray({ control, name: "catEntries" });
 
@@ -187,6 +207,8 @@ export default function ShiftReportForm({
       else next.add(id);
       return next;
     });
+    // Collapsing an entry is a natural "done with this cat" moment.
+    void autosaveRef.current();
   }
 
   // Computed once at mount, same as collapsedEntryIds above, so a section
@@ -218,22 +240,36 @@ export default function ShiftReportForm({
 
   const catOptions = (cats ?? []).map((c) => ({ id: c.id, name: c.name }));
 
-  const mutation = useMutation({
-    mutationFn: async (payload: CreateShiftReportInput & { status: ShiftReportStatus }) => {
-      const existingId = createdReport?.id ?? report?.id;
-      const { data } = existingId
-        ? await api.put(`/api/shift-reports/${existingId}`, payload)
-        : await api.post("/api/shift-reports", payload);
-      return data.shiftReport as ShiftReport;
-    },
-  });
+  async function sendReport(payload: CreateShiftReportInput & { status: ShiftReportStatus }) {
+    const existingId = createdReport?.id ?? report?.id;
+    const { data } = existingId
+      ? await api.put(`/api/shift-reports/${existingId}`, payload)
+      : await api.post("/api/shift-reports", payload);
+    return data.shiftReport as ShiftReport;
+  }
 
+  const mutation = useMutation({ mutationFn: sendReport });
+
+  // Uploads the queued photos, then drops the ones that succeeded from the
+  // queue — otherwise every later save (autosave included) would upload them
+  // again. Failed uploads stay queued to retry on the next save.
   async function syncQueuedPhotos(saved: ShiftReport) {
-    await Promise.allSettled(
-      photoQueue.map((photo) =>
+    const batch = photoQueue;
+    if (batch.length === 0) return;
+    const results = await Promise.allSettled(
+      batch.map((photo) =>
         uploadPhoto({ file: photo.file, shiftReportId: saved.id, catIds: photo.catIds }),
       ),
     );
+    const done = new Set<QueuedPhoto>();
+    const added: UploadedPhotoSummary[] = [];
+    results.forEach((result, i) => {
+      if (result.status !== "fulfilled") return;
+      done.add(batch[i]!);
+      added.push(result.value.data.photo as UploadedPhotoSummary);
+    });
+    setPhotoQueue((prev) => prev.filter((photo) => !done.has(photo)));
+    setUploadedPhotos((prev) => [...prev, ...added]);
   }
 
   function invalidateShiftReportQueries() {
@@ -244,8 +280,16 @@ export default function ShiftReportForm({
 
   async function handleSaveDraft(data: CreateShiftReportInput) {
     const wasNew = createdReport === undefined && report === undefined;
-    const saved = await mutation.mutateAsync({ ...data, status: ShiftReportStatus.Draft });
+    dirtyRef.current = false;
+    let saved: ShiftReport;
+    try {
+      saved = await mutation.mutateAsync({ ...data, status: ShiftReportStatus.Draft });
+    } catch (error) {
+      dirtyRef.current = true;
+      throw error;
+    }
     await syncQueuedPhotos(saved);
+    setAutosaveStatus("idle");
     setCreatedReport(saved);
     setLastSavedAt(new Date());
     setSubmitAttemptError(null);
@@ -269,6 +313,84 @@ export default function ShiftReportForm({
   const isAlreadySubmitted =
     (createdReport?.status ?? report?.status) === ShiftReportStatus.Submitted;
 
+  // Silent background draft save: no error banner (a failure just shows a
+  // quiet status and retries on the next trigger), and no-op when there is
+  // nothing new, another save is running, or the report is already submitted.
+  async function autosave() {
+    if (autosavingRef.current || mutation.isPending || isAlreadySubmitted) return;
+    if (!dirtyRef.current) return;
+    const parsed = draftShiftReportSchema.safeParse(form.getValues());
+    if (!parsed.success) return;
+    autosavingRef.current = true;
+    setAutosaveStatus("saving");
+    dirtyRef.current = false;
+    try {
+      const wasNew = createdReport === undefined && report === undefined;
+      const saved = await sendReport({ ...parsed.data, status: ShiftReportStatus.Draft });
+      await syncQueuedPhotos(saved);
+      setCreatedReport(saved);
+      setLastSavedAt(new Date());
+      setAutosaveStatus("idle");
+      invalidateShiftReportQueries();
+      if (wasNew) {
+        queryClient.setQueryData(["shiftReports", String(saved.id)], saved);
+        onDraftCreated?.(saved.id);
+      }
+    } catch {
+      dirtyRef.current = true;
+      setAutosaveStatus("error");
+    } finally {
+      autosavingRef.current = false;
+    }
+  }
+
+  useEffect(() => {
+    autosaveRef.current = autosave;
+  });
+
+  useEffect(() => {
+    let idleTimer: ReturnType<typeof setTimeout> | undefined;
+    const unsubscribe = form.subscribe({
+      formState: { values: true },
+      callback: () => {
+        dirtyRef.current = true;
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => void autosaveRef.current(), AUTOSAVE_IDLE_MS);
+      },
+    });
+    const interval = setInterval(() => void autosaveRef.current(), AUTOSAVE_MAX_INTERVAL_MS);
+    // Switching apps/tabs is when a mobile browser may discard the page, so
+    // save right away rather than waiting for the idle timer.
+    const flush = () => {
+      if (document.visibilityState === "hidden") void autosaveRef.current();
+    };
+    document.addEventListener("visibilitychange", flush);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      unsubscribe();
+      clearTimeout(idleTimer);
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", flush);
+      window.removeEventListener("pagehide", flush);
+    };
+  }, [form]);
+
+  // Newly queued photos count as unsaved work too.
+  useEffect(() => {
+    if (photoQueue.length === 0) return;
+    dirtyRef.current = true;
+    const timer = setTimeout(() => void autosaveRef.current(), AUTOSAVE_IDLE_MS);
+    return () => clearTimeout(timer);
+  }, [photoQueue]);
+
+  // Only warn on leaving if the last autosave failed, i.e. work is at risk.
+  useEffect(() => {
+    if (autosaveStatus !== "error") return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [autosaveStatus]);
+
   function handleSubmitClick() {
     form.handleSubmit((data) => {
       const strictSchema = isEdit ? updateShiftReportSchema : createShiftReportSchema;
@@ -290,6 +412,7 @@ export default function ShiftReportForm({
   }
 
   function handleSaveDraftClick() {
+    if (autosavingRef.current) return;
     form.handleSubmit((data) => handleSaveDraft(data))();
   }
 
@@ -385,7 +508,7 @@ export default function ShiftReportForm({
           {
             key: "photos",
             label: "Photos",
-            count: (report?.photos.length ?? 0) + photoQueue.length,
+            count: uploadedPhotos.length + photoQueue.length,
             anchorId: "section-photos",
           },
           {
@@ -536,7 +659,7 @@ export default function ShiftReportForm({
 
       <CollapsibleSection
         title="Photos"
-        count={(report?.photos.length ?? 0) + photoQueue.length}
+        count={uploadedPhotos.length + photoQueue.length}
         collapsed={collapsedSections.photos}
         onToggleCollapsed={() => toggleSection("photos")}
         anchorId="section-photos"
@@ -544,7 +667,7 @@ export default function ShiftReportForm({
         <PhotoUploadSection
           queued={photoQueue}
           onQueuedChange={setPhotoQueue}
-          uploaded={report?.photos ?? []}
+          uploaded={uploadedPhotos}
           catOptions={catOptions}
           showTagPicker
         />
@@ -585,16 +708,22 @@ export default function ShiftReportForm({
       )}
 
       <div className="flex items-center justify-end gap-3">
-        {lastSavedAt && (
-          <span className="text-sm text-muted-foreground">
-            Saved as draft · {lastSavedAt.toLocaleTimeString()}
-          </span>
+        {autosaveStatus === "saving" ? (
+          <span className="text-sm text-muted-foreground">Autosaving...</span>
+        ) : autosaveStatus === "error" ? (
+          <span className="text-sm text-destructive">Autosave failed — will retry</span>
+        ) : (
+          lastSavedAt && (
+            <span className="text-sm text-muted-foreground">
+              Saved as draft · {lastSavedAt.toLocaleTimeString()}
+            </span>
+          )
         )}
         {!isAlreadySubmitted && (
           <Button
             type="button"
             variant="secondary"
-            disabled={mutation.isPending}
+            disabled={mutation.isPending || autosaveStatus === "saving"}
             onClick={handleSaveDraftClick}
           >
             {mutation.isPending ? "Saving..." : "Save Draft"}

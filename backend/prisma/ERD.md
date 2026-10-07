@@ -134,7 +134,7 @@ erDiagram
     Int group_id "❓"
     Int fecal_score "❓"
     Boolean pee 
-    String pee_poo_notes "❓"
+    String pee_poop_notes "❓"
     FoodAmount dry_food_amount "❓"
     String food_notes "❓"
     String other_notes "❓"

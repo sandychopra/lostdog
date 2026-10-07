@@ -345,7 +345,7 @@ model CatEntry {
   // Shared by both variants
   fecalScore    Int?        @map("fecal_score")
   pee           Boolean     @default(false)
-  peePooNotes   String?     @map("pee_poo_notes")
+  peePoopNotes  String?     @map("pee_poop_notes")
   dryFoodAmount FoodAmount? @map("dry_food_amount")
   foodNotes     String?     @map("food_notes")
   otherNotes    String?     @map("other_notes")

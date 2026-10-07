@@ -37,6 +37,7 @@ export default function CatEntryFields({
   const fecalScore = useWatch({ control, name: `${base}.fecalScore` as const });
   const dryFoodAmount = useWatch({ control, name: `${base}.dryFoodAmount` as const });
   const wetFoodAmount = useWatch({ control, name: `${base}.wetFoodAmount` as const });
+  const pee = useWatch({ control, name: `${base}.pee` as const });
 
   // Native <select> values are always strings, even though the schema's
   // parsed/output type is number — coerce before comparing against numeric ids.
@@ -49,7 +50,12 @@ export default function CatEntryFields({
   >;
 
   const summary = (
-    <>{fecalScore !== undefined && <Badge variant="outline">FS {fecalScore}</Badge>}</>
+    <>
+      {fecalScore !== undefined && <Badge variant="outline">Fecal Score: {fecalScore}</Badge>}
+      {dryFoodAmount && <Badge variant="outline">Dry: {dryFoodAmount}</Badge>}
+      {wetFoodAmount && <Badge variant="outline">Wet: {wetFoodAmount}</Badge>}
+      {pee && <Badge variant="outline">Pee</Badge>}
+    </>
   );
 
   async function handleSave() {
@@ -104,11 +110,11 @@ export default function CatEntryFields({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor={`${base}.peePooNotes`}>Pee/Poo Notes</Label>
+        <Label htmlFor={`${base}.peePoopNotes`}>Pee/Poop Notes</Label>
         <textarea
-          id={`${base}.peePooNotes`}
+          id={`${base}.peePoopNotes`}
           className={textareaClassName}
-          {...register(`${base}.peePooNotes` as const)}
+          {...register(`${base}.peePoopNotes` as const)}
         />
       </div>
 
