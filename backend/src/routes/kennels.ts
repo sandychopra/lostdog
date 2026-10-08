@@ -5,6 +5,7 @@ import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
+import { describeChanges, logActivity } from "../lib/activityLog.ts";
 import {
   completeKennelReset,
   uncompleteKennelReset,
@@ -38,9 +39,20 @@ router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
     return;
   }
 
-  const kennel = await prisma.kennel.create({
-    data: { number: data.number, state: KennelState.Ready },
-    include: kennelInclude,
+  const actorId = (req as AuthedRequest).session.user.id;
+  const kennel = await prisma.$transaction(async (tx) => {
+    const created = await tx.kennel.create({
+      data: { number: data.number, state: KennelState.Ready },
+      include: kennelInclude,
+    });
+    await logActivity(tx, {
+      entityType: "Kennel",
+      entityId: created.id,
+      action: "Create",
+      actorId,
+      description: `Kennel ${created.number} created`,
+    });
+    return created;
   });
 
   res.status(201).json({ kennel });
@@ -58,10 +70,30 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
     return;
   }
 
-  const kennel = await prisma.kennel.update({
-    where: { id },
-    data: { number: data.number, state: data.state },
-    include: kennelInclude,
+  const before = await prisma.kennel.findUnique({ where: { id } });
+  if (!before) {
+    res.status(404).json({ error: "Kennel not found" });
+    return;
+  }
+
+  const actorId = (req as AuthedRequest).session.user.id;
+  const kennel = await prisma.$transaction(async (tx) => {
+    const updated = await tx.kennel.update({
+      where: { id },
+      data: { number: data.number, state: data.state },
+      include: kennelInclude,
+    });
+    const description = describeChanges(before, updated, ["number", "state"]);
+    if (description) {
+      await logActivity(tx, {
+        entityType: "Kennel",
+        entityId: id,
+        action: "Update",
+        actorId,
+        description,
+      });
+    }
+    return updated;
   });
 
   res.json({ kennel });
@@ -85,7 +117,17 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
     return;
   }
 
-  await prisma.kennel.delete({ where: { id } });
+  const actorId = (req as AuthedRequest).session.user.id;
+  await prisma.$transaction(async (tx) => {
+    await tx.kennel.delete({ where: { id } });
+    await logActivity(tx, {
+      entityType: "Kennel",
+      entityId: id,
+      action: "Delete",
+      actorId,
+      description: `Kennel ${kennel.number} deleted`,
+    });
+  });
 
   res.json({ message: "Kennel deleted" });
 });

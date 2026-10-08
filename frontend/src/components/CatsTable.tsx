@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router";
 import {
   Pencil,
   Trash2,
@@ -61,14 +62,16 @@ interface CatsTableProps {
   onReturnToRcc: (cat: Cat) => void;
 }
 
-const CAT_STATUS_LABELS: Record<CatStatus, string> = {
+export const CAT_STATUS_LABELS: Record<CatStatus, string> = {
   [CatStatus.Available]: "Available",
   [CatStatus.PendingAdoption]: "Pending Adoption",
   [CatStatus.Adopted]: "Adopted",
   [CatStatus.PickedUp]: "Picked Up",
 };
 
-function catStatusBadgeVariant(status: CatStatus): "default" | "outline" | "warning" | "secondary" {
+export function catStatusBadgeVariant(
+  status: CatStatus,
+): "default" | "outline" | "warning" | "secondary" {
   switch (status) {
     case CatStatus.Available:
       return "outline";
@@ -174,7 +177,11 @@ export default function CatsTable({
             ))
           : cats?.map((cat) => (
               <TableRow key={cat.id}>
-                <TableCell>{cat.name}</TableCell>
+                <TableCell>
+                  <Link to={`/cats/${cat.id}`} className="text-blue hover:underline">
+                    {cat.name}
+                  </Link>
+                </TableCell>
                 <TableCell>
                   <Badge variant={catStatusBadgeVariant(cat.status)}>
                     {CAT_STATUS_LABELS[cat.status]}

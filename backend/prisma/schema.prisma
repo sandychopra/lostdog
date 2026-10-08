@@ -107,6 +107,17 @@ enum TaskState {
   Cancelled
 }
 
+enum ActivityEntityType {
+  Cat
+  Kennel
+}
+
+enum ActivityAction {
+  Create
+  Update
+  Delete
+}
+
 model User {
   id            String    @id
   name          String
@@ -132,6 +143,7 @@ model User {
   createdAnnouncements      Announcement[]        @relation("AnnouncementCreatedBy")
   commentedAnnouncements    Announcement[]        @relation("AnnouncementCommentedBy")
   loggedProbioticDoses      ProbioticDose[]
+  activityLogs              ActivityLog[]
 
   @@unique([email])
   @@map("user")
@@ -600,4 +612,23 @@ model KennelMoveRequest {
   @@index([catId])
   @@index([groupId])
   @@map("kennel_move_request")
+}
+
+// --- Audit trail ---
+
+// Generic audit-trail row for Admin-only history. entityId deliberately has no
+// FK so rows survive deletion of the entity they describe; actorId is null for
+// changes with no acting user.
+model ActivityLog {
+  id          Int                @id @default(autoincrement())
+  entityType  ActivityEntityType @map("entity_type")
+  entityId    Int                @map("entity_id")
+  action      ActivityAction
+  actorId     String?            @map("actor_id")
+  actor       User?              @relation(fields: [actorId], references: [id])
+  description String
+  createdAt   DateTime           @default(now()) @map("created_at")
+
+  @@index([entityType, entityId, createdAt])
+  @@map("activity_log")
 }

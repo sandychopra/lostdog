@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { X, Pencil } from "lucide-react";
-import { api } from "../lib/api";
-import { Button } from "./ui/button";
 import AuthenticatedImage from "./AuthenticatedImage";
 import CatMultiSelect from "./CatMultiSelect";
+import PhotoTagEditor from "./PhotoTagEditor";
 
 export interface QueuedPhoto {
   file: File;
@@ -89,17 +87,7 @@ function UploadedThumb({
   catOptions: CatOption[];
   showTagPicker?: boolean;
 }) {
-  const queryClient = useQueryClient();
   const [editingTags, setEditingTags] = useState(false);
-  const [draftCatIds, setDraftCatIds] = useState(photo.tags.map((t) => t.catId));
-
-  const tagMutation = useMutation({
-    mutationFn: (catIds: number[]) => api.put(`/api/photos/${photo.id}/tags`, { catIds }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["shiftReports"] });
-      setEditingTags(false);
-    },
-  });
 
   return (
     <div className="w-28 rounded-md border border-input p-1.5">
@@ -124,17 +112,12 @@ function UploadedThumb({
         )}
       </div>
       {editingTags && (
-        <div className="mt-1 space-y-1">
-          <CatMultiSelect cats={catOptions} selectedIds={draftCatIds} onChange={setDraftCatIds} />
-          <Button
-            type="button"
-            className="h-7 px-3 text-xs"
-            disabled={tagMutation.isPending}
-            onClick={() => tagMutation.mutate(draftCatIds)}
-          >
-            Save Tags
-          </Button>
-        </div>
+        <PhotoTagEditor
+          photoId={photo.id}
+          initialCatIds={photo.tags.map((t) => t.catId)}
+          catOptions={catOptions}
+          onSaved={() => setEditingTags(false)}
+        />
       )}
     </div>
   );

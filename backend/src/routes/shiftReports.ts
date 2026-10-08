@@ -15,6 +15,13 @@ import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
 import { storage } from "../lib/storage.ts";
 import { Prisma } from "../generated/prisma/client.ts";
+import {
+  parseDateParam,
+  parseIdParam,
+  parsePaging,
+  reportsInvolvingCat,
+  submittedOnly,
+} from "../lib/reportQueries.ts";
 
 const router = Router();
 
@@ -172,10 +179,33 @@ async function validateReferences(data: CreateShiftReportInput, res: Response): 
   return true;
 }
 
-router.get("/", requireAuth, async (_req, res: Response) => {
+// Optional filters: catId, kennelId, from/to (YYYY-MM-DD, inclusive). Any filter
+// restricts results to Submitted reports; an unfiltered call keeps returning
+// Drafts too, since the main reports list shows them.
+router.get("/", requireAuth, async (req, res: Response) => {
+  const catId = parseIdParam(req.query.catId);
+  const kennelId = parseIdParam(req.query.kennelId);
+  const from = parseDateParam(req.query.from);
+  const to = parseDateParam(req.query.to);
+  if (catId === null || kennelId === null || from === null || to === null) {
+    res.status(400).json({ error: "Invalid filter value" });
+    return;
+  }
+
+  const filtered = [catId, kennelId, from, to].some((v) => v !== undefined);
+  const and: Prisma.ShiftReportWhereInput[] = [];
+  if (filtered) and.push(submittedOnly);
+  if (catId !== undefined) and.push(reportsInvolvingCat(catId));
+  if (kennelId !== undefined) and.push({ kennelsStatus: { some: { kennelId } } });
+  if (from !== undefined || to !== undefined) {
+    and.push({ date: { ...(from && { gte: from }), ...(to && { lte: to }) } });
+  }
+
   const shiftReports = await prisma.shiftReport.findMany({
+    where: and.length > 0 ? { AND: and } : {},
     include: shiftReportInclude,
     orderBy: [{ date: "desc" }, { id: "desc" }],
+    ...parsePaging(req.query),
   });
 
   res.json({ shiftReports });

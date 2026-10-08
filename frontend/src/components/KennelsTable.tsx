@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router";
 import { Pencil, Trash2, Move, X } from "lucide-react";
 import { Role } from "shared/constants/role.ts";
 import { KennelState } from "shared/constants/kennelState.ts";
@@ -44,7 +45,7 @@ interface KennelsTableProps {
   onCancelMoveRequest: (request: KennelMoveRequest) => void;
 }
 
-function kennelStateBadgeVariant(
+export function kennelStateBadgeVariant(
   state: KennelState,
 ): "default" | "outline" | "warning" | "secondary" {
   switch (state) {
@@ -138,7 +139,11 @@ export default function KennelsTable({
             ))
           : kennels?.map((kennel) => (
               <TableRow key={kennel.id}>
-                <TableCell>{kennel.number}</TableCell>
+                <TableCell>
+                  <Link to={`/kennels/${kennel.id}`} className="text-blue hover:underline">
+                    {kennel.number}
+                  </Link>
+                </TableCell>
                 <TableCell>
                   <Badge variant={kennelStateBadgeVariant(kennel.state)}>{kennel.state}</Badge>
                 </TableCell>

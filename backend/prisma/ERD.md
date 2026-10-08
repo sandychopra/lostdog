@@ -277,6 +277,17 @@ erDiagram
     DateTime created_at 
     }
   
+
+  "activity_log" {
+    Int id "🗝️"
+    ActivityEntityType entity_type 
+    Int entity_id 
+    ActivityAction action 
+    String actor_id "❓"
+    String description 
+    DateTime created_at 
+    }
+  
     "session" }o--|| "user" : "user"
     "account" }o--|| "user" : "user"
     "cat" }o--|o "kennel" : "kennel"
@@ -328,4 +339,5 @@ erDiagram
     "kennel_move_request" }o--|| "user" : "requestedBy"
     "kennel_move_request" }o--|o "user" : "completedBy"
     "kennel_move_request" }o--|o "announcement" : "announcement"
+    "activity_log" }o--|o "user" : "actor"
 ```

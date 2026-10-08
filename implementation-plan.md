@@ -121,7 +121,7 @@ Status: Done
 
 ## Phase 6 — Reporting & lookup
 Goal: past data is easy to find without reading an inbox.
-Status: Not started
+Status: Done
 
 - Backend: search/filter shift reports by cat, date, kennel
 - Backend: per-cat history endpoint (fecal/pee/food, notes, meet-and-greets, play notes, photos)

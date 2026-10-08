@@ -7,6 +7,11 @@ import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
 import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
 import { storage } from "../lib/storage.ts";
+import { ZipArchive } from "archiver";
+import { requireAdmin } from "../middleware/requireAdmin.ts";
+import { buildPhotoFilename, uniqueFilename } from "../lib/photoFilename.ts";
+import { parseIdParam, parsePaging, submittedOnly } from "../lib/reportQueries.ts";
+import type { Prisma } from "../generated/prisma/client.ts";
 
 const router = Router();
 
@@ -110,6 +115,111 @@ router.post("/", requireAuth, upload.single("photo"), async (req, res: Response)
   });
 
   res.status(201).json({ photo });
+});
+
+const browseInclude = {
+  ...photoInclude,
+  shiftReport: { select: { id: true, date: true, shiftType: true } },
+} as const;
+
+// `?catId=` → photos tagged with that cat; `?unassigned=true` → photos with no
+// tags; neither → all. Submitted reports only, newest first.
+function browseWhere(query: Record<string, unknown>): Prisma.PhotoWhereInput | null {
+  const catId = parseIdParam(query.catId);
+  if (catId === null) return null;
+  const tagFilter: Prisma.PhotoWhereInput =
+    query.unassigned === "true"
+      ? { tags: { none: {} } }
+      : catId !== undefined
+        ? { tags: { some: { catId } } }
+        : {};
+  return { AND: [{ shiftReport: submittedOnly }, tagFilter] };
+}
+
+router.get("/", requireAuth, async (req, res: Response) => {
+  const where = browseWhere(req.query);
+  if (!where) {
+    res.status(400).json({ error: "Invalid catId" });
+    return;
+  }
+
+  const photos = await prisma.photo.findMany({
+    where,
+    include: browseInclude,
+    orderBy: [{ uploadedAt: "desc" }, { id: "desc" }],
+    ...parsePaging(req.query),
+  });
+
+  res.json({ photos });
+});
+
+// Admin-only bulk download of the original files matching the same filter as
+// the browse view. Declared before "/:id/..." routes for clarity.
+router.get("/download-zip", requireAuth, requireAdmin, async (req, res: Response) => {
+  const where = browseWhere(req.query);
+  if (!where) {
+    res.status(400).json({ error: "Invalid catId" });
+    return;
+  }
+
+  const photos = await prisma.photo.findMany({
+    where,
+    include: browseInclude,
+    orderBy: [{ uploadedAt: "desc" }, { id: "desc" }],
+  });
+  if (photos.length === 0) {
+    res.status(404).json({ error: "No photos match this filter" });
+    return;
+  }
+
+  const archive = new ZipArchive({ zlib: { level: 1 } });
+  archive.on("error", () => res.destroy());
+  res.setHeader("Content-Type", "application/zip");
+  res.setHeader("Content-Disposition", 'attachment; filename="photos.zip"');
+  archive.pipe(res);
+
+  const used = new Set<string>();
+  for (const photo of photos) {
+    const file = await storage.get(photo.storageKey);
+    if (!file) continue;
+    const name = uniqueFilename(
+      buildPhotoFilename({
+        date: photo.shiftReport.date,
+        shiftType: photo.shiftReport.shiftType,
+        catNames: photo.tags.map((t) => t.cat.name),
+        storageKey: photo.storageKey,
+      }),
+      used,
+    );
+    archive.append(file.stream, { name });
+  }
+  await archive.finalize();
+});
+
+router.get("/:id/download", requireAuth, requireAdmin, async (req, res: Response) => {
+  const id = Number(req.params.id);
+
+  const photo = await prisma.photo.findUnique({ where: { id }, include: browseInclude });
+  if (!photo) {
+    res.status(404).json({ error: "Photo not found" });
+    return;
+  }
+
+  const file = await storage.get(photo.storageKey);
+  if (!file) {
+    res.status(404).json({ error: "Photo file not found in storage" });
+    return;
+  }
+
+  const name = buildPhotoFilename({
+    date: photo.shiftReport.date,
+    shiftType: photo.shiftReport.shiftType,
+    catNames: photo.tags.map((t) => t.cat.name),
+    storageKey: photo.storageKey,
+  });
+  res.setHeader("Content-Type", file.contentType);
+  res.setHeader("Content-Disposition", `attachment; filename="${name}"`);
+  file.stream.pipe(res);
 });
 
 router.get("/:id/file", requireAuth, async (req, res: Response) => {

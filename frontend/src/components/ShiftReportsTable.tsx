@@ -9,6 +9,7 @@ import type { ReportableKennelState } from "shared/constants/kennelState.ts";
 import { api } from "../lib/api";
 import ErrorAlert from "./ErrorAlert";
 import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Skeleton } from "./ui/skeleton";
 
@@ -102,15 +103,36 @@ export function formatReportDate(isoDate: string): string {
   return new Date(year!, month! - 1, day!).toLocaleDateString();
 }
 
-export default function ShiftReportsTable() {
+export interface ShiftReportFilters {
+  catId?: number;
+  kennelId?: number;
+  from?: string;
+  to?: string;
+}
+
+export const REPORTS_PAGE_SIZE = 50;
+
+interface ShiftReportsTableProps {
+  filters?: ShiftReportFilters;
+  limit?: number;
+  onLoadMore?: () => void;
+}
+
+export default function ShiftReportsTable({
+  filters = {},
+  limit = REPORTS_PAGE_SIZE,
+  onLoadMore,
+}: ShiftReportsTableProps) {
   const {
     data: shiftReports,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["shiftReports"],
+    queryKey: ["shiftReports", "list", filters, limit],
     queryFn: async () => {
-      const { data } = await api.get<{ shiftReports: ShiftReport[] }>("/api/shift-reports");
+      const { data } = await api.get<{ shiftReports: ShiftReport[] }>("/api/shift-reports", {
+        params: { ...filters, limit },
+      });
       return data.shiftReports;
     },
   });
@@ -120,67 +142,79 @@ export default function ShiftReportsTable() {
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Date</TableHead>
-          <TableHead>Shift</TableHead>
-          <TableHead>Author</TableHead>
-          <TableHead>Split</TableHead>
-          <TableHead>Status</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {isLoading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <TableRow key={i}>
-                <TableCell>
-                  <Skeleton className="h-4 w-24" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-4 w-16" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-4 w-24" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-5 w-16 rounded-full" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-5 w-16 rounded-full" />
-                </TableCell>
-              </TableRow>
-            ))
-          : shiftReports?.map((report) => (
-              <TableRow key={report.id}>
-                <TableCell>
-                  <Link to={`/shift-reports/${report.id}`} className="text-blue hover:underline">
-                    {formatReportDate(report.date)}
-                  </Link>
-                </TableCell>
-                <TableCell>{shiftTypeLabel(report.shiftType)}</TableCell>
-                <TableCell>{report.author.name}</TableCell>
-                <TableCell>
-                  {report.isSplitShift ? (
-                    <Badge variant="secondary">
-                      Split
-                      {report.splitShiftPosition
-                        ? ` (${splitShiftPositionLabel(report.splitShiftPosition)})`
-                        : ""}
+    <>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Date</TableHead>
+            <TableHead>Shift</TableHead>
+            <TableHead>Author</TableHead>
+            <TableHead>Split</TableHead>
+            <TableHead>Status</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {isLoading
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell>
+                    <Skeleton className="h-4 w-24" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-16" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-24" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-5 w-16 rounded-full" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-5 w-16 rounded-full" />
+                  </TableCell>
+                </TableRow>
+              ))
+            : shiftReports?.map((report) => (
+                <TableRow key={report.id}>
+                  <TableCell>
+                    <Link to={`/shift-reports/${report.id}`} className="text-blue hover:underline">
+                      {formatReportDate(report.date)}
+                    </Link>
+                  </TableCell>
+                  <TableCell>{shiftTypeLabel(report.shiftType)}</TableCell>
+                  <TableCell>{report.author.name}</TableCell>
+                  <TableCell>
+                    {report.isSplitShift ? (
+                      <Badge variant="secondary">
+                        Split
+                        {report.splitShiftPosition
+                          ? ` (${splitShiftPositionLabel(report.splitShiftPosition)})`
+                          : ""}
+                      </Badge>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={shiftReportStatusBadgeVariant(report.status)}>
+                      {SHIFT_REPORT_STATUS_LABELS[report.status]}
                     </Badge>
-                  ) : (
-                    "—"
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={shiftReportStatusBadgeVariant(report.status)}>
-                    {SHIFT_REPORT_STATUS_LABELS[report.status]}
-                  </Badge>
-                </TableCell>
-              </TableRow>
-            ))}
-      </TableBody>
-    </Table>
+                  </TableCell>
+                </TableRow>
+              ))}
+        </TableBody>
+      </Table>
+      {shiftReports && shiftReports.length === 0 && (
+        <p className="mt-4 text-sm text-muted-foreground">No shift reports match.</p>
+      )}
+      {onLoadMore && shiftReports && shiftReports.length >= limit && (
+        <div className="mt-4 flex justify-center">
+          <Button variant="secondary" onClick={onLoadMore}>
+            Load more
+          </Button>
+        </div>
+      )}
+    </>
   );
 }
 

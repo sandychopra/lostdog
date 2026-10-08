@@ -7,6 +7,9 @@ import CatsPage from "./components/CatsPage";
 import ShiftReportsPage from "./components/ShiftReportsPage";
 import ShiftReportFormPage from "./components/ShiftReportFormPage";
 import ShiftReportDetailPage from "./components/ShiftReportDetailPage";
+import CatDetailPage from "./components/CatDetailPage";
+import KennelDetailPage from "./components/KennelDetailPage";
+import PhotosPage from "./components/PhotosPage";
 import AnnouncementsPage from "./components/AnnouncementsPage";
 import RequireAuth from "./components/RequireAuth";
 import RequireAdmin from "./components/RequireAdmin";
@@ -32,10 +35,34 @@ export default function App() {
         }
       />
       <Route
+        path="/cats/:id"
+        element={
+          <RequireAuth>
+            <CatDetailPage />
+          </RequireAuth>
+        }
+      />
+      <Route
         path="/kennels"
         element={
           <RequireAuth>
             <KennelsPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/kennels/:id"
+        element={
+          <RequireAuth>
+            <KennelDetailPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/photos"
+        element={
+          <RequireAuth>
+            <PhotosPage />
           </RequireAuth>
         }
       />

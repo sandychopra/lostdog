@@ -1,8 +1,8 @@
 import { TaskState } from "shared/constants/taskState.ts";
-import { KennelState } from "shared/constants/kennelState.ts";
 import { AnnouncementType } from "shared/constants/announcementType.ts";
 import type { Prisma } from "../generated/prisma/client.ts";
-import { markKennelNeedsReset } from "./kennelResets.ts";
+import { markKennelNeedsReset, markKennelOccupied } from "./kennelResets.ts";
+import { logOccupantMoved } from "./activityLog.ts";
 
 export class InvalidKennelMoveError extends Error {}
 
@@ -77,10 +77,14 @@ export async function completeKennelMoveRequest(
     });
   }
 
-  await markKennelNeedsReset(tx, request.fromKennelId);
-  await tx.kennel.update({
-    where: { id: request.toKennelId },
-    data: { state: KennelState.Occupied },
+  await markKennelNeedsReset(tx, request.fromKennelId, args.actorId);
+  await markKennelOccupied(tx, request.toKennelId, args.actorId);
+  await logOccupantMoved(tx, {
+    catId: request.catId,
+    groupId: request.groupId,
+    fromKennelId: request.fromKennelId,
+    toKennelId: request.toKennelId,
+    actorId: args.actorId,
   });
 
   await tx.kennelMoveRequest.update({
