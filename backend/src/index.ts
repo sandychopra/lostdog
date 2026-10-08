@@ -16,6 +16,7 @@ import announcementsRouter from "./routes/announcements.ts";
 import signTasksRouter from "./routes/signTasks.ts";
 import kennelMoveRequestsRouter from "./routes/kennelMoveRequests.ts";
 import kennelPrepChecklistsRouter from "./routes/kennelPrepChecklists.ts";
+import activityLogRouter from "./routes/activityLog.ts";
 
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
@@ -25,6 +26,7 @@ app.use(
   cors({
     origin: process.env.FRONTEND_URL!,
     credentials: true,
+    exposedHeaders: ["Content-Disposition"],
   }),
 );
 
@@ -48,6 +50,7 @@ app.use("/api/cats", catsRouter);
 app.use("/api/groups", groupsRouter);
 app.use("/api/litters", littersRouter);
 app.use("/api/shift-reports", shiftReportsRouter);
+app.use("/api/activity-log", activityLogRouter);
 app.use("/api/photos", photosRouter);
 app.use("/api/announcements", announcementsRouter);
 app.use("/api/sign-tasks", signTasksRouter);

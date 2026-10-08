@@ -39,6 +39,11 @@ export default function Navbar() {
           </Link>
         )}
         {session && (
+          <Link to="/photos" className="text-sm font-medium text-blue hover:underline">
+            Photos
+          </Link>
+        )}
+        {session && (
           <Link to="/announcements" className="text-sm font-medium text-blue hover:underline">
             Announcements
           </Link>

@@ -1,6 +1,8 @@
 import { KennelState } from "shared/constants/kennelState.ts";
 import { AnnouncementType } from "shared/constants/announcementType.ts";
+import { ActivityAction, ActivityEntityType } from "shared/constants/activityLog.ts";
 import type { Prisma } from "../generated/prisma/client.ts";
+import { logActivity } from "./activityLog.ts";
 
 export class KennelResetNotFoundError extends Error {}
 export class KennelResetConflictError extends Error {}
@@ -15,8 +17,20 @@ type Tx = Prisma.TransactionClient;
  * no other way to bring a kennel back to Ready now that the shift report's
  * generic "Kennels reset this shift" checklist is gone.
  */
-export async function markKennelNeedsReset(tx: Tx, kennelId: number): Promise<void> {
+export async function markKennelNeedsReset(
+  tx: Tx,
+  kennelId: number,
+  actorId?: string | null,
+): Promise<void> {
+  const before = await tx.kennel.findUniqueOrThrow({ where: { id: kennelId } });
   await tx.kennel.update({ where: { id: kennelId }, data: { state: KennelState.NeedsReset } });
+  await logActivity(tx, {
+    entityType: ActivityEntityType.Kennel,
+    entityId: kennelId,
+    action: ActivityAction.Update,
+    actorId,
+    description: `State changed from ${before.state} to ${KennelState.NeedsReset}`,
+  });
 
   const alreadyOpen = await tx.announcement.findFirst({
     where: { type: AnnouncementType.KennelNeedsReset, kennelId, resolved: false },
@@ -40,6 +54,13 @@ export async function completeKennelReset(
   }
 
   await tx.kennel.update({ where: { id: args.kennelId }, data: { state: KennelState.Ready } });
+  await logActivity(tx, {
+    entityType: ActivityEntityType.Kennel,
+    entityId: args.kennelId,
+    action: ActivityAction.Update,
+    actorId: args.actorId,
+    description: `State changed from ${KennelState.NeedsReset} to ${KennelState.Ready} (reset completed)`,
+  });
   await tx.announcement.update({
     where: { id: announcement.id },
     data: { resolved: true, resolvedAt: new Date(), resolvedById: args.actorId },
@@ -70,8 +91,53 @@ export async function uncompleteKennelReset(
   }
 
   await tx.kennel.update({ where: { id: args.kennelId }, data: { state: KennelState.NeedsReset } });
+  await logActivity(tx, {
+    entityType: ActivityEntityType.Kennel,
+    entityId: args.kennelId,
+    action: ActivityAction.Update,
+    actorId: args.actorId,
+    description: `State changed from ${KennelState.Ready} to ${KennelState.NeedsReset} (reset undone)`,
+  });
   await tx.announcement.update({
     where: { id: announcement.id },
     data: { resolved: false, resolvedAt: null, resolvedById: null },
+  });
+}
+
+/** Flips a kennel to Occupied, logging the state change when it actually changes. */
+export async function markKennelOccupied(
+  tx: Tx,
+  kennelId: number,
+  actorId?: string | null,
+): Promise<void> {
+  const before = await tx.kennel.findUniqueOrThrow({ where: { id: kennelId } });
+  if (before.state === KennelState.Occupied) return;
+
+  await tx.kennel.update({ where: { id: kennelId }, data: { state: KennelState.Occupied } });
+  await logActivity(tx, {
+    entityType: ActivityEntityType.Kennel,
+    entityId: kennelId,
+    action: ActivityAction.Update,
+    actorId,
+    description: `State changed from ${before.state} to ${KennelState.Occupied}`,
+  });
+}
+
+/** Flips a kennel to Ready (checklist reset step), logging the state change when it changes. */
+export async function markKennelReady(
+  tx: Tx,
+  kennelId: number,
+  actorId?: string | null,
+): Promise<void> {
+  const before = await tx.kennel.findUniqueOrThrow({ where: { id: kennelId } });
+  if (before.state === KennelState.Ready) return;
+
+  await tx.kennel.update({ where: { id: kennelId }, data: { state: KennelState.Ready } });
+  await logActivity(tx, {
+    entityType: ActivityEntityType.Kennel,
+    entityId: kennelId,
+    action: ActivityAction.Update,
+    actorId,
+    description: `State changed from ${before.state} to ${KennelState.Ready}`,
   });
 }

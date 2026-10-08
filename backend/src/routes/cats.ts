@@ -2,11 +2,13 @@ import { Router, type Response } from "express";
 import { createCatSchema, updateCatSchema, updateGroupedCatSchema } from "shared/schemas/cats.ts";
 import { changeCatStatusSchema, returnToRccSchema } from "shared/schemas/catStatus.ts";
 import { DewormerStatus } from "shared/constants/dewormerStatus.ts";
-import { KennelState } from "shared/constants/kennelState.ts";
+import { ActivityAction, ActivityEntityType } from "shared/constants/activityLog.ts";
 import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
+import { parsePaging, reportsInvolvingCat, submittedOnly } from "../lib/reportQueries.ts";
+import type { Cat, Prisma } from "../generated/prisma/client.ts";
 import {
   changeCatStatus,
   confirmPickup,
@@ -15,7 +17,8 @@ import {
   InvalidPickupError,
   returnCatToRcc,
 } from "../lib/catStatus.ts";
-import { markKennelNeedsReset } from "../lib/kennelResets.ts";
+import { markKennelNeedsReset, markKennelOccupied } from "../lib/kennelResets.ts";
+import { describeChanges, logActivity } from "../lib/activityLog.ts";
 import {
   syncDewormerAnnouncement,
   syncProbioticAnnouncement,
@@ -32,14 +35,108 @@ const catInclude = {
   litter: { select: { id: true, cats: { select: { id: true, name: true } } } },
 } as const;
 
-router.get("/", requireAuth, async (_req, res: Response) => {
+const LOGGED_CAT_FIELDS = [
+  "name",
+  "ageYears",
+  "ageMonths",
+  "sex",
+  "colorPattern",
+  "collarColor",
+  "microchipNumber",
+  "kennelId",
+  "dewormerStatus",
+  "needsProbiotic",
+] as const;
+
+async function logCatEdit(
+  tx: Prisma.TransactionClient,
+  before: Cat,
+  after: Cat,
+  actorId: string,
+): Promise<void> {
+  const description = describeChanges(before, after, LOGGED_CAT_FIELDS);
+  if (!description) return;
+  await logActivity(tx, {
+    entityType: ActivityEntityType.Cat,
+    entityId: after.id,
+    action: ActivityAction.Update,
+    actorId,
+    description,
+  });
+}
+
+router.get("/", requireAuth, async (req, res: Response) => {
+  const includeInactive = req.query.includeInactive === "true";
   const cats = await prisma.cat.findMany({
-    where: { active: true },
+    where: includeInactive ? {} : { active: true },
     include: catInclude,
     orderBy: { name: "asc" },
   });
 
   res.json({ cats });
+});
+
+router.get("/:id", requireAuth, async (req, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(404).json({ error: "Cat not found" });
+    return;
+  }
+
+  const cat = await prisma.cat.findUnique({ where: { id }, include: catInclude });
+  if (!cat) {
+    res.status(404).json({ error: "Cat not found" });
+    return;
+  }
+
+  res.json({ cat });
+});
+
+// Per-cat view of Submitted shift reports, newest first: this cat's own entry
+// (or its per-cat details within a group entry), meet & greets and play groups
+// it was tagged in, and photos tagged with it. Inactive cats work too.
+router.get("/:id/history", requireAuth, async (req, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(404).json({ error: "Cat not found" });
+    return;
+  }
+
+  const cat = await prisma.cat.findUnique({ where: { id }, select: { id: true } });
+  if (!cat) {
+    res.status(404).json({ error: "Cat not found" });
+    return;
+  }
+
+  const reports = await prisma.shiftReport.findMany({
+    where: { AND: [submittedOnly, reportsInvolvingCat(id)] },
+    orderBy: [{ date: "desc" }, { id: "desc" }],
+    ...parsePaging(req.query),
+    select: {
+      id: true,
+      date: true,
+      shiftType: true,
+      author: { select: { id: true, name: true } },
+      catEntries: {
+        where: { OR: [{ catId: id }, { groupDetails: { some: { catId: id } } }] },
+        include: {
+          group: { select: { id: true, cats: { select: { id: true, name: true } } } },
+          groupDetails: { where: { catId: id } },
+        },
+      },
+      meetAndGreets: {
+        where: { cats: { some: { catId: id } } },
+        include: { cats: { include: { cat: { select: { id: true, name: true } } } } },
+      },
+      playGroups: {
+        where: { cats: { some: { catId: id } } },
+        include: { cats: { include: { cat: { select: { id: true, name: true } } } } },
+      },
+      photos: { where: { tags: { some: { catId: id } } }, select: { id: true } },
+    },
+  });
+
+  res.json({ history: reports });
 });
 
 router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
@@ -67,11 +164,15 @@ router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
 
   const cat = await prisma.$transaction(async (tx) => {
     const created = await createCatWithArrivalAnnouncement(tx, data, { actorId });
+    await logActivity(tx, {
+      entityType: ActivityEntityType.Cat,
+      entityId: created.id,
+      action: ActivityAction.Create,
+      actorId,
+      description: `Cat "${created.name}" created`,
+    });
     if (data.kennelId !== undefined) {
-      await tx.kennel.update({
-        where: { id: data.kennelId },
-        data: { state: KennelState.Occupied },
-      });
+      await markKennelOccupied(tx, data.kennelId, actorId);
     }
     return tx.cat.findUniqueOrThrow({ where: { id: created.id }, include: catInclude });
   });
@@ -96,6 +197,7 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
 
     const cat = await prisma.$transaction(async (tx) => {
       const updated = await tx.cat.update({ where: { id }, data, include: catInclude });
+      await logCatEdit(tx, existing, updated, actorId);
       await syncDewormerAnnouncement(tx, { catId: id, actorId });
       await syncProbioticAnnouncement(tx, { catId: id, actorId });
       return updated;
@@ -128,12 +230,10 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
 
   const cat = await prisma.$transaction(async (tx) => {
     const updated = await tx.cat.update({ where: { id }, data, include: catInclude });
-    await tx.kennel.update({
-      where: { id: data.kennelId },
-      data: { state: KennelState.Occupied },
-    });
+    await logCatEdit(tx, existing, updated, actorId);
+    await markKennelOccupied(tx, data.kennelId, actorId);
     if (kennelChanged && existing.kennelId !== null) {
-      await markKennelNeedsReset(tx, existing.kennelId);
+      await markKennelNeedsReset(tx, existing.kennelId, actorId);
     }
     await syncDewormerAnnouncement(tx, { catId: id, actorId });
     await syncProbioticAnnouncement(tx, { catId: id, actorId });
@@ -145,6 +245,7 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
 
 router.delete("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
   const id = Number(req.params.id);
+  const actorId = (req as AuthedRequest).session.user.id;
 
   const existing = await prisma.cat.findUnique({ where: { id } });
   if (!existing) {
@@ -161,8 +262,15 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
     // which is SET NULL) — a hard delete has to clear these explicitly first.
     await tx.signTask.deleteMany({ where: { catId: id } });
     await tx.cat.delete({ where: { id } });
+    await logActivity(tx, {
+      entityType: ActivityEntityType.Cat,
+      entityId: id,
+      action: ActivityAction.Delete,
+      actorId,
+      description: `Cat "${existing.name}" deleted`,
+    });
     if (existing.kennelId !== null) {
-      await markKennelNeedsReset(tx, existing.kennelId);
+      await markKennelNeedsReset(tx, existing.kennelId, actorId);
     }
   });
 
@@ -184,6 +292,13 @@ router.patch("/:id/dewormer", requireAuth, async (req, res: Response) => {
       where: { id },
       data: { dewormerStatus: DewormerStatus.Given },
       include: catInclude,
+    });
+    await logActivity(tx, {
+      entityType: ActivityEntityType.Cat,
+      entityId: id,
+      action: ActivityAction.Update,
+      actorId,
+      description: "Dewormer marked as given",
     });
     await syncDewormerAnnouncement(tx, { catId: id, actorId });
     return updated;

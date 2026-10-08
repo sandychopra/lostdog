@@ -1,6 +1,7 @@
 import { ChecklistActionType } from "shared/constants/checklistActionType.ts";
-import { KennelState } from "shared/constants/kennelState.ts";
 import type { Prisma } from "../generated/prisma/client.ts";
+import { logOccupantMoved } from "./activityLog.ts";
+import { markKennelOccupied, markKennelReady } from "./kennelResets.ts";
 
 export class InvalidChecklistActionError extends Error {}
 
@@ -64,10 +65,7 @@ export async function completeChecklistAction(
   }
 
   if (action.actionType === ChecklistActionType.ResetKennel) {
-    await tx.kennel.update({
-      where: { id: action.kennelId! },
-      data: { state: KennelState.Ready },
-    });
+    await markKennelReady(tx, action.kennelId!, args.actorId);
   } else if (action.actionType === ChecklistActionType.MoveCat) {
     const [catCount, groupCount] = await Promise.all([
       tx.cat.count({ where: { kennelId: action.kennelId! } }),
@@ -77,6 +75,11 @@ export async function completeChecklistAction(
       throw new InvalidChecklistActionError("Destination kennel is already occupied");
     }
 
+    const fromKennelId =
+      action.catId !== null
+        ? (await tx.cat.findUniqueOrThrow({ where: { id: action.catId } })).kennelId
+        : (await tx.group.findUniqueOrThrow({ where: { id: action.groupId! } })).kennelId;
+
     if (action.catId !== null) {
       await tx.cat.update({ where: { id: action.catId! }, data: { kennelId: action.kennelId! } });
     } else {
@@ -85,9 +88,13 @@ export async function completeChecklistAction(
         data: { kennelId: action.kennelId! },
       });
     }
-    await tx.kennel.update({
-      where: { id: action.kennelId! },
-      data: { state: KennelState.Occupied },
+    await markKennelOccupied(tx, action.kennelId!, args.actorId);
+    await logOccupantMoved(tx, {
+      catId: action.catId,
+      groupId: action.groupId,
+      fromKennelId,
+      toKennelId: action.kennelId!,
+      actorId: args.actorId,
     });
   }
   // FreeText: no side effect beyond marking it completed below.

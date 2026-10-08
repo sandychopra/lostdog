@@ -5,6 +5,8 @@ import { TaskState } from "shared/constants/taskState.ts";
 import { VALID_STATUS_TRANSITIONS } from "shared/constants/catStatusTransitions.ts";
 import type { CreateCatInput } from "shared/schemas/cats.ts";
 import type { Prisma } from "../generated/prisma/client.ts";
+import { ActivityAction, ActivityEntityType } from "shared/constants/activityLog.ts";
+import { logActivity } from "./activityLog.ts";
 import { markKennelNeedsReset } from "./kennelResets.ts";
 import { syncDewormerAnnouncement, syncProbioticAnnouncement } from "./medicalAlerts.ts";
 
@@ -13,6 +15,16 @@ export class InvalidPickupError extends Error {}
 export class SignTaskConflictError extends Error {}
 
 type Tx = Prisma.TransactionClient;
+
+function logCatActivity(tx: Tx, catId: number, actorId: string, description: string) {
+  return logActivity(tx, {
+    entityType: ActivityEntityType.Cat,
+    entityId: catId,
+    action: ActivityAction.Update,
+    actorId,
+    description,
+  });
+}
 
 // The Announcement types that a Cat's status directly drives — a new status
 // change (or Returned to RCC) always supersedes whichever of these is still open.
@@ -115,6 +127,7 @@ export async function changeCatStatus(
     args.targetStatus === cat.status &&
     (cat.status === CatStatus.PendingAdoption || cat.status === CatStatus.Adopted)
   ) {
+    await logCatActivity(tx, args.catId, args.actorId, "Pickup time rescheduled");
     return tx.cat.update({
       where: { id: args.catId },
       data: { pickupAt: args.pickupAt ?? cat.pickupAt },
@@ -166,6 +179,12 @@ export async function changeCatStatus(
       });
     }
 
+    await logCatActivity(
+      tx,
+      args.catId,
+      args.actorId,
+      `Status changed from ${cat.status} to ${args.targetStatus}`,
+    );
     return tx.cat.update({
       where: { id: args.catId },
       data: { status: args.targetStatus, pickupAt: args.pickupAt ?? null },
@@ -183,6 +202,12 @@ export async function changeCatStatus(
     announcementId: announcement.id,
   });
 
+  await logCatActivity(
+    tx,
+    args.catId,
+    args.actorId,
+    `Status changed from ${cat.status} to ${CatStatus.Available}`,
+  );
   return tx.cat.update({
     where: { id: args.catId },
     data: { status: CatStatus.Available, pickupAt: null },
@@ -209,8 +234,15 @@ export async function confirmPickup(tx: Tx, args: { catId: number; actorId: stri
   await resolveDrivingAnnouncement(tx, args.catId, args.actorId);
 
   if (cat.kennelId !== null) {
-    await markKennelNeedsReset(tx, cat.kennelId);
+    await markKennelNeedsReset(tx, cat.kennelId, args.actorId);
   }
+
+  await logCatActivity(
+    tx,
+    args.catId,
+    args.actorId,
+    `Status changed from ${cat.status} to ${CatStatus.PickedUp} (pickup confirmed)`,
+  );
 
   // No new SignTask here — the Adopted sign's removal is implied by the kennel
   // reset above, never tracked as its own task on this path.
@@ -245,8 +277,15 @@ export async function returnCatToRcc(
   });
 
   if (cat.kennelId !== null) {
-    await markKennelNeedsReset(tx, cat.kennelId);
+    await markKennelNeedsReset(tx, cat.kennelId, args.actorId);
   }
+
+  await logCatActivity(
+    tx,
+    args.catId,
+    args.actorId,
+    args.reason ? `Returned to RCC: ${args.reason}` : "Returned to RCC",
+  );
 
   // Leaving the active roster makes any open dewormer/probiotic reminder about
   // this cat unactionable noise — close both out, without touching the

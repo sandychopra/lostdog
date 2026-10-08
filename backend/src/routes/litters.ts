@@ -1,13 +1,15 @@
 import { Router, type Response } from "express";
 import { createLitterSchema, addLitterCatSchema } from "shared/schemas/litters.ts";
-import { requireAuth } from "../middleware/requireAuth.ts";
+import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
+import { logActivity } from "../lib/activityLog.ts";
 
 const router = Router();
 
 router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
+  const actorId = (req as AuthedRequest).session.user.id;
   const data = validate(createLitterSchema, req.body, res);
   if (!data) return;
 
@@ -27,6 +29,15 @@ router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
       where: { id: { in: data.catIds } },
       data: { litterId: created.id },
     });
+    for (const catId of data.catIds) {
+      await logActivity(tx, {
+        entityType: "Cat",
+        entityId: catId,
+        action: "Update",
+        actorId,
+        description: `Joined litter ${created.id}`,
+      });
+    }
     return created;
   });
 
@@ -35,6 +46,7 @@ router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
 
 router.post("/:id/cats", requireAuth, requireAdmin, async (req, res: Response) => {
   const id = Number(req.params.id);
+  const actorId = (req as AuthedRequest).session.user.id;
 
   const data = validate(addLitterCatSchema, req.body, res);
   if (!data) return;
@@ -55,7 +67,16 @@ router.post("/:id/cats", requireAuth, requireAdmin, async (req, res: Response) =
     return;
   }
 
-  await prisma.cat.update({ where: { id: data.catId }, data: { litterId: id } });
+  await prisma.$transaction(async (tx) => {
+    await tx.cat.update({ where: { id: data.catId }, data: { litterId: id } });
+    await logActivity(tx, {
+      entityType: "Cat",
+      entityId: data.catId,
+      action: "Update",
+      actorId,
+      description: `Joined litter ${id}`,
+    });
+  });
 
   res.json({ message: "Cat added to litter" });
 });
@@ -63,6 +84,7 @@ router.post("/:id/cats", requireAuth, requireAdmin, async (req, res: Response) =
 router.delete("/:id/cats/:catId", requireAuth, requireAdmin, async (req, res: Response) => {
   const litterId = Number(req.params.id);
   const catId = Number(req.params.catId);
+  const actorId = (req as AuthedRequest).session.user.id;
 
   const litter = await prisma.litter.findUnique({ where: { id: litterId } });
   if (!litter) {
@@ -82,9 +104,23 @@ router.delete("/:id/cats/:catId", requireAuth, requireAdmin, async (req, res: Re
 
   await prisma.$transaction(async (tx) => {
     await tx.cat.update({ where: { id: catId }, data: { litterId: null } });
+    await logActivity(tx, {
+      entityType: "Cat",
+      entityId: catId,
+      action: "Update",
+      actorId,
+      description: `Removed from litter ${litterId}`,
+    });
 
     if (otherCats.length === 1) {
       await tx.cat.update({ where: { id: otherCats[0]!.id }, data: { litterId: null } });
+      await logActivity(tx, {
+        entityType: "Cat",
+        entityId: otherCats[0]!.id,
+        action: "Update",
+        actorId,
+        description: `Litter ${litterId} dissolved`,
+      });
       await tx.litter.delete({ where: { id: litterId } });
     }
   });

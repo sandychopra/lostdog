@@ -1,15 +1,16 @@
 import { Router, type Response } from "express";
 import { addGroupCatSchema, createGroupSchema, updateGroupSchema } from "shared/schemas/groups.ts";
-import { KennelState } from "shared/constants/kennelState.ts";
-import { requireAuth } from "../middleware/requireAuth.ts";
+import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
-import { markKennelNeedsReset } from "../lib/kennelResets.ts";
+import { markKennelNeedsReset, markKennelOccupied } from "../lib/kennelResets.ts";
+import { logActivity } from "../lib/activityLog.ts";
 
 const router = Router();
 
 router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
+  const actorId = (req as AuthedRequest).session.user.id;
   const data = validate(createGroupSchema, req.body, res);
   if (!data) return;
 
@@ -57,13 +58,20 @@ router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
       data: { groupId: created.id, kennelId: null },
     });
 
-    await tx.kennel.update({
-      where: { id: data.kennelId },
-      data: { state: KennelState.Occupied },
-    });
+    await markKennelOccupied(tx, data.kennelId, actorId);
 
     for (const kennelId of kennelsToVacate) {
-      await markKennelNeedsReset(tx, kennelId);
+      await markKennelNeedsReset(tx, kennelId, actorId);
+    }
+
+    for (const cat of cats) {
+      await logActivity(tx, {
+        entityType: "Cat",
+        entityId: cat.id,
+        action: "Update",
+        actorId,
+        description: `Joined group ${created.id} in kennel ${kennel.number}`,
+      });
     }
 
     return created;
@@ -99,6 +107,7 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
 
 router.post("/:id/cats", requireAuth, requireAdmin, async (req, res: Response) => {
   const id = Number(req.params.id);
+  const actorId = (req as AuthedRequest).session.user.id;
 
   const data = validate(addGroupCatSchema, req.body, res);
   if (!data) return;
@@ -126,8 +135,16 @@ router.post("/:id/cats", requireAuth, requireAdmin, async (req, res: Response) =
     await tx.cat.update({ where: { id: data.catId }, data: { groupId: id, kennelId: null } });
 
     if (kennelToVacate !== null) {
-      await markKennelNeedsReset(tx, kennelToVacate);
+      await markKennelNeedsReset(tx, kennelToVacate, actorId);
     }
+
+    await logActivity(tx, {
+      entityType: "Cat",
+      entityId: data.catId,
+      action: "Update",
+      actorId,
+      description: `Joined group ${id}`,
+    });
 
     // Bonded is pairwise-only; adding a third+ cat invalidates it.
     if (group.bonded) {
@@ -141,6 +158,7 @@ router.post("/:id/cats", requireAuth, requireAdmin, async (req, res: Response) =
 router.delete("/:id/cats/:catId", requireAuth, requireAdmin, async (req, res: Response) => {
   const groupId = Number(req.params.id);
   const catId = Number(req.params.catId);
+  const actorId = (req as AuthedRequest).session.user.id;
 
   const group = await prisma.group.findUnique({ where: { id: groupId } });
   if (!group) {
@@ -160,11 +178,25 @@ router.delete("/:id/cats/:catId", requireAuth, requireAdmin, async (req, res: Re
 
   await prisma.$transaction(async (tx) => {
     await tx.cat.update({ where: { id: catId }, data: { groupId: null, kennelId: null } });
+    await logActivity(tx, {
+      entityType: "Cat",
+      entityId: catId,
+      action: "Update",
+      actorId,
+      description: `Removed from group ${groupId}`,
+    });
 
     if (otherCats.length === 1) {
       await tx.cat.update({
         where: { id: otherCats[0]!.id },
         data: { groupId: null, kennelId: group.kennelId },
+      });
+      await logActivity(tx, {
+        entityType: "Cat",
+        entityId: otherCats[0]!.id,
+        action: "Update",
+        actorId,
+        description: `Group ${groupId} dissolved`,
       });
       await tx.group.delete({ where: { id: groupId } });
     }
