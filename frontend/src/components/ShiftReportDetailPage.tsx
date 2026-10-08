@@ -76,12 +76,6 @@ function CatEntrySummary({ entry }: { entry: CatEntry }) {
             <dd>{entry.medicalNotes}</dd>
           </>
         )}
-        {entry.otherNotes && (
-          <>
-            <dt className="text-muted-foreground">Other notes</dt>
-            <dd>{entry.otherNotes}</dd>
-          </>
-        )}
       </dl>
       {entry.entryType === CatEntryType.Group && entry.groupDetails.length > 0 && (
         <div className="space-y-2">

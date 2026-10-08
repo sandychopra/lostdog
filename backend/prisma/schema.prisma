@@ -360,7 +360,6 @@ model CatEntry {
   peePoopNotes  String?     @map("pee_poop_notes")
   dryFoodAmount FoodAmount? @map("dry_food_amount")
   foodNotes     String?     @map("food_notes")
-  otherNotes    String?     @map("other_notes")
 
   // Individual-only
   wetFoodAmount FoodAmount? @map("wet_food_amount")
@@ -390,7 +389,6 @@ model GroupEntryCatDetail {
   wetFoodAmount FoodAmount? @map("wet_food_amount")
   foodNotes     String?     @map("food_notes")
   medicalNotes  String?     @map("medical_notes")
-  otherNotes    String?     @map("other_notes")
 
   @@unique([catEntryId, catId])
   @@map("group_entry_cat_detail")

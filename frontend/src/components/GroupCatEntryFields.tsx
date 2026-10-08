@@ -14,8 +14,6 @@ import type { Kennel } from "./KennelsTable";
 // matching the top-level entry threshold in ShiftReportForm.tsx.
 const AUTO_COLLAPSE_THRESHOLD = 3;
 
-const selectClassName =
-  "flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const textareaClassName =
   "flex min-h-16 w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
@@ -83,14 +81,6 @@ function GroupCatDetailFields({
           id={`${base}.medicalNotes`}
           className={textareaClassName}
           {...register(`${base}.medicalNotes` as const)}
-        />
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor={`${base}.otherNotes`}>Other Notes</Label>
-        <textarea
-          id={`${base}.otherNotes`}
-          className={textareaClassName}
-          {...register(`${base}.otherNotes` as const)}
         />
       </div>
     </CollapsibleEntryCard>
@@ -163,20 +153,6 @@ export default function GroupCatEntryFields({
     </>
   );
 
-  function handleGroupChange(newGroupId: number) {
-    const group = groups.find((g) => g.id === newGroupId);
-    setValue(
-      `${base}.catDetails` as const,
-      (group?.cats ?? []).map((c) => ({
-        catId: c.id,
-        nailTrim: false,
-      })),
-      { shouldValidate: true },
-    );
-    // A new group's members start expanded, same as a freshly-added entry.
-    setCollapsedDetailIds(new Set());
-  }
-
   return (
     <CollapsibleEntryCard
       title={selectedGroup ? selectedGroup.cats.map((c) => c.name).join(" / ") : "Group Entry"}
@@ -186,21 +162,11 @@ export default function GroupCatEntryFields({
       onRemove={onRemove}
     >
       <div className="space-y-2">
-        <Label htmlFor={`${base}.groupId`}>Group</Label>
-        <select
-          id={`${base}.groupId`}
-          className={selectClassName}
-          {...register(`${base}.groupId` as const, {
-            onChange: (e) => handleGroupChange(Number(e.target.value)),
-          })}
-        >
-          <option value="">Select a group</option>
-          {groups.map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.cats.map((c) => c.name).join(" / ")}
-            </option>
-          ))}
-        </select>
+        <Label>Group</Label>
+        <p className="text-sm font-medium">
+          {selectedGroup ? selectedGroup.cats.map((c) => c.name).join(" / ") : "—"}
+        </p>
+        <input type="hidden" {...register(`${base}.groupId` as const)} />
       </div>
 
       <div className="space-y-2">
@@ -244,15 +210,6 @@ export default function GroupCatEntryFields({
           id={`${base}.foodNotes`}
           className={textareaClassName}
           {...register(`${base}.foodNotes` as const)}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor={`${base}.otherNotes`}>Other Notes (shared)</Label>
-        <textarea
-          id={`${base}.otherNotes`}
-          className={textareaClassName}
-          {...register(`${base}.otherNotes` as const)}
         />
       </div>
 

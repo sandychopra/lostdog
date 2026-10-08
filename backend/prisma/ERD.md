@@ -137,7 +137,6 @@ erDiagram
     String pee_poop_notes "❓"
     FoodAmount dry_food_amount "❓"
     String food_notes "❓"
-    String other_notes "❓"
     FoodAmount wet_food_amount "❓"
     String medical_notes "❓"
     DateTime created_at 
@@ -152,7 +151,6 @@ erDiagram
     FoodAmount wet_food_amount "❓"
     String food_notes "❓"
     String medical_notes "❓"
-    String other_notes "❓"
     }
   
 
