@@ -70,7 +70,6 @@ function mapReportToDefaultValues(report: ShiftReport): CreateShiftReportInput {
             wetFoodAmount: entry.wetFoodAmount ?? undefined,
             foodNotes: entry.foodNotes ?? "",
             medicalNotes: entry.medicalNotes ?? "",
-            otherNotes: entry.otherNotes ?? "",
           }
         : {
             id: entry.id,
@@ -81,13 +80,11 @@ function mapReportToDefaultValues(report: ShiftReport): CreateShiftReportInput {
             peePoopNotes: entry.peePoopNotes ?? "",
             dryFoodAmount: entry.dryFoodAmount ?? undefined,
             foodNotes: entry.foodNotes ?? "",
-            otherNotes: entry.otherNotes ?? "",
             catDetails: entry.groupDetails.map((detail) => ({
               catId: detail.catId,
               wetFoodAmount: detail.wetFoodAmount ?? undefined,
               foodNotes: detail.foodNotes ?? "",
               medicalNotes: detail.medicalNotes ?? "",
-              otherNotes: detail.otherNotes ?? "",
             })),
           },
     ),

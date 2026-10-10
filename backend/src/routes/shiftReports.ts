@@ -67,7 +67,6 @@ function detailFields(detail: GroupEntryCatDetailInput) {
     wetFoodAmount: detail.wetFoodAmount,
     foodNotes: detail.foodNotes,
     medicalNotes: detail.medicalNotes,
-    otherNotes: detail.otherNotes,
   };
 }
 
@@ -85,7 +84,6 @@ function buildCatEntryCreate(
       wetFoodAmount: entry.wetFoodAmount,
       foodNotes: entry.foodNotes,
       medicalNotes: entry.medicalNotes,
-      otherNotes: entry.otherNotes,
     };
   }
 
@@ -97,7 +95,6 @@ function buildCatEntryCreate(
     peePoopNotes: entry.peePoopNotes,
     dryFoodAmount: entry.dryFoodAmount,
     foodNotes: entry.foodNotes,
-    otherNotes: entry.otherNotes,
     groupDetails: {
       create: entry.catDetails.map((detail) => ({
         catId: detail.catId,
@@ -365,7 +362,6 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
               wetFoodAmount: entry.wetFoodAmount,
               foodNotes: entry.foodNotes,
               medicalNotes: entry.medicalNotes,
-              otherNotes: entry.otherNotes,
             },
           });
           continue;
@@ -380,7 +376,6 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
             peePoopNotes: entry.peePoopNotes,
             dryFoodAmount: entry.dryFoodAmount,
             foodNotes: entry.foodNotes,
-            otherNotes: entry.otherNotes,
           },
         });
 

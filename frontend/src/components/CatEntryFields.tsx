@@ -2,14 +2,11 @@ import { useWatch, type UseFormReturn } from "react-hook-form";
 import type { CreateShiftReportInput } from "shared/schemas/shiftReports.ts";
 import { Label } from "./ui/label";
 import { Badge } from "./ui/badge";
-import ErrorMessage from "./ErrorMessage";
 import FecalScorePicker from "./FecalScorePicker";
 import FoodAmountPicker from "./FoodAmountPicker";
 import CollapsibleEntryCard from "./CollapsibleEntryCard";
 import type { Cat } from "./CatsTable";
 
-const selectClassName =
-  "flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const textareaClassName =
   "flex min-h-16 w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
@@ -30,7 +27,7 @@ export default function CatEntryFields({
   collapsed,
   onToggleCollapsed,
 }: CatEntryFieldsProps) {
-  const { control, register, formState, setValue } = form;
+  const { control, register, setValue } = form;
   const base = `catEntries.${index}` as const;
 
   const catId = useWatch({ control, name: `${base}.catId` as const });
@@ -42,12 +39,6 @@ export default function CatEntryFields({
   // Native <select> values are always strings, even though the schema's
   // parsed/output type is number — coerce before comparing against numeric ids.
   const selectedCat = cats.find((c) => c.id === Number(catId));
-  // Entry errors are typed loosely — catEntries is a zod discriminated union,
-  // and RHF's error shape for a union array item isn't worth fighting here.
-  const errors = (formState.errors.catEntries?.[index] ?? {}) as Record<
-    string,
-    { message?: string } | undefined
-  >;
 
   const summary = (
     <>
@@ -73,22 +64,9 @@ export default function CatEntryFields({
       onSave={handleSave}
     >
       <div className="space-y-2">
-        <Label htmlFor={`${base}.catId`}>Cat</Label>
-        <select
-          id={`${base}.catId`}
-          className={selectClassName}
-          {...register(`${base}.catId` as const)}
-        >
-          <option value="">Select a cat</option>
-          {cats
-            .filter((c) => c.groupId === null)
-            .map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-        </select>
-        <ErrorMessage message={errors.catId?.message} />
+        <Label>Cat</Label>
+        <p className="text-sm font-medium">{selectedCat?.name ?? "—"}</p>
+        <input type="hidden" {...register(`${base}.catId` as const)} />
       </div>
 
       <div className="space-y-2">
@@ -149,15 +127,6 @@ export default function CatEntryFields({
           id={`${base}.medicalNotes`}
           className={textareaClassName}
           {...register(`${base}.medicalNotes` as const)}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor={`${base}.otherNotes`}>Other Notes</Label>
-        <textarea
-          id={`${base}.otherNotes`}
-          className={textareaClassName}
-          {...register(`${base}.otherNotes` as const)}
         />
       </div>
     </CollapsibleEntryCard>

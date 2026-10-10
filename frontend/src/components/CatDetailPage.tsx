@@ -26,13 +26,11 @@ interface HistoryEntry {
   wetFoodAmount: string | null;
   foodNotes: string | null;
   medicalNotes: string | null;
-  otherNotes: string | null;
   group: { id: number; cats: NamedCat[] } | null;
   groupDetails: {
     wetFoodAmount: string | null;
     foodNotes: string | null;
     medicalNotes: string | null;
-    otherNotes: string | null;
   }[];
 }
 
@@ -80,7 +78,6 @@ function EntryDetails({ entry }: { entry: HistoryEntry }) {
       <Detail label="Wet food" value={own?.wetFoodAmount} />
       <Detail label="Food notes" value={own?.foodNotes ?? entry.foodNotes} />
       <Detail label="Medical" value={own?.medicalNotes} />
-      <Detail label="Other" value={own?.otherNotes ?? entry.otherNotes} />
     </div>
   );
 }

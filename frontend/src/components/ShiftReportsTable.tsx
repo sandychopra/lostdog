@@ -33,7 +33,6 @@ export interface GroupEntryCatDetail {
   wetFoodAmount: FoodAmount | null;
   foodNotes: string | null;
   medicalNotes: string | null;
-  otherNotes: string | null;
 }
 
 export interface CatEntry {
@@ -48,7 +47,6 @@ export interface CatEntry {
   peePoopNotes: string | null;
   dryFoodAmount: FoodAmount | null;
   foodNotes: string | null;
-  otherNotes: string | null;
   wetFoodAmount: FoodAmount | null;
   medicalNotes: string | null;
   groupDetails: GroupEntryCatDetail[];

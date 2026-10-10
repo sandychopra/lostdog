@@ -36,7 +36,6 @@ const groupEntryCatDetailSchema = z.object({
   wetFoodAmount: foodAmountField,
   foodNotes: z.string().trim().optional().transform(emptyToUndefined),
   medicalNotes: z.string().trim().optional().transform(emptyToUndefined),
-  otherNotes: z.string().trim().optional().transform(emptyToUndefined),
 });
 
 const individualCatEntrySchema = z.object({
@@ -50,7 +49,6 @@ const individualCatEntrySchema = z.object({
   wetFoodAmount: foodAmountField,
   foodNotes: z.string().trim().optional().transform(emptyToUndefined),
   medicalNotes: z.string().trim().optional().transform(emptyToUndefined),
-  otherNotes: z.string().trim().optional().transform(emptyToUndefined),
 });
 
 function buildGroupCatEntrySchema(strict: boolean) {
@@ -63,7 +61,6 @@ function buildGroupCatEntrySchema(strict: boolean) {
     peePoopNotes: z.string().trim().optional().transform(emptyToUndefined),
     dryFoodAmount: foodAmountField,
     foodNotes: z.string().trim().optional().transform(emptyToUndefined),
-    otherNotes: z.string().trim().optional().transform(emptyToUndefined),
     catDetails: z.array(groupEntryCatDetailSchema).min(strict ? 1 : 0, "Add at least one cat"),
   });
 }
