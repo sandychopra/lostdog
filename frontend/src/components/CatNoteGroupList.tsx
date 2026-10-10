@@ -1,9 +1,11 @@
+import { forwardRef, useImperativeHandle, useState } from "react";
 import { useFieldArray, useWatch, type UseFormReturn } from "react-hook-form";
 import type { CreateShiftReportInput } from "shared/schemas/shiftReports.ts";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import CatMultiSelect from "./CatMultiSelect";
 import CollapsibleSection from "./CollapsibleSection";
+import CollapsibleEntryCard from "./CollapsibleEntryCard";
 
 const textareaClassName =
   "flex min-h-16 w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -18,6 +20,12 @@ interface CatNoteGroupListProps {
   catOptions: { id: number; name: string }[];
   collapsed: boolean;
   onToggleCollapsed: () => void;
+  isEdit: boolean;
+}
+
+export interface CatNoteGroupListHandle {
+  collapseAll: () => void;
+  expandAll: () => void;
 }
 
 // Meet & Greets and Play Groups are the exact same shape ({ id?, note, catIds
@@ -46,60 +54,140 @@ function GroupCatIds({
   );
 }
 
-export default function CatNoteGroupList({
+function GroupEntry({
   form,
   name,
-  title,
-  addLabel,
+  index,
   catOptions,
   collapsed,
   onToggleCollapsed,
-}: CatNoteGroupListProps) {
-  const { control, register } = form;
-  const fieldArray = useFieldArray({ control, name });
+  onRemove,
+}: {
+  form: UseFormReturn<CreateShiftReportInput>;
+  name: GroupFieldName;
+  index: number;
+  catOptions: { id: number; name: string }[];
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+  onRemove: () => void;
+}) {
+  const { register } = form;
+  const catIds =
+    useWatch({ control: form.control, name: `${name}.${index}.catIds` as const }) ?? [];
+  const title =
+    catOptions
+      .filter((cat) => catIds.includes(cat.id))
+      .map((cat) => cat.name)
+      .join(" / ") || "New entry";
 
   return (
-    <CollapsibleSection
+    <CollapsibleEntryCard
       title={title}
-      count={fieldArray.fields.length}
       collapsed={collapsed}
       onToggleCollapsed={onToggleCollapsed}
-      anchorId={`section-${name}`}
-      headerExtra={
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => {
-            fieldArray.append({ note: "", catIds: [] });
-            if (collapsed) onToggleCollapsed();
-          }}
-        >
-          {addLabel}
-        </Button>
-      }
+      onRemove={onRemove}
     >
-      {fieldArray.fields.map((field, index) => (
-        <div key={field.id} className="space-y-2 rounded-md border border-input p-3">
-          <div className="flex items-center justify-between">
-            <Label htmlFor={`${name}.${index}.note`}>Note</Label>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => fieldArray.remove(index)}
-              aria-label={`Remove ${title} entry`}
-            >
-              ×
-            </Button>
-          </div>
-          <textarea
-            id={`${name}.${index}.note`}
-            className={textareaClassName}
-            {...register(`${name}.${index}.note` as const)}
-          />
-          <GroupCatIds form={form} name={name} index={index} catOptions={catOptions} />
-        </div>
-      ))}
-    </CollapsibleSection>
+      <GroupCatIds form={form} name={name} index={index} catOptions={catOptions} />
+      <Label htmlFor={`${name}.${index}.note`}>Note</Label>
+      <textarea
+        id={`${name}.${index}.note`}
+        className={textareaClassName}
+        {...register(`${name}.${index}.note` as const)}
+      />
+    </CollapsibleEntryCard>
   );
 }
+
+const CatNoteGroupList = forwardRef<CatNoteGroupListHandle, CatNoteGroupListProps>(
+  function CatNoteGroupList(
+    { form, name, title, addLabel, catOptions, collapsed, onToggleCollapsed, isEdit },
+    ref,
+  ) {
+    const { control } = form;
+    const fieldArray = useFieldArray({ control, name });
+
+    // Keyed by useFieldArray's stable field.id (not array index, which shifts
+    // on add/remove), mirroring collapsedEntryIds in ShiftReportForm.tsx.
+    // Entries default collapsed when editing an existing report, so a volunteer
+    // sees an overview first; a freshly-added entry is never added to this set,
+    // so it always opens expanded.
+    const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() =>
+      isEdit ? new Set(fieldArray.fields.map((field) => field.id)) : new Set(),
+    );
+
+    function toggleEntryCollapsed(id: string) {
+      setCollapsedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+    }
+
+    useImperativeHandle(ref, () => ({
+      collapseAll: () => setCollapsedIds(new Set(fieldArray.fields.map((field) => field.id))),
+      expandAll: () => setCollapsedIds(new Set()),
+    }));
+
+    return (
+      <CollapsibleSection
+        title={title}
+        count={fieldArray.fields.length}
+        collapsed={collapsed}
+        onToggleCollapsed={onToggleCollapsed}
+        anchorId={`section-${name}`}
+        headerExtra={
+          <div className="flex gap-2">
+            {fieldArray.fields.length > 1 && (
+              <>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setCollapsedIds(new Set())}
+                >
+                  Expand all
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    setCollapsedIds(new Set(fieldArray.fields.map((field) => field.id)))
+                  }
+                >
+                  Collapse all
+                </Button>
+              </>
+            )}
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                fieldArray.append({ note: "", catIds: [] });
+                if (collapsed) onToggleCollapsed();
+              }}
+            >
+              {addLabel}
+            </Button>
+          </div>
+        }
+      >
+        {fieldArray.fields.map((field, index) => (
+          <GroupEntry
+            key={field.id}
+            form={form}
+            name={name}
+            index={index}
+            catOptions={catOptions}
+            collapsed={collapsedIds.has(field.id)}
+            onToggleCollapsed={() => toggleEntryCollapsed(field.id)}
+            onRemove={() => fieldArray.remove(index)}
+          />
+        ))}
+      </CollapsibleSection>
+    );
+  },
+);
+
+export default CatNoteGroupList;
