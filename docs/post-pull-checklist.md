@@ -145,3 +145,10 @@ If that prints any lines, the servers are already up — the `NAME` column shows
 bun run dev:backend &
 bun run dev:frontend &
 ```
+
+To shut one down (e.g. it's on the wrong port, or you need a clean restart):
+
+```bash
+kill $(lsof -t -i :4000)   # backend
+kill $(lsof -t -i :3000)   # frontend
+```
