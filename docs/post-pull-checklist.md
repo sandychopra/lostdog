@@ -136,10 +136,10 @@ Creates (or updates) an admin user and a volunteer user (`SEED_ADMIN_EMAIL`/`SEE
 Check that they aren't already running first — starting a second copy silently lands on the next free port instead of 4000/3000, which breaks CORS (`FRONTEND_URL`) and `PUBLIC_API_URL` matching:
 
 ```bash
-lsof -t -i :4000 -i :3000
+lsof -nP -iTCP:4000 -iTCP:3000 -sTCP:LISTEN
 ```
 
-If that prints any PIDs, the servers are already up; reuse that tab instead of starting another. Otherwise, start them:
+If that prints any lines, the servers are already up — the `NAME` column shows which port, `COMMAND`/`PID` show what's listening on it; reuse that tab instead of starting another. Otherwise, start them:
 
 ```bash
 bun run dev:backend &
