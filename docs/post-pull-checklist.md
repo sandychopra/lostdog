@@ -42,7 +42,13 @@ SEED_VOLUNTEER_EMAIL="volunteer@example.com"
 SEED_VOLUNTEER_PASSWORD="changeme"
 ```
 
-`backend/.env` is untracked/local, so each developer's credentials stay separate. After a pull, diff your `.env` against `backend/.env.example` — a new variable can land there without an announcement, and a missing value fails silently or falls back to a default you didn't expect.
+`backend/.env` is untracked/local, so each developer's credentials stay separate. After a pull, diff your `.env` against `backend/.env.example` — a new variable can land there without an announcement, and a missing value fails silently or falls back to a default you didn't expect:
+
+```bash
+diff <(grep -oE '^[A-Z_]+=' backend/.env.example) <(grep -oE '^[A-Z_]+=' backend/.env)
+```
+
+No output means you're in sync. A `<` line is a variable in `.env.example` that's missing from your `.env` — add it. A `>` line is extra in your `.env` and usually just a harmless local leftover.
 
 ## 3. Frontend environment variables `Check every pull`
 
@@ -52,13 +58,20 @@ Copy `frontend/.env.example` to `frontend/.env` if you don't already have one:
 PUBLIC_API_URL=http://localhost:4000
 ```
 
-This step is optional for the default local setup — `frontend/src/lib/config.ts` already falls back to `http://localhost:4000` if `PUBLIC_API_URL` is unset — but is required if your backend runs on a different port/host. As with the backend, diff your `.env` against `frontend/.env.example` after a pull to catch newly added vars; only `PUBLIC_`-prefixed vars are ever exposed to the browser bundle (see `Tech-Stack.md` / `CLAUDE.md`).
+This step is optional for the default local setup — `frontend/src/lib/config.ts` already falls back to `http://localhost:4000` if `PUBLIC_API_URL` is unset — but is required if your backend runs on a different port/host. As with the backend, diff your `.env` against `frontend/.env.example` after a pull to catch newly added vars; only `PUBLIC_`-prefixed vars are ever exposed to the browser bundle (see `Tech-Stack.md` / `CLAUDE.md`):
+
+```bash
+diff <(grep -oE '^[A-Z_]+=' frontend/.env.example) <(grep -oE '^[A-Z_]+=' frontend/.env)
+```
+
+Same output rules as above: no output means in sync, `<` means add that var, `>` is usually a harmless local leftover.
 
 ## 4. Database sync
 
 Each developer runs their own local Postgres — a native install (Postgres 17) is recommended over Docker, since you're already managing an isolated, per-developer database either way and a native install avoids an extra layer.
 
-### First-time setup
+<details>
+<summary><strong>First-time setup</strong> — create your local Postgres role/database (click to expand; skip if already done)</summary>
 
 Create a role and database matching `backend/.env.example`'s defaults, so no `.env` changes are needed:
 
@@ -79,6 +92,8 @@ docker compose up -d postgres
 ```
 
 This starts a Postgres 17 container on `localhost:5432` with a `lostdog_app` user, `changeme` password, and `lostdog` database — matching `backend/.env.example`'s defaults exactly, so no `.env` changes are needed if you use them as-is. Data persists in a named Docker volume (`postgres-data`) across restarts; `docker compose down -v` wipes it if you want a clean slate. Only Postgres is containerized — the backend and frontend still run natively via `bun run dev:backend`/`dev:frontend`, per the root `CLAUDE.md`.
+
+</details>
 
 </details>
 
