@@ -107,7 +107,12 @@ bunx prisma migrate deploy
 
 This applies every migration in `prisma/migrations/` in order against your database, non-interactively. Use this whenever you've pulled new migrations and just need your database to catch up.
 
-> **One-time note:** the migration history was rewritten twice on 2026-09-26 — once to retrofit the Better Auth tables with `snake_case` columns, and again to convert the Phase 1 domain tables' IDs from `String`/cuid to `Int`/autoincrement (see `CLAUDE.md`) — in both cases via a migration-history reset rather than an additive migration. If your database was last synced before that and `migrate deploy` fails with a history-mismatch error, run `bunx prisma migrate reset --force` instead — **this drops your local database** — then continue with `prisma generate` and `bun run seed` below. This note only applies to that one sync; once everyone's past it, it can be deleted.
+<details>
+<summary>Hit a history-mismatch error? (one-time, pre-2026-09-26 databases only)</summary>
+
+The migration history was rewritten twice on 2026-09-26 — once to retrofit the Better Auth tables with `snake_case` columns, and again to convert the Phase 1 domain tables' IDs from `String`/cuid to `Int`/autoincrement (see `CLAUDE.md`) — in both cases via a migration-history reset rather than an additive migration. If your database was last synced before that and `migrate deploy` fails with a history-mismatch error, run `bunx prisma migrate reset --force` instead — **this drops your local database** — then continue with `prisma generate` and `bun run seed` below. This note only applies to that one sync; once everyone's past it, it can be deleted.
+
+</details>
 
 ```bash
 bunx prisma generate
@@ -115,13 +120,16 @@ bunx prisma generate
 
 Bun doesn't automatically run package postinstall scripts, so this step doesn't happen for you automatically — run it manually after every `migrate deploy` or schema change. This also regenerates `backend/prisma/ERD.md`, a Mermaid entity-relationship diagram of the full schema, kept in sync automatically via the `erd` generator in `schema.prisma`.
 
-### First-time, or after a `migrate reset`
+<details>
+<summary><strong>First-time, or after a <code>migrate reset</code></strong> — seed dev data (click to expand; skip on a routine pull)</summary>
 
 ```bash
 bun run seed
 ```
 
 Creates (or updates) an admin user and a volunteer user (`SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` and `SEED_VOLUNTEER_EMAIL`/`SEED_VOLUNTEER_PASSWORD` from your own `.env`), plus representative roster dev data (a few cats, a kennel, a bonded group). Re-running it is safe (it won't duplicate existing data), but a routine pull doesn't need it — only first-time setup or after a `migrate reset` wipes your database.
+
+</details>
 
 ## 5. Start the dev servers `Every time you work on the app`
 
