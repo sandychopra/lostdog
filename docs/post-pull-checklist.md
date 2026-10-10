@@ -2,7 +2,22 @@
 
 Run through these steps after pulling changes from `main` to keep your local setup in sync — new dependencies, environment variables, and database migrations don't apply themselves. The same steps also work for first-time setup.
 
-## 1. Install dependencies
+**Quick reference** — on a routine pull you only need the "Every pull" rows; everything else is first-time setup or situational:
+
+| Step | When |
+|---|---|
+| 1. Install dependencies | Every pull |
+| 2. Backend environment variables | Check every pull; edit only if a new var appeared |
+| 3. Frontend environment variables | Check every pull; edit only if a new var appeared |
+| 4a. Create Postgres role/database | First-time only |
+| 4b. Docker Postgres alternative | First-time only (alternative to 4a) |
+| 4c. `prisma migrate deploy` | Every pull |
+| 4d. One-time migration-history note | First-time only (delete once obsolete) |
+| 4e. `prisma generate` | Every pull |
+| 4f. `bun run seed` | First-time, or after a `migrate reset` |
+| 5. Start the dev servers | Every time you work on the app |
+
+## 1. Install dependencies `Every pull`
 
 From the repo root:
 
@@ -12,7 +27,7 @@ bun install
 
 This installs all workspace dependencies — `backend`, `frontend`, and the shared `shared` workspace — picking up anything newly added since your last pull.
 
-## 2. Backend environment variables
+## 2. Backend environment variables `Check every pull`
 
 Copy `backend/.env.example` to `backend/.env` if you don't already have one, and fill in your own values (the defaults below already match the `docker-compose.yml` Postgres service):
 
@@ -29,7 +44,7 @@ SEED_VOLUNTEER_PASSWORD="changeme"
 
 `backend/.env` is untracked/local, so each developer's credentials stay separate. After a pull, diff your `.env` against `backend/.env.example` — a new variable can land there without an announcement, and a missing value fails silently or falls back to a default you didn't expect.
 
-## 3. Frontend environment variables
+## 3. Frontend environment variables `Check every pull`
 
 Copy `frontend/.env.example` to `frontend/.env` if you don't already have one:
 
@@ -43,7 +58,9 @@ This step is optional for the default local setup — `frontend/src/lib/config.t
 
 Each developer runs their own local Postgres — a native install (Postgres 17) is recommended over Docker, since you're already managing an isolated, per-developer database either way and a native install avoids an extra layer.
 
-**First-time only:** create a role and database matching `backend/.env.example`'s defaults, so no `.env` changes are needed:
+### First-time setup
+
+Create a role and database matching `backend/.env.example`'s defaults, so no `.env` changes are needed:
 
 ```bash
 psql postgres -c "CREATE ROLE lostdog_app WITH LOGIN PASSWORD 'changeme';"
@@ -65,6 +82,8 @@ This starts a Postgres 17 container on `localhost:5432` with a `lostdog_app` use
 
 </details>
 
+### Every pull
+
 From `backend/`, apply migrations and sync the schema (needed every time you pull new migrations, not just first-time):
 
 ```bash
@@ -81,13 +100,23 @@ bunx prisma generate
 
 Bun doesn't automatically run package postinstall scripts, so this step doesn't happen for you automatically — run it manually after every `migrate deploy` or schema change. This also regenerates `backend/prisma/ERD.md`, a Mermaid entity-relationship diagram of the full schema, kept in sync automatically via the `erd` generator in `schema.prisma`.
 
+### First-time, or after a `migrate reset`
+
 ```bash
 bun run seed
 ```
 
-Creates (or updates) an admin user and a volunteer user (`SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` and `SEED_VOLUNTEER_EMAIL`/`SEED_VOLUNTEER_PASSWORD` from your own `.env`), plus representative roster dev data (a few cats, a kennel, a bonded group).
+Creates (or updates) an admin user and a volunteer user (`SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` and `SEED_VOLUNTEER_EMAIL`/`SEED_VOLUNTEER_PASSWORD` from your own `.env`), plus representative roster dev data (a few cats, a kennel, a bonded group). Re-running it is safe (it won't duplicate existing data), but a routine pull doesn't need it — only first-time setup or after a `migrate reset` wipes your database.
 
-## 5. Start the dev servers
+## 5. Start the dev servers `Every time you work on the app`
+
+Check that they aren't already running first — starting a second copy silently lands on the next free port instead of 4000/3000, which breaks CORS (`FRONTEND_URL`) and `PUBLIC_API_URL` matching:
+
+```bash
+lsof -t -i :4000 -i :3000
+```
+
+If that prints any PIDs, the servers are already up; reuse that tab instead of starting another. Otherwise, start them:
 
 ```bash
 bun run dev:backend &
