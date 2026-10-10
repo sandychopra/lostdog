@@ -63,11 +63,7 @@ export default function CatEntryFields({
       onRemove={onRemove}
       onSave={handleSave}
     >
-      <div className="space-y-2">
-        <Label>Cat</Label>
-        <p className="text-sm font-medium">{selectedCat?.name ?? "—"}</p>
-        <input type="hidden" {...register(`${base}.catId` as const)} />
-      </div>
+      <input type="hidden" {...register(`${base}.catId` as const)} />
 
       <div className="space-y-2">
         <Label>Fecal Score</Label>

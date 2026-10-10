@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { api } from "../lib/api";
 import ErrorAlert from "./ErrorAlert";
 import { Skeleton } from "./ui/skeleton";
@@ -29,9 +29,16 @@ export default function ShiftReportFormPage() {
     <>
       <Navbar />
       <main className="mx-auto max-w-3xl px-6 py-8">
-        <h1 className="mb-6 text-2xl font-semibold tracking-tight">
-          {isEdit ? "Edit Shift Report" : "New Shift Report"}
-        </h1>
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {isEdit ? "Edit Shift Report" : "New Shift Report"}
+          </h1>
+          {isEdit && report && (
+            <Link to={`/shift-reports/${id}`} className="text-sm text-blue hover:underline">
+              View full report →
+            </Link>
+          )}
+        </div>
         {isEdit && isLoading && (
           <div className="space-y-4">
             <Skeleton className="h-10 w-full" />

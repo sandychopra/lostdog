@@ -20,7 +20,7 @@ import ErrorAlert from "./ErrorAlert";
 import ErrorMessage from "./ErrorMessage";
 import CatEntryFields from "./CatEntryFields";
 import GroupCatEntryFields from "./GroupCatEntryFields";
-import CatNoteGroupList from "./CatNoteGroupList";
+import CatNoteGroupList, { type CatNoteGroupListHandle } from "./CatNoteGroupList";
 import KennelStatusList from "./KennelStatusList";
 import PhotoUploadSection, {
   type QueuedPhoto,
@@ -187,14 +187,11 @@ export default function ShiftReportForm({
   const catEntries = useFieldArray({ control, name: "catEntries" });
 
   // Keyed by useFieldArray's stable field.id (not array index, which shifts on
-  // add/remove). Entries default collapsed when editing a report with enough
-  // of them that the form becomes scroll-heavy; a brand-new report starts
-  // empty, and a freshly-added entry is never added to this set, so both open
-  // expanded.
+  // add/remove). Entries default collapsed when editing an existing report, so
+  // a volunteer sees an overview first; a brand-new report starts empty, and a
+  // freshly-added entry is never added to this set, so both open expanded.
   const [collapsedEntryIds, setCollapsedEntryIds] = useState<Set<string>>(() =>
-    report && catEntries.fields.length > 3
-      ? new Set(catEntries.fields.map((f) => f.id))
-      : new Set(),
+    report ? new Set(catEntries.fields.map((f) => f.id)) : new Set(),
   );
 
   function toggleEntryCollapsed(id: string) {
@@ -208,22 +205,51 @@ export default function ShiftReportForm({
     void autosaveRef.current();
   }
 
-  // Computed once at mount, same as collapsedEntryIds above, so a section
-  // doesn't snap shut again if the volunteer empties it back out after
-  // expanding it.
+  // Computed once at mount, same as collapsedEntryIds above: editing an
+  // existing report starts every section collapsed, so a volunteer sees an
+  // overview first; a brand-new report starts each section expanded as it's
+  // filled in, since there's nothing to collapse yet.
   const [collapsedSections, setCollapsedSections] = useState<Record<SectionKey, boolean>>(() => ({
-    // Unlike the sections below, Kennel Status is never meaningfully "empty"
-    // (every kennel is always auto-populated), so it always starts collapsed
-    // rather than only when its count is zero.
+    // Kennel Status is never meaningfully "empty" (every kennel is always
+    // auto-populated), so it always starts collapsed regardless of report.
     kennelStatus: true,
-    playGroups: (report?.playGroups.length ?? 0) === 0,
-    meetAndGreets: (report?.meetAndGreets.length ?? 0) === 0,
-    photos: (report?.photos.length ?? 0) === 0,
-    notes: !(report?.cleaningNotes || report?.suppliesNotes || report?.otherNotes),
+    playGroups: !!report,
+    meetAndGreets: !!report,
+    photos: !!report,
+    notes: !!report,
   }));
 
   function toggleSection(key: SectionKey) {
     setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  const playGroupsRef = useRef<CatNoteGroupListHandle>(null);
+  const meetAndGreetsRef = useRef<CatNoteGroupListHandle>(null);
+
+  function collapseAllSections() {
+    setCollapsedSections({
+      kennelStatus: true,
+      playGroups: true,
+      meetAndGreets: true,
+      photos: true,
+      notes: true,
+    });
+    setCollapsedEntryIds(new Set(catEntries.fields.map((f) => f.id)));
+    playGroupsRef.current?.collapseAll();
+    meetAndGreetsRef.current?.collapseAll();
+  }
+
+  function expandAllSections() {
+    setCollapsedSections({
+      kennelStatus: false,
+      playGroups: false,
+      meetAndGreets: false,
+      photos: false,
+      notes: false,
+    });
+    setCollapsedEntryIds(new Set());
+    playGroupsRef.current?.expandAll();
+    meetAndGreetsRef.current?.expandAll();
   }
 
   const shiftType = useWatch({ control, name: "shiftType" });
@@ -476,6 +502,14 @@ export default function ShiftReportForm({
 
   return (
     <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="secondary" size="sm" onClick={expandAllSections}>
+          Expand all
+        </Button>
+        <Button type="button" variant="secondary" size="sm" onClick={collapseAllSections}>
+          Collapse all
+        </Button>
+      </div>
       <ShiftReportFormOutline
         items={[
           {
@@ -574,7 +608,7 @@ export default function ShiftReportForm({
               <>
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="secondary"
                   size="sm"
                   onClick={() => setCollapsedEntryIds(new Set())}
                 >
@@ -582,7 +616,7 @@ export default function ShiftReportForm({
                 </Button>
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="secondary"
                   size="sm"
                   onClick={() => setCollapsedEntryIds(new Set(catEntries.fields.map((f) => f.id)))}
                 >
@@ -635,6 +669,7 @@ export default function ShiftReportForm({
       </section>
 
       <CatNoteGroupList
+        ref={playGroupsRef}
         form={form}
         name="playGroups"
         title="Play Groups"
@@ -642,9 +677,11 @@ export default function ShiftReportForm({
         catOptions={catOptions}
         collapsed={collapsedSections.playGroups}
         onToggleCollapsed={() => toggleSection("playGroups")}
+        isEdit={isEdit}
       />
 
       <CatNoteGroupList
+        ref={meetAndGreetsRef}
         form={form}
         name="meetAndGreets"
         title="Meet & Greets"
@@ -652,6 +689,7 @@ export default function ShiftReportForm({
         catOptions={catOptions}
         collapsed={collapsedSections.meetAndGreets}
         onToggleCollapsed={() => toggleSection("meetAndGreets")}
+        isEdit={isEdit}
       />
 
       <CollapsibleSection
