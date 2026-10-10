@@ -3,8 +3,8 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 
-// Brand colors per project-scope.md's Design/Branding section.
-// Manifest icons are intentionally omitted until the org provides logo assets (see project-scope.md).
+// Brand colors per docs/project-scope.md's Design/Branding section.
+// Manifest icons are intentionally omitted until the org provides logo assets (see docs/project-scope.md).
 export default defineConfig({
   envPrefix: "PUBLIC_",
   server: {

@@ -378,7 +378,7 @@ model CatEntry {
 }
 
 // Per-cat fields for a Group-variant CatEntry — one row per cat in the group
-// for that entry. Not named as its own entity in project-scope.md.
+// for that entry. Not named as its own entity in docs/project-scope.md.
 model GroupEntryCatDetail {
   id         Int      @id @default(autoincrement())
   catEntryId Int      @map("cat_entry_id")
