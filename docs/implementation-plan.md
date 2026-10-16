@@ -137,7 +137,7 @@ Status: Done
 
 ## Phase 7 — Email notifications
 Goal: the Google Group keeps receiving what it receives today, without anyone re-typing it.
-Status: Not started
+Status: Done (code complete; real SendGrid delivery still to be verified with a sender and API key)
 
 - SendGrid integration
 - Templates for the six Announcement-triggered events (new arrival, pending/adopted, back available, returned to RCC, checklist assigned, kennel move requested)

@@ -306,6 +306,9 @@ model ShiftReport {
   suppliesNotes      String?             @map("supplies_notes")
   kennelNotes        String?             @map("kennel_notes")
   otherNotes         String?             @map("other_notes")
+  emailSentAt        DateTime?           @map("email_sent_at")
+  emailAttempts      Int                 @default(0) @map("email_attempts")
+  emailLastError     String?             @map("email_last_error")
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @updatedAt @map("updated_at")
 
@@ -533,28 +536,30 @@ model ChecklistAction {
 // comment/commentedAt/commentedBy is a single free-text note any Volunteer or
 // Admin can add to any announcement — not a threaded log, just overwritten.
 model Announcement {
-  id            Int                  @id @default(autoincrement())
-  type          AnnouncementType
-  catId         Int?                 @map("cat_id")
-  cat           Cat?                 @relation(fields: [catId], references: [id])
-  checklistId   Int?                 @map("checklist_id")
-  checklist     KennelPrepChecklist? @relation(fields: [checklistId], references: [id])
-  kennelId      Int?                 @map("kennel_id")
-  kennel        Kennel?              @relation(fields: [kennelId], references: [id])
-  title         String?
-  message       String?
-  resolved      Boolean              @default(false)
-  resolvedAt    DateTime?            @map("resolved_at")
-  resolvedById  String?              @map("resolved_by_id")
-  resolvedBy    User?                @relation("AnnouncementResolvedBy", fields: [resolvedById], references: [id])
-  createdById   String?              @map("created_by_id")
-  createdBy     User?                @relation("AnnouncementCreatedBy", fields: [createdById], references: [id])
-  comment       String?
-  commentedAt   DateTime?            @map("commented_at")
-  commentedById String?              @map("commented_by_id")
-  commentedBy   User?                @relation("AnnouncementCommentedBy", fields: [commentedById], references: [id])
-  emailSent     Boolean              @default(false) @map("email_sent")
-  createdAt     DateTime             @default(now()) @map("created_at")
+  id             Int                  @id @default(autoincrement())
+  type           AnnouncementType
+  catId          Int?                 @map("cat_id")
+  cat            Cat?                 @relation(fields: [catId], references: [id])
+  checklistId    Int?                 @map("checklist_id")
+  checklist      KennelPrepChecklist? @relation(fields: [checklistId], references: [id])
+  kennelId       Int?                 @map("kennel_id")
+  kennel         Kennel?              @relation(fields: [kennelId], references: [id])
+  title          String?
+  message        String?
+  resolved       Boolean              @default(false)
+  resolvedAt     DateTime?            @map("resolved_at")
+  resolvedById   String?              @map("resolved_by_id")
+  resolvedBy     User?                @relation("AnnouncementResolvedBy", fields: [resolvedById], references: [id])
+  createdById    String?              @map("created_by_id")
+  createdBy      User?                @relation("AnnouncementCreatedBy", fields: [createdById], references: [id])
+  comment        String?
+  commentedAt    DateTime?            @map("commented_at")
+  commentedById  String?              @map("commented_by_id")
+  commentedBy    User?                @relation("AnnouncementCommentedBy", fields: [commentedById], references: [id])
+  emailSent      Boolean              @default(false) @map("email_sent")
+  emailAttempts  Int                  @default(0) @map("email_attempts")
+  emailLastError String?              @map("email_last_error")
+  createdAt      DateTime             @default(now()) @map("created_at")
 
   signTasks          SignTask[]
   kennelMoveRequests KennelMoveRequest[]

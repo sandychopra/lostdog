@@ -114,6 +114,9 @@ erDiagram
     String supplies_notes "❓"
     String kennel_notes "❓"
     String other_notes "❓"
+    DateTime email_sent_at "❓"
+    Int email_attempts 
+    String email_last_error "❓"
     DateTime created_at 
     DateTime updated_at 
     }
@@ -244,6 +247,8 @@ erDiagram
     DateTime commented_at "❓"
     String commented_by_id "❓"
     Boolean email_sent 
+    Int email_attempts 
+    String email_last_error "❓"
     DateTime created_at 
     }
   
