@@ -144,8 +144,17 @@ lsof -nP -iTCP:4000 -iTCP:3000 -sTCP:LISTEN
 If that prints any lines, the servers are already up — the `NAME` column shows which port, `COMMAND`/`PID` show what's listening on it; reuse that tab instead of starting another. Otherwise, start them:
 
 ```bash
-bun run dev:backend &
-bun run dev:frontend &
+bun run dev:backend < /dev/null &
+bun run dev:frontend < /dev/null &
+```
+
+Backgrounding both this way sends both servers' output to the same terminal, interleaved with no label — fine for a quick check, but hard to follow for long. To keep each log separate and tail-able, redirect to files instead:
+
+```bash
+bun run dev:backend < /dev/null > backend.log 2>&1 &
+bun run dev:frontend < /dev/null > frontend.log 2>&1 &
+
+tail -f backend.log frontend.log   # both, labeled by filename
 ```
 
 To shut one down (e.g. it's on the wrong port, or you need a clean restart):
