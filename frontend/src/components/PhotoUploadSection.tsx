@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { X, Pencil } from "lucide-react";
+import { X, Pencil, Image as ImageIcon, Camera } from "lucide-react";
 import AuthenticatedImage from "./AuthenticatedImage";
 import CatMultiSelect from "./CatMultiSelect";
 import PhotoTagEditor from "./PhotoTagEditor";
@@ -43,6 +43,7 @@ function QueuedThumb({
   showTagPicker?: boolean;
 }) {
   const [editingTags, setEditingTags] = useState(false);
+  const [previewFailed, setPreviewFailed] = useState(false);
   const previewUrl = useMemo(() => URL.createObjectURL(photo.file), [photo.file]);
 
   useEffect(() => {
@@ -59,7 +60,19 @@ function QueuedThumb({
       >
         <X className="h-3 w-3" />
       </button>
-      <img src={previewUrl} alt="Queued upload" className="h-24 w-full rounded object-cover" />
+      {previewFailed ? (
+        <div className="flex h-24 w-full flex-col items-center justify-center gap-1 rounded bg-muted p-1 text-center">
+          <ImageIcon className="h-6 w-6 text-muted-foreground" />
+          <span className="w-full truncate text-xs text-muted-foreground">{photo.file.name}</span>
+        </div>
+      ) : (
+        <img
+          src={previewUrl}
+          alt="Queued upload"
+          className="h-24 w-full rounded object-cover"
+          onError={() => setPreviewFailed(true)}
+        />
+      )}
       {showTagPicker && (
         <div className="mt-1">
           <button
@@ -162,20 +175,36 @@ export default function PhotoUploadSection({
           />
         ))}
       </div>
-      <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-input px-3 py-1.5 text-sm">
-        <input
-          type="file"
-          accept="image/*"
-          capture="environment"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            handleFiles(e.target.files);
-            e.target.value = "";
-          }}
-        />
-        Add Photo
-      </label>
+      <div className="flex flex-wrap gap-2">
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-input px-3 py-1.5 text-sm">
+          <input
+            type="file"
+            accept="image/*,image/heic,image/heif"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              handleFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <ImageIcon className="h-4 w-4" />
+          Choose from Library
+        </label>
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-input px-3 py-1.5 text-sm">
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => {
+              handleFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <Camera className="h-4 w-4" />
+          Take Photo
+        </label>
+      </div>
     </div>
   );
 }
