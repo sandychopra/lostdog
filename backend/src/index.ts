@@ -4,6 +4,7 @@ import rateLimit from "express-rate-limit";
 import { toNodeHandler } from "better-auth/node";
 import { auth } from "./lib/auth.ts";
 import { prisma } from "./lib/prisma.ts";
+import { notifyPending, startEmailRetryLoop } from "./lib/notifications.ts";
 import { requireAuth, type AuthedRequest } from "./middleware/requireAuth.ts";
 import usersRouter from "./routes/users.ts";
 import kennelsRouter from "./routes/kennels.ts";
@@ -40,6 +41,17 @@ app.all("/api/auth/*splat", authLimiter, toNodeHandler(auth));
 
 app.use(express.json());
 
+// Any successful write may have created an Announcement or submitted a shift
+// report; send whatever email is now pending once the response is out.
+app.use((req, res, next) => {
+  if (req.method !== "GET") {
+    res.on("finish", () => {
+      if (res.statusCode < 400) notifyPending();
+    });
+  }
+  next();
+});
+
 app.get("/api/me", requireAuth, (req, res) => {
   res.json((req as AuthedRequest).session);
 });
@@ -69,4 +81,5 @@ app.get("/api/health", async (_req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Backend listening on http://localhost:${PORT}`);
+  startEmailRetryLoop();
 });

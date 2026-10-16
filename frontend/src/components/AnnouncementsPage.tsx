@@ -747,11 +747,11 @@ export default function AnnouncementsPage() {
         {error ? (
           <ErrorAlert message="Failed to fetch announcements" />
         ) : (
-          <Table className="table-fixed">
+          <Table className="min-w-[56rem] table-fixed">
             <TableHeader>
               <TableRow>
                 <SortableTableHead
-                  className="w-28"
+                  className="w-[12%]"
                   active={sort.column === "type"}
                   direction={sort.direction}
                   onSort={() => toggleSort("type")}
@@ -759,7 +759,7 @@ export default function AnnouncementsPage() {
                   Type
                 </SortableTableHead>
                 <SortableTableHead
-                  className="w-24"
+                  className="w-[9%]"
                   active={sort.column === "cat"}
                   direction={sort.direction}
                   onSort={() => toggleSort("cat")}
@@ -767,16 +767,16 @@ export default function AnnouncementsPage() {
                   Cat
                 </SortableTableHead>
                 <SortableTableHead
-                  className="w-20"
+                  className="w-[8%]"
                   active={sort.column === "kennel"}
                   direction={sort.direction}
                   onSort={() => toggleSort("kennel")}
                 >
                   Kennel
                 </SortableTableHead>
-                <TableHead>Action</TableHead>
+                <TableHead className="w-[24%]">Action</TableHead>
                 <SortableTableHead
-                  className="w-32"
+                  className="w-[12%]"
                   active={sort.column === "created"}
                   direction={sort.direction}
                   onSort={() => toggleSort("created")}
@@ -784,15 +784,15 @@ export default function AnnouncementsPage() {
                   Created
                 </SortableTableHead>
                 <SortableTableHead
-                  className="w-36"
+                  className="w-[12%]"
                   active={sort.column === "status"}
                   direction={sort.direction}
                   onSort={() => toggleSort("status")}
                 >
                   Status
                 </SortableTableHead>
-                <TableHead className="w-64">Comment</TableHead>
-                {isAdmin && <TableHead className="w-20">Admin</TableHead>}
+                <TableHead className="w-[15%]">Comment</TableHead>
+                {isAdmin && <TableHead className="w-[8%]">Admin</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -913,7 +913,7 @@ export default function AnnouncementsPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="ml-1"
+                                className="-ml-2 mt-1 whitespace-nowrap"
                                 disabled={resolveManual.isPending}
                                 onClick={() => resolveManual.mutate(announcement.id)}
                               >
