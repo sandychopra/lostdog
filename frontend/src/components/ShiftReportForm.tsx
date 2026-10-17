@@ -1,21 +1,25 @@
 import { useEffect, useRef, useState } from "react";
-import { useFieldArray, useForm, useWatch } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createShiftReportSchema,
   updateShiftReportSchema,
   draftShiftReportSchema,
   type CreateShiftReportInput,
+  type DraftShiftReportInput,
 } from "shared/schemas/shiftReports.ts";
 import { ShiftType } from "shared/constants/shiftType.ts";
 import { CatEntryType } from "shared/constants/catEntryType.ts";
 import { SplitShiftPosition } from "shared/constants/splitShiftPosition.ts";
 import { ShiftReportStatus } from "shared/constants/shiftReportStatus.ts";
 import { api } from "../lib/api";
+import { shiftReportResolver } from "../lib/shiftReportForm";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
+import { NativeSelect, NativeSelectOption } from "./ui/native-select";
+import { Textarea } from "./ui/textarea";
+import { Checkbox } from "./ui/checkbox";
 import ErrorAlert from "./ErrorAlert";
 import ErrorMessage from "./ErrorMessage";
 import CatEntryFields from "./CatEntryFields";
@@ -32,11 +36,6 @@ import type { Cat } from "./CatsTable";
 import type { Kennel } from "./KennelsTable";
 import type { ShiftReport } from "./ShiftReportsTable";
 
-const selectClassName =
-  "flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
-const textareaClassName =
-  "flex min-h-16 w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
-
 // Autosave cadence: save shortly after the volunteer stops typing, with a
 // slower interval as a safety net during long continuous editing. Switching
 // apps/tabs (visibilitychange) saves immediately — see the effect below.
@@ -47,7 +46,7 @@ function toDateInputValue(value: string | null | undefined): string {
   return value ? value.slice(0, 10) : "";
 }
 
-function mapReportToDefaultValues(report: ShiftReport): CreateShiftReportInput {
+function mapReportToDefaultValues(report: ShiftReport): DraftShiftReportInput {
   return {
     shiftType: report.shiftType,
     date: toDateInputValue(report.date) as unknown as Date,
@@ -149,13 +148,13 @@ export default function ShiftReportForm({
     },
   });
 
-  const form = useForm<CreateShiftReportInput>({
+  const form = useForm<DraftShiftReportInput, unknown, DraftShiftReportInput>({
     // Always lenient — this only governs live inline field errors as the
     // volunteer types. The hard Draft/Submit distinction is enforced
     // explicitly in handleSubmitClick, not via the bound resolver, so saving
     // a draft never blocks on an incomplete group entry/meet-and-greet/play
     // group.
-    resolver: zodResolver(draftShiftReportSchema),
+    resolver: shiftReportResolver,
     defaultValues: report
       ? mapReportToDefaultValues(report)
       : {
@@ -213,6 +212,7 @@ export default function ShiftReportForm({
     // Kennel Status is never meaningfully "empty" (every kennel is always
     // auto-populated), so it always starts collapsed regardless of report.
     kennelStatus: true,
+    catEntries: !!report,
     playGroups: !!report,
     meetAndGreets: !!report,
     photos: !!report,
@@ -229,6 +229,7 @@ export default function ShiftReportForm({
   function collapseAllSections() {
     setCollapsedSections({
       kennelStatus: true,
+      catEntries: true,
       playGroups: true,
       meetAndGreets: true,
       photos: true,
@@ -242,6 +243,7 @@ export default function ShiftReportForm({
   function expandAllSections() {
     setCollapsedSections({
       kennelStatus: false,
+      catEntries: false,
       playGroups: false,
       meetAndGreets: false,
       photos: false,
@@ -444,6 +446,9 @@ export default function ShiftReportForm({
       entryType: CatEntryType.Individual,
       catId,
       pee: false,
+      peePoopNotes: "",
+      foodNotes: "",
+      medicalNotes: "",
     });
   }
 
@@ -453,7 +458,13 @@ export default function ShiftReportForm({
       entryType: CatEntryType.Group,
       groupId,
       pee: false,
-      catDetails: (group?.cats ?? []).map((c) => ({ catId: c.id })),
+      peePoopNotes: "",
+      foodNotes: "",
+      catDetails: (group?.cats ?? []).map((c) => ({
+        catId: c.id,
+        foodNotes: "",
+        medicalNotes: "",
+      })),
     });
   }
 
@@ -498,6 +509,7 @@ export default function ShiftReportForm({
     if (kind === "cat") addIndividualEntry(id);
     else addGroupEntry(id);
     setPickerValue("");
+    if (collapsedSections.catEntries) toggleSection("catEntries");
   }
 
   return (
@@ -520,7 +532,7 @@ export default function ShiftReportForm({
           },
           {
             key: "catEntries",
-            label: "Cat Entries",
+            label: "Food & Medical",
             count: catEntries.fields.length,
             anchorId: "section-cat-entries",
           },
@@ -554,11 +566,11 @@ export default function ShiftReportForm({
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="shiftType">Shift Type</Label>
-          <select id="shiftType" className={selectClassName} {...register("shiftType")}>
-            <option value={ShiftType.Morning}>Morning</option>
-            <option value={ShiftType.MidDay}>Mid-day</option>
-            <option value={ShiftType.Evening}>Evening</option>
-          </select>
+          <NativeSelect id="shiftType" {...register("shiftType")}>
+            <NativeSelectOption value={ShiftType.Morning}>Morning</NativeSelectOption>
+            <NativeSelectOption value={ShiftType.MidDay}>Mid-day</NativeSelectOption>
+            <NativeSelectOption value={ShiftType.Evening}>Evening</NativeSelectOption>
+          </NativeSelect>
         </div>
         <div className="space-y-2">
           <Label htmlFor="date">Date</Label>
@@ -567,12 +579,19 @@ export default function ShiftReportForm({
       </div>
 
       <div className="flex items-center gap-2">
-        <input
-          id="isSplitShift"
-          type="checkbox"
-          className="h-4 w-4"
-          disabled={shiftType === ShiftType.MidDay}
-          {...register("isSplitShift")}
+        <Controller
+          control={control}
+          name="isSplitShift"
+          render={({ field }) => (
+            <Checkbox
+              id="isSplitShift"
+              ref={field.ref}
+              checked={field.value === true}
+              onCheckedChange={(checked) => field.onChange(checked === true)}
+              onBlur={field.onBlur}
+              disabled={shiftType === ShiftType.MidDay}
+            />
+          )}
         />
         <Label htmlFor="isSplitShift">Split shift (Morning/Evening only)</Label>
       </div>
@@ -580,15 +599,11 @@ export default function ShiftReportForm({
       {isSplitShift && (
         <div className="space-y-2">
           <Label htmlFor="splitShiftPosition">Which half of the shift?</Label>
-          <select
-            id="splitShiftPosition"
-            className={selectClassName}
-            {...register("splitShiftPosition")}
-          >
-            <option value="">Select</option>
-            <option value={SplitShiftPosition.First}>First shift</option>
-            <option value={SplitShiftPosition.Second}>Second shift</option>
-          </select>
+          <NativeSelect id="splitShiftPosition" {...register("splitShiftPosition")}>
+            <NativeSelectOption value="">Select</NativeSelectOption>
+            <NativeSelectOption value={SplitShiftPosition.First}>First shift</NativeSelectOption>
+            <NativeSelectOption value={SplitShiftPosition.Second}>Second shift</NativeSelectOption>
+          </NativeSelect>
           <ErrorMessage message={formState.errors.splitShiftPosition?.message} />
         </div>
       )}
@@ -600,9 +615,13 @@ export default function ShiftReportForm({
         onToggleCollapsed={() => toggleSection("kennelStatus")}
       />
 
-      <section id="section-cat-entries" className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Cat Entries</h2>
+      <CollapsibleSection
+        title="Food & Medical"
+        count={catEntries.fields.length}
+        collapsed={collapsedSections.catEntries}
+        onToggleCollapsed={() => toggleSection("catEntries")}
+        anchorId="section-cat-entries"
+        headerExtra={
           <div className="flex gap-2">
             {catEntries.fields.length > 1 && (
               <>
@@ -624,21 +643,23 @@ export default function ShiftReportForm({
                 </Button>
               </>
             )}
-            <select
-              aria-label="Add a cat entry"
-              className="flex h-9 w-56 rounded-md border border-input bg-white px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            <NativeSelect
+              aria-label="Add a cat"
+              size="sm"
+              className="w-56"
               value={pickerValue}
               onChange={(e) => handlePickerChange(e.target.value)}
             >
-              <option value="">Add a cat entry…</option>
+              <NativeSelectOption value="">Add a cat…</NativeSelectOption>
               {pickerOptions.map((option) => (
-                <option key={option.value} value={option.value}>
+                <NativeSelectOption key={option.value} value={option.value}>
                   {option.label}
-                </option>
+                </NativeSelectOption>
               ))}
-            </select>
+            </NativeSelect>
           </div>
-        </div>
+        }
+      >
         {catEntries.fields.map((field, index) => {
           const entryType = form.getValues(`catEntries.${index}.entryType`);
           const collapsed = collapsedEntryIds.has(field.id);
@@ -666,7 +687,7 @@ export default function ShiftReportForm({
             />
           );
         })}
-      </section>
+      </CollapsibleSection>
 
       <CatNoteGroupList
         ref={playGroupsRef}
@@ -717,23 +738,15 @@ export default function ShiftReportForm({
       >
         <div className="space-y-2">
           <Label htmlFor="cleaningNotes">Cleaning Notes</Label>
-          <textarea
-            id="cleaningNotes"
-            className={textareaClassName}
-            {...register("cleaningNotes")}
-          />
+          <Textarea id="cleaningNotes" className="min-h-16" {...register("cleaningNotes")} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="suppliesNotes">Supplies Notes</Label>
-          <textarea
-            id="suppliesNotes"
-            className={textareaClassName}
-            {...register("suppliesNotes")}
-          />
+          <Textarea id="suppliesNotes" className="min-h-16" {...register("suppliesNotes")} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="otherNotes">Other Notes</Label>
-          <textarea id="otherNotes" className={textareaClassName} {...register("otherNotes")} />
+          <Textarea id="otherNotes" className="min-h-16" {...register("otherNotes")} />
         </div>
       </CollapsibleSection>
 

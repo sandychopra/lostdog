@@ -1,17 +1,16 @@
-import { useWatch, type UseFormReturn } from "react-hook-form";
-import type { CreateShiftReportInput } from "shared/schemas/shiftReports.ts";
+import { Controller, useWatch } from "react-hook-form";
 import { Label } from "./ui/label";
 import { Badge } from "./ui/badge";
+import { Textarea } from "./ui/textarea";
+import { Checkbox } from "./ui/checkbox";
 import FecalScorePicker from "./FecalScorePicker";
 import FoodAmountPicker from "./FoodAmountPicker";
 import CollapsibleEntryCard from "./CollapsibleEntryCard";
 import type { Cat } from "./CatsTable";
-
-const textareaClassName =
-  "flex min-h-16 w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
+import type { ShiftReportFormApi } from "../lib/shiftReportForm";
 
 interface CatEntryFieldsProps {
-  form: UseFormReturn<CreateShiftReportInput>;
+  form: ShiftReportFormApi;
   index: number;
   cats: Cat[];
   onRemove: () => void;
@@ -74,20 +73,27 @@ export default function CatEntryFields({
       </div>
 
       <div className="flex items-center gap-2">
-        <input
-          id={`${base}.pee`}
-          type="checkbox"
-          className="h-4 w-4"
-          {...register(`${base}.pee` as const)}
+        <Controller
+          control={control}
+          name={`${base}.pee` as const}
+          render={({ field }) => (
+            <Checkbox
+              id={`${base}.pee`}
+              ref={field.ref}
+              checked={field.value === true}
+              onCheckedChange={(checked) => field.onChange(checked === true)}
+              onBlur={field.onBlur}
+            />
+          )}
         />
         <Label htmlFor={`${base}.pee`}>Pee observed</Label>
       </div>
 
       <div className="space-y-2">
         <Label htmlFor={`${base}.peePoopNotes`}>Pee/Poop Notes</Label>
-        <textarea
+        <Textarea
           id={`${base}.peePoopNotes`}
-          className={textareaClassName}
+          className="min-h-16"
           {...register(`${base}.peePoopNotes` as const)}
         />
       </div>
@@ -95,6 +101,7 @@ export default function CatEntryFields({
       <div className="space-y-2">
         <Label>Dry Food</Label>
         <FoodAmountPicker
+          aria-label="Dry food amount"
           value={dryFoodAmount}
           onChange={(v) => setValue(`${base}.dryFoodAmount` as const, v, { shouldValidate: true })}
         />
@@ -103,6 +110,7 @@ export default function CatEntryFields({
       <div className="space-y-2">
         <Label>Wet Food</Label>
         <FoodAmountPicker
+          aria-label="Wet food amount"
           value={wetFoodAmount}
           onChange={(v) => setValue(`${base}.wetFoodAmount` as const, v, { shouldValidate: true })}
         />
@@ -110,18 +118,18 @@ export default function CatEntryFields({
 
       <div className="space-y-2">
         <Label htmlFor={`${base}.foodNotes`}>Food Notes</Label>
-        <textarea
+        <Textarea
           id={`${base}.foodNotes`}
-          className={textareaClassName}
+          className="min-h-16"
           {...register(`${base}.foodNotes` as const)}
         />
       </div>
 
       <div className="space-y-2">
         <Label htmlFor={`${base}.medicalNotes`}>Medical Notes</Label>
-        <textarea
+        <Textarea
           id={`${base}.medicalNotes`}
-          className={textareaClassName}
+          className="min-h-16"
           {...register(`${base}.medicalNotes` as const)}
         />
       </div>

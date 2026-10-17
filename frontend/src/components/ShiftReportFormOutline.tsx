@@ -1,7 +1,8 @@
-export type SectionKey = "kennelStatus" | "playGroups" | "meetAndGreets" | "photos" | "notes";
+export type SectionKey =
+  "kennelStatus" | "catEntries" | "playGroups" | "meetAndGreets" | "photos" | "notes";
 
 interface OutlineItem {
-  key: SectionKey | "catEntries";
+  key: SectionKey;
   label: string;
   count: number;
   anchorId: string;
@@ -24,9 +25,7 @@ export default function ShiftReportFormOutline({
         <a
           key={item.key}
           href={`#${item.anchorId}`}
-          onClick={() => {
-            if (item.key !== "catEntries") onBeforeNavigate(item.key);
-          }}
+          onClick={() => onBeforeNavigate(item.key)}
           className="whitespace-nowrap rounded-full border border-input px-3 py-1 text-xs hover:bg-muted"
         >
           {item.label} ({item.count})

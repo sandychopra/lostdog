@@ -1,18 +1,15 @@
 import { useEffect } from "react";
-import { useFieldArray, useWatch, type UseFormReturn } from "react-hook-form";
-import type { CreateShiftReportInput } from "shared/schemas/shiftReports.ts";
+import { useFieldArray, useWatch } from "react-hook-form";
 import { KennelState, toReportableKennelState } from "shared/constants/kennelState.ts";
 import { Label } from "./ui/label";
+import { NativeSelect, NativeSelectOption } from "./ui/native-select";
+import { Textarea } from "./ui/textarea";
 import ErrorMessage from "./ErrorMessage";
 import CollapsibleSection from "./CollapsibleSection";
-
-const selectClassName =
-  "flex h-9 w-full rounded-md border border-input bg-white px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
-const textareaClassName =
-  "flex min-h-16 w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
+import type { ShiftReportFormApi } from "../lib/shiftReportForm";
 
 interface KennelStatusListProps {
-  form: UseFormReturn<CreateShiftReportInput>;
+  form: ShiftReportFormApi;
   kennelOptions: { id: number; number: number; state: KennelState }[];
   collapsed: boolean;
   onToggleCollapsed: () => void;
@@ -81,15 +78,15 @@ export default function KennelStatusList({
               <Label htmlFor={`kennelsStatus.${index}.reportedState`} className="text-xs">
                 Kennel {kennel?.number ?? "—"}
               </Label>
-              <select
+              <NativeSelect
                 id={`kennelsStatus.${index}.reportedState`}
-                className={selectClassName}
+                size="sm"
                 {...register(`kennelsStatus.${index}.reportedState` as const)}
               >
-                <option value={KennelState.Ready}>Ready</option>
-                <option value={KennelState.Occupied}>Occupied</option>
-                <option value={KennelState.NeedsReset}>Needs Reset</option>
-              </select>
+                <NativeSelectOption value={KennelState.Ready}>Ready</NativeSelectOption>
+                <NativeSelectOption value={KennelState.Occupied}>Occupied</NativeSelectOption>
+                <NativeSelectOption value={KennelState.NeedsReset}>Needs Reset</NativeSelectOption>
+              </NativeSelect>
             </div>
           );
         })}
@@ -101,7 +98,7 @@ export default function KennelStatusList({
       />
       <div className="space-y-2">
         <Label htmlFor="kennelNotes">Kennel Notes</Label>
-        <textarea id="kennelNotes" className={textareaClassName} {...register("kennelNotes")} />
+        <Textarea id="kennelNotes" className="min-h-16" {...register("kennelNotes")} />
       </div>
     </CollapsibleSection>
   );

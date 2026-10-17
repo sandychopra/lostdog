@@ -12,6 +12,7 @@ import { api } from "../lib/api";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { NativeSelect, NativeSelectOption } from "./ui/native-select";
 import ErrorAlert from "./ErrorAlert";
 import ErrorMessage from "./ErrorMessage";
 
@@ -101,14 +102,10 @@ export default function UserForm({ user, onSuccess }: UserFormProps) {
         </div>
         <div className="space-y-2">
           <Label htmlFor="role">Role</Label>
-          <select
-            id="role"
-            className="flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            {...form.register("role")}
-          >
-            <option value={Role.Volunteer}>Volunteer</option>
-            <option value={Role.Admin}>Admin</option>
-          </select>
+          <NativeSelect id="role" {...form.register("role")}>
+            <NativeSelectOption value={Role.Volunteer}>Volunteer</NativeSelectOption>
+            <NativeSelectOption value={Role.Admin}>Admin</NativeSelectOption>
+          </NativeSelect>
           <ErrorMessage message={form.formState.errors.role?.message} />
         </div>
       </div>

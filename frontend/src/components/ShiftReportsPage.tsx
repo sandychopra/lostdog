@@ -6,11 +6,10 @@ import { api } from "../lib/api";
 import { catOptionLabel, useCatOptions } from "../lib/useCatOptions";
 import { Button, buttonVariants } from "./ui/button";
 import { Label } from "./ui/label";
+import { NativeSelect, NativeSelectOption } from "./ui/native-select";
+import { Input } from "./ui/input";
 import ShiftReportsTable, { REPORTS_PAGE_SIZE } from "./ShiftReportsTable";
 import Navbar from "./Navbar";
-
-const fieldClassName =
-  "flex h-10 rounded-md border border-input bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 export default function ShiftReportsPage() {
   const [catId, setCatId] = useState("");
@@ -58,52 +57,52 @@ export default function ShiftReportsPage() {
         <div className="mb-6 flex flex-wrap items-end gap-3">
           <div className="space-y-1">
             <Label htmlFor="filterCat">Cat</Label>
-            <select
+            <NativeSelect
               id="filterCat"
-              className={fieldClassName}
+              className="w-fit"
               value={catId}
               onChange={(e) => resetPaging(setCatId)(e.target.value)}
             >
-              <option value="">All cats</option>
+              <NativeSelectOption value="">All cats</NativeSelectOption>
               {cats?.map((cat) => (
-                <option key={cat.id} value={cat.id}>
+                <NativeSelectOption key={cat.id} value={cat.id}>
                   {catOptionLabel(cat)}
-                </option>
+                </NativeSelectOption>
               ))}
-            </select>
+            </NativeSelect>
           </div>
           <div className="space-y-1">
             <Label htmlFor="filterKennel">Kennel</Label>
-            <select
+            <NativeSelect
               id="filterKennel"
-              className={fieldClassName}
+              className="w-fit"
               value={kennelId}
               onChange={(e) => resetPaging(setKennelId)(e.target.value)}
             >
-              <option value="">All kennels</option>
+              <NativeSelectOption value="">All kennels</NativeSelectOption>
               {kennels?.map((kennel) => (
-                <option key={kennel.id} value={kennel.id}>
+                <NativeSelectOption key={kennel.id} value={kennel.id}>
                   Kennel {kennel.number}
-                </option>
+                </NativeSelectOption>
               ))}
-            </select>
+            </NativeSelect>
           </div>
           <div className="space-y-1">
             <Label htmlFor="filterFrom">From</Label>
-            <input
+            <Input
               id="filterFrom"
               type="date"
-              className={fieldClassName}
+              className="w-auto"
               value={from}
               onChange={(e) => resetPaging(setFrom)(e.target.value)}
             />
           </div>
           <div className="space-y-1">
             <Label htmlFor="filterTo">To</Label>
-            <input
+            <Input
               id="filterTo"
               type="date"
-              className={fieldClassName}
+              className="w-auto"
               value={to}
               onChange={(e) => resetPaging(setTo)(e.target.value)}
             />

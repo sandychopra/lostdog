@@ -9,12 +9,10 @@ import { toDateTimeInputValue } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { NativeSelect, NativeSelectOption } from "./ui/native-select";
 import ErrorAlert from "./ErrorAlert";
 import ErrorMessage from "./ErrorMessage";
 import type { Cat } from "./CatsTable";
-
-const selectClassName =
-  "flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 const CAT_STATUS_LABELS: Record<CatStatus, string> = {
   [CatStatus.Available]: "Available",
@@ -42,11 +40,11 @@ export default function CatStatusForm({ cat, onSuccess }: CatStatusFormProps) {
     ...targets,
   ];
 
-  const form = useForm<ChangeCatStatusInput>({
+  const form = useForm({
     resolver: zodResolver(changeCatStatusSchema),
     defaultValues: {
       status: options[0],
-      pickupAt: toDateTimeInputValue(cat.pickupAt) as unknown as Date | undefined,
+      pickupAt: toDateTimeInputValue(cat.pickupAt),
     },
   });
 
@@ -77,14 +75,14 @@ export default function CatStatusForm({ cat, onSuccess }: CatStatusFormProps) {
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
         <div className="space-y-2">
           <Label htmlFor="status">New Status</Label>
-          <select id="status" className={selectClassName} {...form.register("status")}>
+          <NativeSelect id="status" {...form.register("status")}>
             {options.map((status) => (
-              <option key={status} value={status}>
+              <NativeSelectOption key={status} value={status}>
                 {CAT_STATUS_LABELS[status]}
                 {status === cat.status ? " (no change — reschedule pickup below)" : ""}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
           <ErrorMessage message={form.formState.errors.status?.message} />
         </div>
         {showPickupAt && (

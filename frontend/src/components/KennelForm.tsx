@@ -12,6 +12,7 @@ import { api } from "../lib/api";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { NativeSelect, NativeSelectOption } from "./ui/native-select";
 import ErrorAlert from "./ErrorAlert";
 import ErrorMessage from "./ErrorMessage";
 
@@ -30,8 +31,12 @@ export default function KennelForm({ kennel, onSuccess }: KennelFormProps) {
   const isEdit = !!kennel;
   const queryClient = useQueryClient();
 
-  const form = useForm<CreateKennelInput | UpdateKennelInput>({
-    resolver: zodResolver(isEdit ? updateKennelSchema : createKennelSchema),
+  // Typed against updateKennelSchema, whose fields are a superset of
+  // createKennelSchema's (state is edit-only), so one form type covers both.
+  const form = useForm({
+    resolver: zodResolver(
+      (isEdit ? updateKennelSchema : createKennelSchema) as typeof updateKennelSchema,
+    ),
     defaultValues: {
       number: kennel?.number,
       ...(isEdit ? { state: kennel.state } : {}),
@@ -80,16 +85,12 @@ export default function KennelForm({ kennel, onSuccess }: KennelFormProps) {
         {isEdit && (
           <div className="space-y-2">
             <Label htmlFor="state">State</Label>
-            <select
-              id="state"
-              className="flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              {...form.register("state")}
-            >
-              <option value={KennelState.Ready}>Ready</option>
-              <option value={KennelState.Occupied}>Occupied</option>
-              <option value={KennelState.NeedsReset}>Needs Reset</option>
-              <option value={KennelState.Planned}>Planned</option>
-            </select>
+            <NativeSelect id="state" {...form.register("state")}>
+              <NativeSelectOption value={KennelState.Ready}>Ready</NativeSelectOption>
+              <NativeSelectOption value={KennelState.Occupied}>Occupied</NativeSelectOption>
+              <NativeSelectOption value={KennelState.NeedsReset}>Needs Reset</NativeSelectOption>
+              <NativeSelectOption value={KennelState.Planned}>Planned</NativeSelectOption>
+            </NativeSelect>
             <ErrorMessage message={stateError?.message} />
           </div>
         )}

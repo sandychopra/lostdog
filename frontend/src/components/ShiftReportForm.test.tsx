@@ -140,19 +140,19 @@ describe("ShiftReportForm", () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
-    await user.selectOptions(await screen.findByRole("combobox", { name: /add a cat entry/i }), [
+    await user.selectOptions(await screen.findByRole("combobox", { name: /add a cat/i }), [
       "cat:1",
     ]);
 
     expect(screen.queryByText("Free-fed")).not.toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Most" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("radio", { name: "Most" }).length).toBeGreaterThan(0);
   });
 
   test("group entry has no Water noted field", async () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
-    await user.selectOptions(await screen.findByRole("combobox", { name: /add a cat entry/i }), [
+    await user.selectOptions(await screen.findByRole("combobox", { name: /add a cat/i }), [
       "group:10",
     ]);
 
@@ -163,7 +163,7 @@ describe("ShiftReportForm", () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
-    const picker = await screen.findByRole("combobox", { name: /add a cat entry/i });
+    const picker = await screen.findByRole("combobox", { name: /add a cat/i });
     expect(within(picker).getByRole("option", { name: "Pepsi" })).toBeInTheDocument();
 
     await user.selectOptions(picker, ["cat:1"]);

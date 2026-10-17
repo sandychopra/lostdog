@@ -1,3 +1,4 @@
+import path from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -7,6 +8,11 @@ import { VitePWA } from "vite-plugin-pwa";
 // Manifest icons are intentionally omitted until the org provides logo assets (see docs/project-scope.md).
 export default defineConfig({
   envPrefix: "PUBLIC_",
+  resolve: {
+    alias: {
+      "@": path.resolve(import.meta.dirname, "src"),
+    },
+  },
   server: {
     port: 3000,
   },

@@ -1,3 +1,5 @@
+import { Checkbox } from "./ui/checkbox";
+
 interface CatOption {
   id: number;
   name: string;
@@ -28,12 +30,7 @@ export default function CatMultiSelect({
       {cats.length === 0 && <p className="text-sm text-muted-foreground">{emptyMessage}</p>}
       {cats.map((cat) => (
         <label key={cat.id} className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="h-4 w-4"
-            checked={selectedIds.includes(cat.id)}
-            onChange={() => toggle(cat.id)}
-          />
+          <Checkbox checked={selectedIds.includes(cat.id)} onCheckedChange={() => toggle(cat.id)} />
           {cat.name}
         </label>
       ))}

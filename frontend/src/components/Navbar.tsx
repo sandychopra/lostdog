@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router";
 import { Role } from "shared/constants/role.ts";
 import { authClient } from "../lib/auth-client";
+import { Button } from "./ui/button";
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -56,7 +57,9 @@ export default function Navbar() {
       </div>
       <div className="flex items-center gap-3">
         <span>{session?.user.name}</span>
-        <button onClick={handleSignOut}>Sign out</button>
+        <Button variant="ghost" size="sm" onClick={handleSignOut}>
+          Sign out
+        </Button>
       </div>
     </nav>
   );

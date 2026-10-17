@@ -9,15 +9,13 @@ import { api } from "../lib/api";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { NativeSelect, NativeSelectOption } from "./ui/native-select";
+import { Textarea } from "./ui/textarea";
+import { Card } from "./ui/card";
 import ErrorAlert from "./ErrorAlert";
 import ErrorMessage from "./ErrorMessage";
 import type { Cat } from "./CatsTable";
 import type { Kennel } from "./KennelsTable";
-
-const selectClassName =
-  "flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
-const textareaClassName =
-  "flex min-h-24 w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 interface TaskFormValues {
   actionType: ChecklistActionType;
@@ -87,7 +85,7 @@ function TaskFields({ form, index, kennels, occupants, onRemove }: TaskFieldsPro
   const errors = form.formState.errors.tasks?.[index];
 
   return (
-    <div className="space-y-2 rounded-md border border-input p-3">
+    <Card size="sm" className="gap-2 p-3 text-base">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-muted-foreground">Task {index + 1}</span>
         <Button
@@ -102,15 +100,20 @@ function TaskFields({ form, index, kennels, occupants, onRemove }: TaskFieldsPro
       </div>
       <div className="space-y-2">
         <Label htmlFor={`tasks.${index}.actionType`}>Type</Label>
-        <select
+        <NativeSelect
           id={`tasks.${index}.actionType`}
-          className={selectClassName}
           {...form.register(`tasks.${index}.actionType`)}
         >
-          <option value={ChecklistActionType.FreeText}>Text (just a checkbox)</option>
-          <option value={ChecklistActionType.ResetKennel}>Reset Kennel</option>
-          <option value={ChecklistActionType.MoveCat}>Move Cat/Group to Kennel</option>
-        </select>
+          <NativeSelectOption value={ChecklistActionType.FreeText}>
+            Text (just a checkbox)
+          </NativeSelectOption>
+          <NativeSelectOption value={ChecklistActionType.ResetKennel}>
+            Reset Kennel
+          </NativeSelectOption>
+          <NativeSelectOption value={ChecklistActionType.MoveCat}>
+            Move Cat/Group to Kennel
+          </NativeSelectOption>
+        </NativeSelect>
       </div>
       {actionType === ChecklistActionType.FreeText ? (
         <div className="space-y-2">
@@ -131,43 +134,41 @@ function TaskFields({ form, index, kennels, occupants, onRemove }: TaskFieldsPro
                 ? "Kennel to Reset"
                 : "Destination Kennel"}
             </Label>
-            <select
+            <NativeSelect
               id={`tasks.${index}.kennelId`}
-              className={selectClassName}
               aria-invalid={!!errors?.kennelId}
               {...form.register(`tasks.${index}.kennelId`)}
             >
-              <option value="">Select a kennel</option>
+              <NativeSelectOption value="">Select a kennel</NativeSelectOption>
               {kennels.map((k) => (
-                <option key={k.id} value={k.id}>
+                <NativeSelectOption key={k.id} value={k.id}>
                   Kennel {k.number}
-                </option>
+                </NativeSelectOption>
               ))}
-            </select>
+            </NativeSelect>
             <ErrorMessage message={errors?.kennelId?.message} />
           </div>
           {actionType === ChecklistActionType.MoveCat && (
             <div className="space-y-2">
               <Label htmlFor={`tasks.${index}.occupant`}>Cat or Group</Label>
-              <select
+              <NativeSelect
                 id={`tasks.${index}.occupant`}
-                className={selectClassName}
                 aria-invalid={!!errors?.occupant}
                 {...form.register(`tasks.${index}.occupant`)}
               >
-                <option value="">Select a cat or group</option>
+                <NativeSelectOption value="">Select a cat or group</NativeSelectOption>
                 {occupants.map((occupant) => (
-                  <option key={occupant.value} value={occupant.value}>
+                  <NativeSelectOption key={occupant.value} value={occupant.value}>
                     {occupant.label}
-                  </option>
+                  </NativeSelectOption>
                 ))}
-              </select>
+              </NativeSelect>
               <ErrorMessage message={errors?.occupant?.message} />
             </div>
           )}
         </>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -215,7 +216,14 @@ export default function AnnouncementForm({ announcement, onSuccess }: Announceme
   ];
 
   const form = useForm<AnnouncementFormValues>({
-    resolver: zodResolver(isEdit ? updateManualAnnouncementSchema : createAnnouncementFormSchema),
+    // Typed against the create schema (the full form shape). In edit mode the
+    // update schema validates only title/message — the edit branch of the
+    // mutation below never reads `tasks`.
+    resolver: zodResolver(
+      (isEdit
+        ? updateManualAnnouncementSchema
+        : createAnnouncementFormSchema) as typeof createAnnouncementFormSchema,
+    ),
     defaultValues: {
       title: announcement?.title ?? "",
       message: announcement?.message ?? "",
@@ -283,9 +291,9 @@ export default function AnnouncementForm({ announcement, onSuccess }: Announceme
         </div>
         <div className="space-y-2">
           <Label htmlFor="message">Message</Label>
-          <textarea
+          <Textarea
             id="message"
-            className={textareaClassName}
+            className="min-h-24"
             aria-invalid={!!form.formState.errors.message}
             {...form.register("message")}
           />

@@ -10,6 +10,7 @@ import ErrorAlert from "./ErrorAlert";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Skeleton } from "./ui/skeleton";
+import { Card } from "./ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,7 +43,7 @@ function CatEntrySummary({ entry }: { entry: CatEntry }) {
       : entry.group?.cats.map((c) => c.name).join(" / ");
 
   return (
-    <div className="space-y-2 rounded-md border border-input p-4">
+    <Card size="sm" className="gap-2 p-4 text-base">
       <div className="flex items-center gap-2">
         <span className="font-medium">{title}</span>
         <Badge variant="secondary">{entry.entryType}</Badge>
@@ -99,7 +100,7 @@ function CatEntrySummary({ entry }: { entry: CatEntry }) {
           ))}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -212,7 +213,7 @@ export default function ShiftReportDetailPage() {
             )}
 
             <section className="mt-6 space-y-3">
-              <h2 className="text-lg font-semibold">Cat Entries</h2>
+              <h2 className="text-lg font-semibold">Food &amp; Medical</h2>
               {report.catEntries.length === 0 && (
                 <p className="text-sm text-muted-foreground">No cat entries logged.</p>
               )}
@@ -225,12 +226,12 @@ export default function ShiftReportDetailPage() {
               <section className="mt-6 space-y-2">
                 <h2 className="text-lg font-semibold">Play Groups</h2>
                 {report.playGroups.map((playGroup) => (
-                  <div key={playGroup.id} className="rounded-md border border-input p-3 text-sm">
+                  <Card key={playGroup.id} size="sm" className="gap-0 p-3">
                     <p className="font-medium">
                       {playGroup.cats.map((c) => c.cat.name).join(", ")}
                     </p>
                     <p>{playGroup.note}</p>
-                  </div>
+                  </Card>
                 ))}
               </section>
             )}
@@ -239,10 +240,10 @@ export default function ShiftReportDetailPage() {
               <section className="mt-6 space-y-2">
                 <h2 className="text-lg font-semibold">Meet & Greets</h2>
                 {report.meetAndGreets.map((mg) => (
-                  <div key={mg.id} className="rounded-md border border-input p-3 text-sm">
+                  <Card key={mg.id} size="sm" className="gap-0 p-3">
                     <p className="font-medium">{mg.cats.map((c) => c.cat.name).join(", ")}</p>
                     <p>{mg.note}</p>
-                  </div>
+                  </Card>
                 ))}
               </section>
             )}

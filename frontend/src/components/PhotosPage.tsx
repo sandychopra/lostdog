@@ -15,6 +15,9 @@ import { formatReportDate, type ShiftReportPhoto } from "./ShiftReportsTable";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { Skeleton } from "./ui/skeleton";
+import { NativeSelect, NativeSelectOption } from "./ui/native-select";
+import { Checkbox } from "./ui/checkbox";
+import { Card } from "./ui/card";
 
 const PAGE_SIZE = 48;
 
@@ -37,7 +40,7 @@ function PhotoTile({
   const [downloadError, setDownloadError] = useState(false);
 
   return (
-    <div className="rounded-md border border-input p-2 text-xs">
+    <Card size="sm" className="gap-0 p-2 text-xs">
       <AuthenticatedImage
         photoId={photo.id}
         alt="Shift report photo"
@@ -90,7 +93,7 @@ function PhotoTile({
           onSaved={() => setEditing(false)}
         />
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -130,9 +133,9 @@ export default function PhotosPage() {
         <div className="mb-6 flex flex-wrap items-end gap-3">
           <div className="space-y-1">
             <Label htmlFor="photoCat">Cat</Label>
-            <select
+            <NativeSelect
               id="photoCat"
-              className="flex h-10 rounded-md border border-input bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              className="w-fit"
               value={catId}
               disabled={unassigned}
               onChange={(e) => {
@@ -140,21 +143,19 @@ export default function PhotosPage() {
                 setLimit(PAGE_SIZE);
               }}
             >
-              <option value="">All cats</option>
+              <NativeSelectOption value="">All cats</NativeSelectOption>
               {cats?.map((cat) => (
-                <option key={cat.id} value={cat.id}>
+                <NativeSelectOption key={cat.id} value={cat.id}>
                   {catOptionLabel(cat)}
-                </option>
+                </NativeSelectOption>
               ))}
-            </select>
+            </NativeSelect>
           </div>
           <label className="flex h-10 items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="h-4 w-4"
+            <Checkbox
               checked={unassigned}
-              onChange={(e) => {
-                setUnassigned(e.target.checked);
+              onCheckedChange={(checked) => {
+                setUnassigned(checked === true);
                 setLimit(PAGE_SIZE);
               }}
             />

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -17,13 +17,12 @@ import { toDateTimeInputValue } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { NativeSelect, NativeSelectOption } from "./ui/native-select";
+import { Checkbox } from "./ui/checkbox";
 import ErrorAlert from "./ErrorAlert";
 import ErrorMessage from "./ErrorMessage";
 import type { Cat } from "./CatsTable";
 import type { Kennel } from "./KennelsTable";
-
-const selectClassName =
-  "flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 const OTHER_COLOR = "__other__";
 
@@ -59,10 +58,15 @@ export default function CatForm({ cat, onSuccess }: CatFormProps) {
     (k) => (k.cats.length === 0 && k.groups.length === 0) || k.id === cat?.kennelId,
   );
 
-  const form = useForm<CreateCatInput | UpdateCatInput>({
+  // Typed against createCatSchema, whose fields are a superset of the update
+  // schemas' (kennelId is optional there), so one form type covers all three.
+  const form = useForm({
     resolver: zodResolver(
-      (isGrouped ? updateGroupedCatSchema : isEdit ? updateCatSchema : createCatSchema) as
-        typeof updateCatSchema | typeof createCatSchema,
+      (isGrouped
+        ? updateGroupedCatSchema
+        : isEdit
+          ? updateCatSchema
+          : createCatSchema) as typeof createCatSchema,
     ),
     defaultValues: {
       name: cat?.name ?? "",
@@ -74,9 +78,9 @@ export default function CatForm({ cat, onSuccess }: CatFormProps) {
       microchipNumber: cat?.microchipNumber ?? "",
       kennelId: cat?.kennelId ?? undefined,
       dewormerStatus: cat?.dewormerStatus ?? DewormerStatus.Due,
-      dewormerDueDate: toDateInputValue(cat?.dewormerDueDate) as unknown as Date | undefined,
+      dewormerDueDate: toDateInputValue(cat?.dewormerDueDate),
       needsProbiotic: cat?.needsProbiotic ?? false,
-      pickupAt: toDateTimeInputValue(cat?.pickupAt) as unknown as Date | undefined,
+      pickupAt: toDateTimeInputValue(cat?.pickupAt),
     },
   });
 
@@ -142,18 +146,17 @@ export default function CatForm({ cat, onSuccess }: CatFormProps) {
         </div>
         <div className="space-y-2">
           <Label htmlFor="sex">Sex</Label>
-          <select id="sex" className={selectClassName} {...form.register("sex")}>
-            <option value={CatSex.Male}>Male</option>
-            <option value={CatSex.Female}>Female</option>
-            <option value={CatSex.Unknown}>Unknown</option>
-          </select>
+          <NativeSelect id="sex" {...form.register("sex")}>
+            <NativeSelectOption value={CatSex.Male}>Male</NativeSelectOption>
+            <NativeSelectOption value={CatSex.Female}>Female</NativeSelectOption>
+            <NativeSelectOption value={CatSex.Unknown}>Unknown</NativeSelectOption>
+          </NativeSelect>
           <ErrorMessage message={form.formState.errors.sex?.message} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="colorPatternSelect">Color/Pattern</Label>
-          <select
+          <NativeSelect
             id="colorPatternSelect"
-            className={selectClassName}
             value={isOtherColor ? OTHER_COLOR : colorPattern}
             onChange={(e) => {
               if (e.target.value === OTHER_COLOR) {
@@ -165,14 +168,14 @@ export default function CatForm({ cat, onSuccess }: CatFormProps) {
               }
             }}
           >
-            <option value="">Select a color/pattern</option>
+            <NativeSelectOption value="">Select a color/pattern</NativeSelectOption>
             {CAT_COLOR_PATTERNS.map((pattern) => (
-              <option key={pattern} value={pattern}>
+              <NativeSelectOption key={pattern} value={pattern}>
                 {pattern}
-              </option>
+              </NativeSelectOption>
             ))}
-            <option value={OTHER_COLOR}>Other</option>
-          </select>
+            <NativeSelectOption value={OTHER_COLOR}>Other</NativeSelectOption>
+          </NativeSelect>
           {isOtherColor && (
             <Input
               placeholder="Describe the color/pattern"
@@ -199,32 +202,27 @@ export default function CatForm({ cat, onSuccess }: CatFormProps) {
         {!isGrouped && (
           <div className="space-y-2">
             <Label htmlFor="kennelId">Kennel{!isEdit ? " (optional)" : ""}</Label>
-            <select
+            <NativeSelect
               id="kennelId"
-              className={selectClassName}
               aria-invalid={!!form.formState.errors.kennelId}
               {...form.register("kennelId")}
             >
-              <option value="">Select a kennel</option>
+              <NativeSelectOption value="">Select a kennel</NativeSelectOption>
               {availableKennels.map((k) => (
-                <option key={k.id} value={k.id}>
+                <NativeSelectOption key={k.id} value={k.id}>
                   {k.number}
-                </option>
+                </NativeSelectOption>
               ))}
-            </select>
+            </NativeSelect>
             <ErrorMessage message={form.formState.errors.kennelId?.message} />
           </div>
         )}
         <div className="space-y-2">
           <Label htmlFor="dewormerStatus">Dewormer</Label>
-          <select
-            id="dewormerStatus"
-            className={selectClassName}
-            {...form.register("dewormerStatus")}
-          >
-            <option value={DewormerStatus.Due}>Due</option>
-            <option value={DewormerStatus.Given}>Given</option>
-          </select>
+          <NativeSelect id="dewormerStatus" {...form.register("dewormerStatus")}>
+            <NativeSelectOption value={DewormerStatus.Due}>Due</NativeSelectOption>
+            <NativeSelectOption value={DewormerStatus.Given}>Given</NativeSelectOption>
+          </NativeSelect>
           <ErrorMessage message={form.formState.errors.dewormerStatus?.message} />
         </div>
         <div className="space-y-2">
@@ -238,11 +236,18 @@ export default function CatForm({ cat, onSuccess }: CatFormProps) {
           <ErrorMessage message={form.formState.errors.dewormerDueDate?.message} />
         </div>
         <div className="flex items-center gap-2">
-          <input
-            id="needsProbiotic"
-            type="checkbox"
-            className="h-4 w-4"
-            {...form.register("needsProbiotic")}
+          <Controller
+            control={form.control}
+            name="needsProbiotic"
+            render={({ field }) => (
+              <Checkbox
+                id="needsProbiotic"
+                ref={field.ref}
+                checked={field.value === true}
+                onCheckedChange={(checked) => field.onChange(checked === true)}
+                onBlur={field.onBlur}
+              />
+            )}
           />
           <Label htmlFor="needsProbiotic">Needs Probiotic</Label>
         </div>

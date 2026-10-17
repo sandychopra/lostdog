@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import { Button } from "./ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 
 interface CollapsibleEntryCardProps {
   title: string;
@@ -13,7 +14,7 @@ interface CollapsibleEntryCardProps {
   children: ReactNode;
 }
 
-// Content stays mounted (hidden via CSS, not conditionally rendered) so a
+// Content stays mounted (forceMount, hidden via CSS rather than conditionally rendered) so a
 // collapsed entry's react-hook-form-registered fields keep their values
 // instead of being unmounted and silently dropped from the form state.
 export default function CollapsibleEntryCard({
@@ -29,7 +30,9 @@ export default function CollapsibleEntryCard({
   const nested = variant === "nested";
 
   return (
-    <div
+    <Collapsible
+      open={!collapsed}
+      onOpenChange={onToggleCollapsed}
       className={
         nested
           ? "space-y-2 rounded-md border border-input/60 bg-muted/30 p-3"
@@ -37,11 +40,7 @@ export default function CollapsibleEntryCard({
       }
     >
       <div className="flex items-center justify-between gap-2">
-        <button
-          type="button"
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
-          onClick={onToggleCollapsed}
-        >
+        <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 text-left">
           {collapsed ? (
             <ChevronRight className="h-4 w-4 shrink-0" />
           ) : (
@@ -55,7 +54,7 @@ export default function CollapsibleEntryCard({
           {collapsed && summary && (
             <span className="flex flex-wrap items-center gap-1">{summary}</span>
           )}
-        </button>
+        </CollapsibleTrigger>
         {onRemove && (
           <Button
             type="button"
@@ -68,7 +67,10 @@ export default function CollapsibleEntryCard({
           </Button>
         )}
       </div>
-      <div className={collapsed ? "hidden" : nested ? "space-y-2" : "space-y-3"}>
+      <CollapsibleContent
+        forceMount
+        className={collapsed ? "hidden" : nested ? "space-y-2" : "space-y-3"}
+      >
         {children}
         {onSave && (
           <div className="flex justify-end">
@@ -77,7 +79,7 @@ export default function CollapsibleEntryCard({
             </Button>
           </div>
         )}
-      </div>
-    </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
