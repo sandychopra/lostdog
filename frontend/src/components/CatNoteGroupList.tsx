@@ -3,7 +3,7 @@ import { useFieldArray, useWatch } from "react-hook-form";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
-import CatMultiSelect from "./CatMultiSelect";
+import CatMultiSelect, { type CatOption } from "./CatMultiSelect";
 import CollapsibleSection from "./CollapsibleSection";
 import CollapsibleEntryCard from "./CollapsibleEntryCard";
 import type { ShiftReportFormApi } from "../lib/shiftReportForm";
@@ -15,7 +15,7 @@ interface CatNoteGroupListProps {
   name: GroupFieldName;
   title: string;
   addLabel: string;
-  catOptions: { id: number; name: string }[];
+  catOptions: CatOption[];
   collapsed: boolean;
   onToggleCollapsed: () => void;
   isEdit: boolean;
@@ -37,7 +37,7 @@ function GroupCatIds({
   form: ShiftReportFormApi;
   name: GroupFieldName;
   index: number;
-  catOptions: { id: number; name: string }[];
+  catOptions: CatOption[];
 }) {
   const catIds =
     useWatch({ control: form.control, name: `${name}.${index}.catIds` as const }) ?? [];
@@ -64,7 +64,7 @@ function GroupEntry({
   form: ShiftReportFormApi;
   name: GroupFieldName;
   index: number;
-  catOptions: { id: number; name: string }[];
+  catOptions: CatOption[];
   collapsed: boolean;
   onToggleCollapsed: () => void;
   onRemove: () => void;
@@ -78,12 +78,18 @@ function GroupEntry({
       .map((cat) => cat.name)
       .join(" / ") || "New entry";
 
+  async function handleSave() {
+    const valid = await form.trigger(`${name}.${index}` as const);
+    if (valid) onToggleCollapsed();
+  }
+
   return (
     <CollapsibleEntryCard
       title={title}
       collapsed={collapsed}
       onToggleCollapsed={onToggleCollapsed}
       onRemove={onRemove}
+      onSave={handleSave}
     >
       <GroupCatIds form={form} name={name} index={index} catOptions={catOptions} />
       <Label htmlFor={`${name}.${index}.note`}>Note</Label>

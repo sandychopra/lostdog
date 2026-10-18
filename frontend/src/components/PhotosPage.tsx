@@ -7,6 +7,7 @@ import { api } from "../lib/api";
 import { authClient } from "../lib/auth-client";
 import { downloadFromApi } from "../lib/download";
 import { catOptionLabel, useCatOptions } from "../lib/useCatOptions";
+import type { CatOption } from "./CatMultiSelect";
 import AuthenticatedImage from "./AuthenticatedImage";
 import ErrorAlert from "./ErrorAlert";
 import Navbar from "./Navbar";
@@ -34,7 +35,7 @@ function PhotoTile({
   photo: BrowsePhoto;
   canEditTags: boolean;
   canDownload: boolean;
-  catOptions: { id: number; name: string }[];
+  catOptions: CatOption[];
 }) {
   const [editing, setEditing] = useState(false);
   const [downloadError, setDownloadError] = useState(false);

@@ -153,6 +153,11 @@ export default function GroupCatEntryFields({
     </>
   );
 
+  async function handleSave() {
+    const valid = await form.trigger(base);
+    if (valid) onToggleCollapsed();
+  }
+
   return (
     <CollapsibleEntryCard
       title={selectedGroup ? selectedGroup.cats.map((c) => c.name).join(" / ") : "Group Entry"}
@@ -160,6 +165,7 @@ export default function GroupCatEntryFields({
       collapsed={collapsed}
       onToggleCollapsed={onToggleCollapsed}
       onRemove={onRemove}
+      onSave={handleSave}
     >
       <input type="hidden" {...register(`${base}.groupId` as const)} />
 
