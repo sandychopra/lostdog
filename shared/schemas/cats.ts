@@ -1,8 +1,7 @@
 import { z } from "zod";
 import { CatSex } from "../constants/catSex.ts";
 import { DewormerStatus } from "../constants/dewormerStatus.ts";
-
-const emptyToUndefined = (val: unknown) => (val === "" ? undefined : val);
+import { emptyToUndefined } from "./helpers.ts";
 
 const catFieldsBase = {
   name: z.string().trim().min(1, "Name is required"),

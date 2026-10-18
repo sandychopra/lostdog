@@ -1,5 +1,6 @@
-import express from "express";
+import express, { type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
+import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { toNodeHandler } from "better-auth/node";
 import { auth } from "./lib/auth.ts";
@@ -23,6 +24,17 @@ const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
 const isProduction = process.env.NODE_ENV === "production";
 
+// Number of reverse-proxy hops in front of the app (e.g. 1 behind a platform
+// load balancer), so req.ip — and therefore rate limiting — sees the real
+// client. Never `true`: that trusts a client-supplied X-Forwarded-For.
+if (process.env.TRUST_PROXY_HOPS) {
+  app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS));
+}
+
+// The frontend is a different origin but the same site (localhost:3000 vs
+// :4000 in dev), and loads photos via fetch, so CORP "same-site" is enough.
+app.use(helmet({ crossOriginResourcePolicy: { policy: "same-site" } }));
+
 app.use(
   cors({
     origin: process.env.FRONTEND_URL!,
@@ -31,13 +43,16 @@ app.use(
   }),
 );
 
-const authLimiter = rateLimit({
+// Only sign-in attempts are brute-forceable; limiting all of /api/auth/* would
+// also count the get-session call the frontend makes on every page load.
+const signInLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 20,
   skip: () => !isProduction,
 });
 
-app.all("/api/auth/*splat", authLimiter, toNodeHandler(auth));
+app.use("/api/auth/sign-in", signInLimiter);
+app.all("/api/auth/*splat", toNodeHandler(auth));
 
 app.use(express.json());
 
@@ -77,6 +92,17 @@ app.get("/api/health", async (_req, res) => {
     console.error("Database health check failed:", error);
     res.status(503).json({ status: "error", database: "unreachable" });
   }
+});
+
+// Last resort for anything a route didn't handle (e.g. Prisma rejecting a NaN
+// id): log it, but never send stack traces or Prisma messages to the client.
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  console.error(err);
+  if (res.headersSent) {
+    res.destroy();
+    return;
+  }
+  res.status(500).json({ error: "Internal server error" });
 });
 
 app.listen(PORT, () => {

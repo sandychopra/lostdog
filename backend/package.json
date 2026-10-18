@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "start": "bun src/index.ts",
-    "seed": "bun prisma/seed.ts"
+    "seed": "bun prisma/seed.ts",
+    "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
@@ -16,6 +17,7 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "express-rate-limit": "^8.2.1",
+    "helmet": "^8.3.0",
     "multer": "^2.4.0",
     "prisma": "7.10.0",
     "shared": "workspace:*",

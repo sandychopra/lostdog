@@ -25,6 +25,10 @@ import {
 
 const router = Router();
 
+// Email-outbox bookkeeping (attempt count, raw SendGrid error) is internal and
+// never sent to clients.
+const outboxOmit = { emailAttempts: true, emailLastError: true } as const;
+
 const shiftReportInclude = {
   author: { select: { id: true, name: true } },
   catEntries: {
@@ -201,6 +205,7 @@ router.get("/", requireAuth, async (req, res: Response) => {
   const shiftReports = await prisma.shiftReport.findMany({
     where: and.length > 0 ? { AND: and } : {},
     include: shiftReportInclude,
+    omit: outboxOmit,
     orderBy: [{ date: "desc" }, { id: "desc" }],
     ...parsePaging(req.query),
   });
@@ -214,6 +219,7 @@ router.get("/:id", requireAuth, async (req, res: Response) => {
   const shiftReport = await prisma.shiftReport.findUnique({
     where: { id },
     include: shiftReportInclude,
+    omit: outboxOmit,
   });
   if (!shiftReport) {
     res.status(404).json({ error: "Shift report not found" });
@@ -273,6 +279,7 @@ router.post("/", requireAuth, async (req, res: Response) => {
     return tx.shiftReport.findUniqueOrThrow({
       where: { id: created.id },
       include: shiftReportInclude,
+      omit: outboxOmit,
     });
   });
 
@@ -461,6 +468,7 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
   const shiftReport = await prisma.shiftReport.findUniqueOrThrow({
     where: { id },
     include: shiftReportInclude,
+    omit: outboxOmit,
   });
 
   res.json({ shiftReport });

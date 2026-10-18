@@ -91,6 +91,9 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
       where: { userId: id, providerId: "credential" },
       data: { password: hashedPassword, updatedAt: new Date() },
     });
+    // A reset is often because the account was compromised; end every
+    // existing session so a stolen cookie stops working too.
+    await prisma.session.deleteMany({ where: { userId: id } });
   }
 
   const user = await prisma.user.findUnique({ where: { id }, select: userSelect });

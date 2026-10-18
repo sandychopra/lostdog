@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { CatStatus } from "../constants/catStatus.ts";
-
-const emptyToUndefined = <T>(val: T): T | undefined => (val === "" ? undefined : val);
+import { emptyToUndefined } from "./helpers.ts";
 
 // PickedUp is deliberately excluded — it's reachable only via Confirm Pickup
 // (a shift-report action), never a direct target of this Admin status-change endpoint.
