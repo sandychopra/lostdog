@@ -35,7 +35,15 @@ export default function LoginPage() {
   }
 
   const onSubmit = async (values: LoginFormValues) => {
-    const { error: signInError } = await authClient.signIn.email(values);
+    // A network failure (server down, flaky connection) throws instead of
+    // returning `error`, so catch it or the button silently resets.
+    let signInError;
+    try {
+      ({ error: signInError } = await authClient.signIn.email(values));
+    } catch {
+      setError("root", { message: "Can't reach the server — please try again." });
+      return;
+    }
 
     if (signInError) {
       setError("root", { message: signInError.message ?? "Unable to sign in." });

@@ -3,6 +3,7 @@ import { useFieldArray, useWatch } from "react-hook-form";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
+import ErrorMessage from "./ErrorMessage";
 import CatMultiSelect, { type CatOption } from "./CatMultiSelect";
 import CollapsibleSection from "./CollapsibleSection";
 import CollapsibleEntryCard from "./CollapsibleEntryCard";
@@ -24,6 +25,7 @@ interface CatNoteGroupListProps {
 export interface CatNoteGroupListHandle {
   collapseAll: () => void;
   expandAll: () => void;
+  expandEntries: (indices: number[]) => void;
 }
 
 // Meet & Greets and Play Groups are the exact same shape ({ id?, note, catIds
@@ -69,7 +71,8 @@ function GroupEntry({
   onToggleCollapsed: () => void;
   onRemove: () => void;
 }) {
-  const { register } = form;
+  const { register, formState } = form;
+  const errors = formState.errors[name]?.[index];
   const catIds =
     useWatch({ control: form.control, name: `${name}.${index}.catIds` as const }) ?? [];
   const title =
@@ -92,7 +95,8 @@ function GroupEntry({
       onSave={handleSave}
     >
       <GroupCatIds form={form} name={name} index={index} catOptions={catOptions} />
-      <Label htmlFor={`${name}.${index}.note`}>Note</Label>
+      <ErrorMessage message={errors?.catIds?.message ?? errors?.catIds?.root?.message} />
+      <Label htmlFor={`${name}.${index}.note`}>Note (optional)</Label>
       <Textarea
         id={`${name}.${index}.note`}
         className="min-h-16"
@@ -131,6 +135,15 @@ const CatNoteGroupList = forwardRef<CatNoteGroupListHandle, CatNoteGroupListProp
     useImperativeHandle(ref, () => ({
       collapseAll: () => setCollapsedIds(new Set(fieldArray.fields.map((field) => field.id))),
       expandAll: () => setCollapsedIds(new Set()),
+      expandEntries: (indices) =>
+        setCollapsedIds((prev) => {
+          const next = new Set(prev);
+          for (const i of indices) {
+            const id = fieldArray.fields[i]?.id;
+            if (id) next.delete(id);
+          }
+          return next;
+        }),
     }));
 
     return (

@@ -66,11 +66,14 @@ function resolveRequestedStatus(body: unknown): ShiftReportStatus {
     : ShiftReportStatus.Submitted;
 }
 
+// Optional fields are written as `?? null` everywhere: in a Prisma update,
+// `undefined` means "leave unchanged", so a field the volunteer cleared
+// would otherwise keep its old value.
 function detailFields(detail: GroupEntryCatDetailInput) {
   return {
-    wetFoodAmount: detail.wetFoodAmount,
-    foodNotes: detail.foodNotes,
-    medicalNotes: detail.medicalNotes,
+    wetFoodAmount: detail.wetFoodAmount ?? null,
+    foodNotes: detail.foodNotes ?? null,
+    medicalNotes: detail.medicalNotes ?? null,
   };
 }
 
@@ -83,11 +86,11 @@ function buildCatEntryCreate(
       catId: entry.catId,
       fecalScore: entry.fecalScore ?? null,
       pee: entry.pee,
-      peePoopNotes: entry.peePoopNotes,
-      dryFoodAmount: entry.dryFoodAmount,
-      wetFoodAmount: entry.wetFoodAmount,
-      foodNotes: entry.foodNotes,
-      medicalNotes: entry.medicalNotes,
+      peePoopNotes: entry.peePoopNotes ?? null,
+      dryFoodAmount: entry.dryFoodAmount ?? null,
+      wetFoodAmount: entry.wetFoodAmount ?? null,
+      foodNotes: entry.foodNotes ?? null,
+      medicalNotes: entry.medicalNotes ?? null,
     };
   }
 
@@ -96,9 +99,9 @@ function buildCatEntryCreate(
     groupId: entry.groupId,
     fecalScore: entry.fecalScore ?? null,
     pee: entry.pee,
-    peePoopNotes: entry.peePoopNotes,
-    dryFoodAmount: entry.dryFoodAmount,
-    foodNotes: entry.foodNotes,
+    peePoopNotes: entry.peePoopNotes ?? null,
+    dryFoodAmount: entry.dryFoodAmount ?? null,
+    foodNotes: entry.foodNotes ?? null,
     groupDetails: {
       create: entry.catDetails.map((detail) => ({
         catId: detail.catId,
@@ -250,10 +253,10 @@ router.post("/", requireAuth, async (req, res: Response) => {
         splitShiftPosition: data.splitShiftPosition ?? null,
         status: requestedStatus,
         submittedAt: requestedStatus === ShiftReportStatus.Submitted ? new Date() : null,
-        cleaningNotes: data.cleaningNotes,
-        suppliesNotes: data.suppliesNotes,
-        kennelNotes: data.kennelNotes,
-        otherNotes: data.otherNotes,
+        cleaningNotes: data.cleaningNotes ?? null,
+        suppliesNotes: data.suppliesNotes ?? null,
+        kennelNotes: data.kennelNotes ?? null,
+        otherNotes: data.otherNotes ?? null,
         catEntries: { create: data.catEntries.map(buildCatEntryCreate) },
         meetAndGreets: {
           create: data.meetAndGreets.map((meetAndGreet) => ({
@@ -364,11 +367,11 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
               catId: entry.catId,
               fecalScore: entry.fecalScore ?? null,
               pee: entry.pee,
-              peePoopNotes: entry.peePoopNotes,
-              dryFoodAmount: entry.dryFoodAmount,
-              wetFoodAmount: entry.wetFoodAmount,
-              foodNotes: entry.foodNotes,
-              medicalNotes: entry.medicalNotes,
+              peePoopNotes: entry.peePoopNotes ?? null,
+              dryFoodAmount: entry.dryFoodAmount ?? null,
+              wetFoodAmount: entry.wetFoodAmount ?? null,
+              foodNotes: entry.foodNotes ?? null,
+              medicalNotes: entry.medicalNotes ?? null,
             },
           });
           continue;
@@ -380,9 +383,9 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
             groupId: entry.groupId,
             fecalScore: entry.fecalScore ?? null,
             pee: entry.pee,
-            peePoopNotes: entry.peePoopNotes,
-            dryFoodAmount: entry.dryFoodAmount,
-            foodNotes: entry.foodNotes,
+            peePoopNotes: entry.peePoopNotes ?? null,
+            dryFoodAmount: entry.dryFoodAmount ?? null,
+            foodNotes: entry.foodNotes ?? null,
           },
         });
 
@@ -455,10 +458,10 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
             effectiveStatus === ShiftReportStatus.Submitted
               ? (existing.submittedAt ?? new Date())
               : null,
-          cleaningNotes: data.cleaningNotes,
-          suppliesNotes: data.suppliesNotes,
-          kennelNotes: data.kennelNotes,
-          otherNotes: data.otherNotes,
+          cleaningNotes: data.cleaningNotes ?? null,
+          suppliesNotes: data.suppliesNotes ?? null,
+          kennelNotes: data.kennelNotes ?? null,
+          otherNotes: data.otherNotes ?? null,
         },
       });
     },

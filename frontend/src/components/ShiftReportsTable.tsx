@@ -55,13 +55,13 @@ export interface CatEntry {
 
 export interface MeetAndGreet {
   id: number;
-  note: string;
+  note: string | null;
   cats: { catId: number; cat: { id: number; name: string } }[];
 }
 
 export interface PlayGroup {
   id: number;
-  note: string;
+  note: string | null;
   cats: { catId: number; cat: { id: number; name: string } }[];
 }
 

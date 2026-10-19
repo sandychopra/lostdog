@@ -245,13 +245,13 @@ export function renderShiftReportEmail(report: ShiftReportForEmail): EmailMessag
   if (report.meetAndGreets.length > 0) {
     lines.push("", "Meet & greets:");
     for (const mg of report.meetAndGreets) {
-      lines.push(`- ${names(mg.cats.map((c) => c.cat))}: ${mg.note}`);
+      lines.push(`- ${names(mg.cats.map((c) => c.cat))}${mg.note ? `: ${mg.note}` : ""}`);
     }
   }
   if (report.playGroups.length > 0) {
     lines.push("", "Play groups:");
     for (const pg of report.playGroups) {
-      lines.push(`- ${names(pg.cats.map((c) => c.cat))}: ${pg.note}`);
+      lines.push(`- ${names(pg.cats.map((c) => c.cat))}${pg.note ? `: ${pg.note}` : ""}`);
     }
   }
 
