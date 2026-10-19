@@ -1,17 +1,16 @@
-import { useForm, useWatch } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createGroupSchema, type CreateGroupInput } from "shared/schemas/groups.ts";
 import { api } from "../lib/api";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
+import { NativeSelect, NativeSelectOption } from "./ui/native-select";
+import { Checkbox } from "./ui/checkbox";
 import ErrorAlert from "./ErrorAlert";
 import ErrorMessage from "./ErrorMessage";
 import type { Cat } from "./CatsTable";
 import type { Kennel } from "./KennelsTable";
-
-const selectClassName =
-  "flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 interface CreateGroupFormProps {
   onSuccess: () => void;
@@ -38,7 +37,7 @@ export default function CreateGroupForm({ onSuccess }: CreateGroupFormProps) {
 
   const eligibleCats = (cats ?? []).filter((c) => c.groupId === null);
 
-  const form = useForm<CreateGroupInput>({
+  const form = useForm({
     resolver: zodResolver(createGroupSchema),
     defaultValues: { catIds: [], kennelId: undefined, bonded: false },
   });
@@ -91,11 +90,9 @@ export default function CreateGroupForm({ onSuccess }: CreateGroupFormProps) {
             )}
             {eligibleCats.map((cat) => (
               <label key={cat.id} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4"
+                <Checkbox
                   checked={catIds.includes(cat.id)}
-                  onChange={() => toggleCat(cat.id)}
+                  onCheckedChange={() => toggleCat(cat.id)}
                 />
                 {cat.name}
               </label>
@@ -105,28 +102,34 @@ export default function CreateGroupForm({ onSuccess }: CreateGroupFormProps) {
         </div>
         <div className="space-y-2">
           <Label htmlFor="kennelId">Kennel</Label>
-          <select
+          <NativeSelect
             id="kennelId"
-            className={selectClassName}
             aria-invalid={!!form.formState.errors.kennelId}
             {...form.register("kennelId")}
           >
-            <option value="">Select a kennel</option>
+            <NativeSelectOption value="">Select a kennel</NativeSelectOption>
             {availableKennels.map((k) => (
-              <option key={k.id} value={k.id}>
+              <NativeSelectOption key={k.id} value={k.id}>
                 {k.number}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
           <ErrorMessage message={form.formState.errors.kennelId?.message} />
         </div>
         <div className="flex items-center gap-2">
-          <input
-            id="bonded"
-            type="checkbox"
-            className="h-4 w-4"
-            disabled={catIds.length !== 2}
-            {...form.register("bonded")}
+          <Controller
+            control={form.control}
+            name="bonded"
+            render={({ field }) => (
+              <Checkbox
+                id="bonded"
+                ref={field.ref}
+                checked={field.value === true}
+                onCheckedChange={(checked) => field.onChange(checked === true)}
+                onBlur={field.onBlur}
+                disabled={catIds.length !== 2}
+              />
+            )}
           />
           <Label htmlFor="bonded">Bonded pair (only settable for exactly 2 cats)</Label>
         </div>

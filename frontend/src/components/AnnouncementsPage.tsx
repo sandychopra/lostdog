@@ -23,6 +23,10 @@ import {
 } from "./ui/table";
 import { Skeleton } from "./ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Textarea } from "./ui/textarea";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
+import { Checkbox } from "./ui/checkbox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -328,15 +332,14 @@ function ActionRow({
           N/A
         </Badge>
       ) : (
-        <input
-          type="checkbox"
-          className="mt-0.5 h-4 w-4 shrink-0 disabled:cursor-not-allowed"
+        <Checkbox
+          className="mt-0.5 shrink-0"
           checked={checked}
           disabled={isBusy || (checked ? !canUncheck : !action.enabled)}
           title={
             !action.enabled && action.status === "open" ? "Complete earlier steps first" : undefined
           }
-          onChange={() => {
+          onCheckedChange={() => {
             if (isBusy) return;
             if (checked) {
               if (canUncheck) onUncomplete();
@@ -396,20 +399,16 @@ function ProbioticStatus({
         </div>
       )}
       {announcement.doses.length > 0 && (
-        <div className="mt-2">
-          <button
-            type="button"
-            className="flex items-center gap-1 text-sm font-medium"
-            onClick={onToggle}
-          >
+        <Collapsible open={!collapsed} onOpenChange={onToggle} className="mt-2">
+          <CollapsibleTrigger className="flex items-center gap-1 text-sm font-medium">
             {collapsed ? (
               <ChevronRight className="h-3.5 w-3.5" />
             ) : (
               <ChevronDown className="h-3.5 w-3.5" />
             )}
             {announcement.doses.length} dose{announcement.doses.length === 1 ? "" : "s"} logged
-          </button>
-          {!collapsed && (
+          </CollapsibleTrigger>
+          <CollapsibleContent asChild>
             <ul className="mt-1 flex flex-col gap-0.5 text-xs text-muted-foreground">
               {announcement.doses.map((dose, index) => (
                 <li key={index}>
@@ -417,8 +416,8 @@ function ProbioticStatus({
                 </li>
               ))}
             </ul>
-          )}
-        </div>
+          </CollapsibleContent>
+        </Collapsible>
       )}
     </div>
   );
@@ -715,30 +714,28 @@ export default function AnnouncementsPage() {
         <div className="mb-6 flex flex-wrap items-end gap-4">
           <div className="space-y-1">
             <Label htmlFor="dateFrom">From</Label>
-            <input
+            <Input
               id="dateFrom"
               type="date"
-              className="flex h-10 rounded-md border border-input bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="w-auto"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
             />
           </div>
           <div className="space-y-1">
             <Label htmlFor="dateTo">To</Label>
-            <input
+            <Input
               id="dateTo"
               type="date"
-              className="flex h-10 rounded-md border border-input bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="w-auto"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
             />
           </div>
           <label className="flex h-10 items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="h-4 w-4"
+            <Checkbox
               checked={activeOnly}
-              onChange={(e) => setActiveOnly(e.target.checked)}
+              onCheckedChange={(checked) => setActiveOnly(checked === true)}
             />
             Active only
           </label>
@@ -853,34 +850,31 @@ export default function AnnouncementsPage() {
                                 (a) => a.status === "done",
                               ).length;
                               return (
-                                <div>
-                                  <button
-                                    type="button"
-                                    className="flex items-center gap-1 text-sm font-medium"
-                                    onClick={() => toggleCollapsed(announcement.id)}
-                                  >
+                                <Collapsible
+                                  open={!collapsed}
+                                  onOpenChange={() => toggleCollapsed(announcement.id)}
+                                >
+                                  <CollapsibleTrigger className="flex items-center gap-1 text-sm font-medium">
                                     {collapsed ? (
                                       <ChevronRight className="h-3.5 w-3.5" />
                                     ) : (
                                       <ChevronDown className="h-3.5 w-3.5" />
                                     )}
                                     {doneCount} of {subActions.length} steps done
-                                  </button>
-                                  {!collapsed && (
-                                    <div className="mt-2 flex flex-col gap-2">
-                                      {subActions.map((action) => (
-                                        <ActionRow
-                                          key={`${action.kind}-${action.id}`}
-                                          action={action}
-                                          isBusy={isBusy(action.kind, action.id)}
-                                          onComplete={() => triggerComplete(action)}
-                                          onUncomplete={() => triggerUncomplete(action)}
-                                          error={uncompleteErrorFor(action.kind, action.id)}
-                                        />
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
+                                  </CollapsibleTrigger>
+                                  <CollapsibleContent className="mt-2 flex flex-col gap-2">
+                                    {subActions.map((action) => (
+                                      <ActionRow
+                                        key={`${action.kind}-${action.id}`}
+                                        action={action}
+                                        isBusy={isBusy(action.kind, action.id)}
+                                        onComplete={() => triggerComplete(action)}
+                                        onUncomplete={() => triggerUncomplete(action)}
+                                        error={uncompleteErrorFor(action.kind, action.id)}
+                                      />
+                                    ))}
+                                  </CollapsibleContent>
+                                </Collapsible>
                               );
                             })()
                           ) : (
@@ -924,8 +918,8 @@ export default function AnnouncementsPage() {
                         <TableCell>
                           {isCommenting ? (
                             <div className="space-y-1">
-                              <textarea
-                                className="flex min-h-16 w-full rounded-md border border-input bg-white px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              <Textarea
+                                className="min-h-16 px-2 py-1"
                                 value={commentDraft}
                                 onChange={(e) => setCommentDraft(e.target.value)}
                               />

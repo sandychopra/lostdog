@@ -1,23 +1,21 @@
 import { forwardRef, useImperativeHandle, useState } from "react";
-import { useFieldArray, useWatch, type UseFormReturn } from "react-hook-form";
-import type { CreateShiftReportInput } from "shared/schemas/shiftReports.ts";
+import { useFieldArray, useWatch } from "react-hook-form";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
-import CatMultiSelect from "./CatMultiSelect";
+import { Textarea } from "./ui/textarea";
+import CatMultiSelect, { type CatOption } from "./CatMultiSelect";
 import CollapsibleSection from "./CollapsibleSection";
 import CollapsibleEntryCard from "./CollapsibleEntryCard";
-
-const textareaClassName =
-  "flex min-h-16 w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
+import type { ShiftReportFormApi } from "../lib/shiftReportForm";
 
 type GroupFieldName = "meetAndGreets" | "playGroups";
 
 interface CatNoteGroupListProps {
-  form: UseFormReturn<CreateShiftReportInput>;
+  form: ShiftReportFormApi;
   name: GroupFieldName;
   title: string;
   addLabel: string;
-  catOptions: { id: number; name: string }[];
+  catOptions: CatOption[];
   collapsed: boolean;
   onToggleCollapsed: () => void;
   isEdit: boolean;
@@ -36,10 +34,10 @@ function GroupCatIds({
   index,
   catOptions,
 }: {
-  form: UseFormReturn<CreateShiftReportInput>;
+  form: ShiftReportFormApi;
   name: GroupFieldName;
   index: number;
-  catOptions: { id: number; name: string }[];
+  catOptions: CatOption[];
 }) {
   const catIds =
     useWatch({ control: form.control, name: `${name}.${index}.catIds` as const }) ?? [];
@@ -63,10 +61,10 @@ function GroupEntry({
   onToggleCollapsed,
   onRemove,
 }: {
-  form: UseFormReturn<CreateShiftReportInput>;
+  form: ShiftReportFormApi;
   name: GroupFieldName;
   index: number;
-  catOptions: { id: number; name: string }[];
+  catOptions: CatOption[];
   collapsed: boolean;
   onToggleCollapsed: () => void;
   onRemove: () => void;
@@ -80,18 +78,24 @@ function GroupEntry({
       .map((cat) => cat.name)
       .join(" / ") || "New entry";
 
+  async function handleSave() {
+    const valid = await form.trigger(`${name}.${index}` as const);
+    if (valid) onToggleCollapsed();
+  }
+
   return (
     <CollapsibleEntryCard
       title={title}
       collapsed={collapsed}
       onToggleCollapsed={onToggleCollapsed}
       onRemove={onRemove}
+      onSave={handleSave}
     >
       <GroupCatIds form={form} name={name} index={index} catOptions={catOptions} />
       <Label htmlFor={`${name}.${index}.note`}>Note</Label>
-      <textarea
+      <Textarea
         id={`${name}.${index}.note`}
-        className={textareaClassName}
+        className="min-h-16"
         {...register(`${name}.${index}.note` as const)}
       />
     </CollapsibleEntryCard>

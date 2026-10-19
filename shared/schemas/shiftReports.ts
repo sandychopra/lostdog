@@ -4,8 +4,7 @@ import { CatEntryType } from "../constants/catEntryType.ts";
 import { FoodAmount } from "../constants/foodAmount.ts";
 import { SplitShiftPosition } from "../constants/splitShiftPosition.ts";
 import { ReportableKennelState } from "../constants/kennelState.ts";
-
-const emptyToUndefined = <T>(val: T): T | undefined => (val === "" ? undefined : val);
+import { emptyToUndefined } from "./helpers.ts";
 
 const distinctCatIds = (message: string) =>
   z

@@ -1,24 +1,23 @@
 import { useState } from "react";
-import { useFieldArray, useWatch, type UseFormReturn } from "react-hook-form";
-import type { CreateShiftReportInput } from "shared/schemas/shiftReports.ts";
+import { Controller, useFieldArray, useWatch } from "react-hook-form";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
+import { Textarea } from "./ui/textarea";
+import { Checkbox } from "./ui/checkbox";
 import FoodAmountPicker from "./FoodAmountPicker";
 import FecalScorePicker from "./FecalScorePicker";
 import CollapsibleEntryCard from "./CollapsibleEntryCard";
 import type { Cat } from "./CatsTable";
 import type { Kennel } from "./KennelsTable";
+import type { ShiftReportFormApi } from "../lib/shiftReportForm";
 
 // Per-cat detail rows default collapsed when there are more than this many,
 // matching the top-level entry threshold in ShiftReportForm.tsx.
 const AUTO_COLLAPSE_THRESHOLD = 3;
 
-const textareaClassName =
-  "flex min-h-16 w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
-
 interface GroupCatEntryFieldsProps {
-  form: UseFormReturn<CreateShiftReportInput>;
+  form: ShiftReportFormApi;
   index: number;
   cats: Cat[];
   kennels: Kennel[];
@@ -35,7 +34,7 @@ function GroupCatDetailFields({
   collapsed,
   onToggleCollapsed,
 }: {
-  form: UseFormReturn<CreateShiftReportInput>;
+  form: ShiftReportFormApi;
   entryIndex: number;
   detailIndex: number;
   cat: Cat;
@@ -67,6 +66,7 @@ function GroupCatDetailFields({
       <div className="space-y-1">
         <Label>Wet Food</Label>
         <FoodAmountPicker
+          aria-label="Wet food amount"
           value={wetFoodAmount}
           onChange={(v) => setValue(`${base}.wetFoodAmount` as const, v, { shouldValidate: true })}
         />
@@ -77,9 +77,9 @@ function GroupCatDetailFields({
       </div>
       <div className="space-y-1">
         <Label htmlFor={`${base}.medicalNotes`}>Medical Notes</Label>
-        <textarea
+        <Textarea
           id={`${base}.medicalNotes`}
-          className={textareaClassName}
+          className="min-h-16"
           {...register(`${base}.medicalNotes` as const)}
         />
       </div>
@@ -153,6 +153,11 @@ export default function GroupCatEntryFields({
     </>
   );
 
+  async function handleSave() {
+    const valid = await form.trigger(base);
+    if (valid) onToggleCollapsed();
+  }
+
   return (
     <CollapsibleEntryCard
       title={selectedGroup ? selectedGroup.cats.map((c) => c.name).join(" / ") : "Group Entry"}
@@ -160,14 +165,9 @@ export default function GroupCatEntryFields({
       collapsed={collapsed}
       onToggleCollapsed={onToggleCollapsed}
       onRemove={onRemove}
+      onSave={handleSave}
     >
-      <div className="space-y-2">
-        <Label>Group</Label>
-        <p className="text-sm font-medium">
-          {selectedGroup ? selectedGroup.cats.map((c) => c.name).join(" / ") : "—"}
-        </p>
-        <input type="hidden" {...register(`${base}.groupId` as const)} />
-      </div>
+      <input type="hidden" {...register(`${base}.groupId` as const)} />
 
       <div className="space-y-2">
         <Label>Fecal Score (shared)</Label>
@@ -178,20 +178,27 @@ export default function GroupCatEntryFields({
       </div>
 
       <div className="flex items-center gap-2">
-        <input
-          id={`${base}.pee`}
-          type="checkbox"
-          className="h-4 w-4"
-          {...register(`${base}.pee` as const)}
+        <Controller
+          control={control}
+          name={`${base}.pee` as const}
+          render={({ field }) => (
+            <Checkbox
+              id={`${base}.pee`}
+              ref={field.ref}
+              checked={field.value === true}
+              onCheckedChange={(checked) => field.onChange(checked === true)}
+              onBlur={field.onBlur}
+            />
+          )}
         />
         <Label htmlFor={`${base}.pee`}>Pee observed (shared)</Label>
       </div>
 
       <div className="space-y-2">
         <Label htmlFor={`${base}.peePoopNotes`}>Pee/Poop Notes (shared)</Label>
-        <textarea
+        <Textarea
           id={`${base}.peePoopNotes`}
-          className={textareaClassName}
+          className="min-h-16"
           {...register(`${base}.peePoopNotes` as const)}
         />
       </div>
@@ -199,6 +206,7 @@ export default function GroupCatEntryFields({
       <div className="space-y-2">
         <Label>Dry Food (shared)</Label>
         <FoodAmountPicker
+          aria-label="Dry food amount"
           value={dryFoodAmount}
           onChange={(v) => setValue(`${base}.dryFoodAmount` as const, v, { shouldValidate: true })}
         />
@@ -206,9 +214,9 @@ export default function GroupCatEntryFields({
 
       <div className="space-y-2">
         <Label htmlFor={`${base}.foodNotes`}>Food Notes (shared)</Label>
-        <textarea
+        <Textarea
           id={`${base}.foodNotes`}
-          className={textareaClassName}
+          className="min-h-16"
           {...register(`${base}.foodNotes` as const)}
         />
       </div>

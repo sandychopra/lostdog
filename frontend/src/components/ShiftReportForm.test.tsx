@@ -140,19 +140,19 @@ describe("ShiftReportForm", () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
-    await user.selectOptions(await screen.findByRole("combobox", { name: /add a cat entry/i }), [
+    await user.selectOptions(await screen.findByRole("combobox", { name: /add a cat/i }), [
       "cat:1",
     ]);
 
     expect(screen.queryByText("Free-fed")).not.toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Most" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("radio", { name: "Most" }).length).toBeGreaterThan(0);
   });
 
   test("group entry has no Water noted field", async () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
-    await user.selectOptions(await screen.findByRole("combobox", { name: /add a cat entry/i }), [
+    await user.selectOptions(await screen.findByRole("combobox", { name: /add a cat/i }), [
       "group:10",
     ]);
 
@@ -163,12 +163,50 @@ describe("ShiftReportForm", () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
-    const picker = await screen.findByRole("combobox", { name: /add a cat entry/i });
+    const picker = await screen.findByRole("combobox", { name: /add a cat/i });
     expect(within(picker).getByRole("option", { name: "Pepsi" })).toBeInTheDocument();
 
     await user.selectOptions(picker, ["cat:1"]);
 
     expect(within(picker).queryByRole("option", { name: "Pepsi" })).not.toBeInTheDocument();
+  });
+
+  test("play group entry collapses via its Collapse button once it's valid", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+
+    await user.click(await screen.findByRole("button", { name: "Add Play Group" }));
+    const section = document.getElementById("section-playGroups")!;
+    const trigger = within(section).getByRole("button", { name: "New entry" });
+
+    // Note is still empty: validation fails, so the entry stays open.
+    await user.click(within(section).getByRole("button", { name: "Collapse" }));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+
+    await user.type(within(section).getByLabelText("Note"), "Played nicely");
+    await user.click(within(section).getByRole("button", { name: "Collapse" }));
+
+    await waitFor(() => expect(trigger.getAttribute("aria-expanded")).toBe("false"));
+  });
+
+  test("play group cats are picked by search and shown as removable chips", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+
+    await user.click(await screen.findByRole("button", { name: "Add Play Group" }));
+    const section = document.getElementById("section-playGroups")!;
+
+    await user.click(within(section).getByRole("button", { name: "Add cat" }));
+    await user.type(await screen.findByPlaceholderText("Search cats…"), "pep");
+    // Scoped to the popover's list: the add-entry <select> has cat <option>s too.
+    const list = screen.getByRole("listbox");
+    expect(within(list).queryByRole("option", { name: "Sprite" })).toBeNull();
+    await user.click(within(list).getByRole("option", { name: "Pepsi" }));
+
+    const remove = await within(section).findByRole("button", { name: "Remove Pepsi" });
+    await user.click(remove);
+    expect(within(section).queryByRole("button", { name: "Remove Pepsi" })).toBeNull();
   });
 
   test("has a Kennel Notes field after Kennel Status", () => {

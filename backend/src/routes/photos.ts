@@ -1,5 +1,7 @@
 import { Router, type Response } from "express";
 import multer from "multer";
+import rateLimit from "express-rate-limit";
+import type { Readable } from "node:stream";
 import { updatePhotoTagsSchema } from "shared/schemas/photos.ts";
 import { CatEntryType } from "shared/constants/catEntryType.ts";
 import { Role } from "shared/constants/role.ts";
@@ -11,6 +13,7 @@ import { ZipArchive } from "archiver";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { buildPhotoFilename, uniqueFilename } from "../lib/photoFilename.ts";
 import { parseIdParam, parsePaging, submittedOnly } from "../lib/reportQueries.ts";
+import { detectImageType, isAllowedImageType } from "../lib/imageType.ts";
 import type { Prisma } from "../generated/prisma/client.ts";
 
 const router = Router();
@@ -22,6 +25,32 @@ const upload = multer({
     cb(null, file.mimetype.startsWith("image/"));
   },
 });
+
+// Per-user, not per-IP: uploads are authenticated, and volunteers on a shared
+// shelter connection would otherwise share one bucket.
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 200,
+  keyGenerator: (req) => (req as AuthedRequest).session.user.id,
+});
+
+// Stored files are served from the API origin, so a script-capable type (SVG,
+// HTML) opened directly would run with the viewer's session. Uploads are
+// sniffed on the way in; this also neutralizes anything stored before that.
+function sendPhotoFile(
+  res: Response,
+  file: { stream: Readable; contentType: string },
+  disposition: string,
+) {
+  res.setHeader(
+    "Content-Type",
+    isAllowedImageType(file.contentType) ? file.contentType : "application/octet-stream",
+  );
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Content-Security-Policy", "default-src 'none'; sandbox");
+  res.setHeader("Content-Disposition", disposition);
+  file.stream.pipe(res);
+}
 
 const photoInclude = {
   tags: { include: { cat: { select: { id: true, name: true } } } },
@@ -47,11 +76,19 @@ function buildStorageKey(shiftReportId: number, originalName: string): string {
 // Multipart fields arrive as plain strings, so this route validates by hand
 // (shape-checking req.body/req.file) rather than through the shared `validate`
 // helper, which is built around zod-parsing a JSON body.
-router.post("/", requireAuth, upload.single("photo"), async (req, res: Response) => {
+router.post("/", requireAuth, uploadLimiter, upload.single("photo"), async (req, res: Response) => {
   if (!req.file) {
     res.status(400).json({ error: "No photo file uploaded" });
     return;
   }
+
+  const contentType = detectImageType(req.file.buffer);
+  if (!contentType) {
+    res.status(415).json({ error: "Photo must be a JPEG, PNG, GIF, WebP, or HEIC image" });
+    return;
+  }
+
+  const session = (req as AuthedRequest).session;
 
   const shiftReportId = Number(req.body.shiftReportId);
   if (!Number.isInteger(shiftReportId) || shiftReportId <= 0) {
@@ -62,6 +99,10 @@ router.post("/", requireAuth, upload.single("photo"), async (req, res: Response)
   const shiftReport = await prisma.shiftReport.findUnique({ where: { id: shiftReportId } });
   if (!shiftReport) {
     res.status(404).json({ error: "Shift report not found" });
+    return;
+  }
+  if (shiftReport.authorId !== session.user.id && session.user.role !== Role.Admin) {
+    res.status(403).json({ error: "Only the report's author or an Admin can add photos to it" });
     return;
   }
 
@@ -99,9 +140,9 @@ router.post("/", requireAuth, upload.single("photo"), async (req, res: Response)
   }
 
   const key = buildStorageKey(shiftReportId, req.file.originalname);
-  await storage.put(key, req.file.buffer, req.file.mimetype);
+  await storage.put(key, req.file.buffer, contentType);
 
-  const uploadedById = (req as AuthedRequest).session.user.id;
+  const uploadedById = session.user.id;
 
   const photo = await prisma.photo.create({
     data: {
@@ -217,9 +258,7 @@ router.get("/:id/download", requireAuth, requireAdmin, async (req, res: Response
     catNames: photo.tags.map((t) => t.cat.name),
     storageKey: photo.storageKey,
   });
-  res.setHeader("Content-Type", file.contentType);
-  res.setHeader("Content-Disposition", `attachment; filename="${name}"`);
-  file.stream.pipe(res);
+  sendPhotoFile(res, file, `attachment; filename="${name}"`);
 });
 
 router.get("/:id/file", requireAuth, async (req, res: Response) => {
@@ -237,8 +276,7 @@ router.get("/:id/file", requireAuth, async (req, res: Response) => {
     return;
   }
 
-  res.setHeader("Content-Type", file.contentType);
-  file.stream.pipe(res);
+  sendPhotoFile(res, file, "inline");
 });
 
 router.put("/:id/tags", requireAuth, async (req, res: Response) => {

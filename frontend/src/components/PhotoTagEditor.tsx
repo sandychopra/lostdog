@@ -2,12 +2,12 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { Button } from "./ui/button";
-import CatMultiSelect from "./CatMultiSelect";
+import CatMultiSelect, { type CatOption } from "./CatMultiSelect";
 
 interface PhotoTagEditorProps {
   photoId: number;
   initialCatIds: number[];
-  catOptions: { id: number; name: string }[];
+  catOptions: CatOption[];
   onSaved?: () => void;
 }
 

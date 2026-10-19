@@ -1,7 +1,8 @@
-import { Router, type Response } from "express";
+import { Router, type Request, type Response } from "express";
 import { createCatSchema, updateCatSchema, updateGroupedCatSchema } from "shared/schemas/cats.ts";
 import { changeCatStatusSchema, returnToRccSchema } from "shared/schemas/catStatus.ts";
 import { DewormerStatus } from "shared/constants/dewormerStatus.ts";
+import { Role } from "shared/constants/role.ts";
 import { ActivityAction, ActivityEntityType } from "shared/constants/activityLog.ts";
 import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
@@ -26,6 +27,17 @@ import {
 } from "../lib/medicalAlerts.ts";
 
 const router = Router();
+
+// The Returned-to-RCC reason is Admin-only (volunteers just see that the kennel
+// needs a reset), so strip it from any cat a non-Admin can fetch.
+function forViewer<T extends { inactiveReason: string | null }>(
+  cat: T,
+  req: Request,
+): Omit<T, "inactiveReason"> | T {
+  if ((req as AuthedRequest).session.user.role === Role.Admin) return cat;
+  const { inactiveReason: _hidden, ...rest } = cat;
+  return rest;
+}
 
 const catInclude = {
   kennel: { select: { id: true, number: true } },
@@ -73,7 +85,7 @@ router.get("/", requireAuth, async (req, res: Response) => {
     orderBy: { name: "asc" },
   });
 
-  res.json({ cats });
+  res.json({ cats: cats.map((cat) => forViewer(cat, req)) });
 });
 
 router.get("/:id", requireAuth, async (req, res: Response) => {
@@ -89,7 +101,7 @@ router.get("/:id", requireAuth, async (req, res: Response) => {
     return;
   }
 
-  res.json({ cat });
+  res.json({ cat: forViewer(cat, req) });
 });
 
 // Per-cat view of Submitted shift reports, newest first: this cat's own entry
@@ -304,7 +316,7 @@ router.patch("/:id/dewormer", requireAuth, async (req, res: Response) => {
     return updated;
   });
 
-  res.json({ cat });
+  res.json({ cat: forViewer(cat, req) });
 });
 
 router.post("/:id/probiotic-dose", requireAuth, async (req, res: Response) => {
@@ -410,7 +422,7 @@ router.patch("/:id/confirm-pickup", requireAuth, async (req, res: Response) => {
       await confirmPickup(tx, { catId: id, actorId });
       return tx.cat.findUniqueOrThrow({ where: { id }, include: catInclude });
     });
-    res.json({ cat });
+    res.json({ cat: forViewer(cat, req) });
   } catch (err) {
     if (err instanceof InvalidPickupError) {
       res.status(409).json({ error: err.message });

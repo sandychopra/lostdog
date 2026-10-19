@@ -1,5 +1,14 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
+/* Dark mode is opt-in via a `.dark` class on an ancestor (none is set yet), not
+   the OS preference — otherwise the `dark:` classes in shadcn components would
+   kick in on dark-mode devices against a light-only theme. */
+@custom-variant dark (&:is(.dark *));
+
+/* Brand palette (docs/project-scope.md's Design/Branding section). Static
+   values, also usable directly as utilities: text-navy, bg-cream, … */
 @theme {
   --font-sans: "League Spartan", ui-sans-serif, system-ui, sans-serif;
 
@@ -8,32 +17,67 @@
   --color-cream: #f6f5f4;
   --color-gray: #62646a;
   --color-gold: #f0b429;
+}
 
-  --color-background: var(--color-cream);
-  --color-foreground: var(--color-gray);
-  --color-primary: var(--color-blue);
-  --color-primary-foreground: #ffffff;
-  --color-secondary: #e7e6e4;
-  --color-secondary-foreground: var(--color-navy);
-  --color-muted: #e7e6e4;
-  --color-muted-foreground: var(--color-gray);
-  --color-accent: var(--color-gold);
-  --color-accent-foreground: var(--color-navy);
-  --color-destructive: #c0392b;
-  --color-border: #d8d6d3;
-  --color-input: #d8d6d3;
-  --color-ring: var(--color-blue);
+/* Semantic theme tokens (shadcn/ui convention). Re-theme the app by changing
+   these, or by pasting a theme from the shadcn theme builder over this block;
+   a `.dark { … }` block overriding the same variables would add dark mode. */
+:root {
+  --background: var(--color-cream);
+  --foreground: var(--color-gray);
+  --card: #ffffff;
+  --card-foreground: var(--color-gray);
+  --popover: #ffffff;
+  --popover-foreground: var(--color-gray);
+  --primary: var(--color-blue);
+  --primary-foreground: #ffffff;
+  --secondary: #e7e6e4;
+  --secondary-foreground: var(--color-navy);
+  --muted: #e7e6e4;
+  --muted-foreground: var(--color-gray);
+  --accent: var(--color-gold);
+  --accent-foreground: var(--color-navy);
+  --destructive: #c0392b;
+  --border: #d8d6d3;
+  --input: #d8d6d3;
+  --ring: var(--color-blue);
+  --radius: 0.75rem;
+}
 
-  --radius-sm: 0.5rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 1rem;
-  --radius-full: 9999px;
+/* Maps the variables above onto Tailwind utilities (bg-primary,
+   text-muted-foreground, rounded-lg, …). `inline` makes utilities reference
+   the variables directly, so overriding them (e.g. under `.dark`) takes effect. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 0.25rem);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 0.25rem);
 }
 
 @layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
   body {
-    @apply bg-background text-foreground antialiased;
-    font-family: var(--font-sans);
+    @apply bg-background font-sans text-foreground antialiased;
   }
   h1,
   h2,

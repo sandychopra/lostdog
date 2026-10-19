@@ -1,9 +1,10 @@
 import { FoodAmount } from "shared/constants/foodAmount.ts";
-import { cn } from "../lib/utils";
+import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 
 interface FoodAmountPickerProps {
   value: FoodAmount | undefined;
   onChange: (value: FoodAmount | undefined) => void;
+  "aria-label"?: string;
 }
 
 const OPTIONS: { value: FoodAmount; label: string }[] = [
@@ -14,26 +15,28 @@ const OPTIONS: { value: FoodAmount; label: string }[] = [
 ];
 
 const pillClassName =
-  "flex h-9 items-center justify-center rounded-full border px-3 text-sm transition-colors";
+  "h-9 rounded-full bg-white px-3 text-foreground data-[state=on]:border-navy data-[state=on]:bg-navy data-[state=on]:text-white data-[state=on]:hover:bg-navy data-[state=on]:hover:text-white";
 
-export default function FoodAmountPicker({ value, onChange }: FoodAmountPickerProps) {
+export default function FoodAmountPicker({
+  value,
+  onChange,
+  "aria-label": ariaLabel = "Food amount",
+}: FoodAmountPickerProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <ToggleGroup
+      type="single"
+      variant="outline"
+      aria-label={ariaLabel}
+      className="flex-wrap"
+      value={value ?? ""}
+      // Re-clicking the selected pill yields "", which clears the selection.
+      onValueChange={(next) => onChange(next === "" ? undefined : (next as FoodAmount))}
+    >
       {OPTIONS.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          className={cn(
-            pillClassName,
-            value === option.value
-              ? "border-navy bg-navy text-white"
-              : "border-input bg-white text-foreground",
-          )}
-          onClick={() => onChange(value === option.value ? undefined : option.value)}
-        >
+        <ToggleGroupItem key={option.value} value={option.value} className={pillClassName}>
           {option.label}
-        </button>
+        </ToggleGroupItem>
       ))}
-    </div>
+    </ToggleGroup>
   );
 }

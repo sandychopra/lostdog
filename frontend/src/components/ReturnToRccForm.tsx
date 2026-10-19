@@ -5,11 +5,9 @@ import { returnToRccSchema, type ReturnToRccInput } from "shared/schemas/catStat
 import { api } from "../lib/api";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
+import { Textarea } from "./ui/textarea";
 import ErrorAlert from "./ErrorAlert";
 import type { Cat } from "./CatsTable";
-
-const textareaClassName =
-  "flex min-h-20 w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 interface ReturnToRccFormProps {
   cat: Cat;
@@ -19,7 +17,7 @@ interface ReturnToRccFormProps {
 export default function ReturnToRccForm({ cat, onSuccess }: ReturnToRccFormProps) {
   const queryClient = useQueryClient();
 
-  const form = useForm<ReturnToRccInput>({
+  const form = useForm({
     resolver: zodResolver(returnToRccSchema),
     defaultValues: { reason: "" },
   });
@@ -50,12 +48,7 @@ export default function ReturnToRccForm({ cat, onSuccess }: ReturnToRccFormProps
         </p>
         <div className="space-y-2">
           <Label htmlFor="reason">Reason (optional)</Label>
-          <textarea
-            id="reason"
-            className={textareaClassName}
-            placeholder="e.g. for observation"
-            {...form.register("reason")}
-          />
+          <Textarea id="reason" placeholder="e.g. for observation" {...form.register("reason")} />
         </div>
       </div>
       <div className="shrink-0 space-y-4 pt-4">

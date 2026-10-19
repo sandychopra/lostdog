@@ -10,6 +10,7 @@ import { CAT_STATUS_LABELS, catStatusBadgeVariant, type Cat } from "./CatsTable"
 import { formatReportDate } from "./ShiftReportsTable";
 import { Badge } from "./ui/badge";
 import { Skeleton } from "./ui/skeleton";
+import { Card } from "./ui/card";
 
 interface NamedCat {
   id: number;
@@ -167,7 +168,7 @@ export default function CatDetailPage() {
             <Skeleton className="h-32 w-full" />
           ) : historyQuery.data && historyQuery.data.length > 0 ? (
             historyQuery.data.map((report) => (
-              <article key={report.id} className="space-y-2 rounded-md border p-3">
+              <Card key={report.id} size="sm" className="gap-2 p-3 text-base">
                 <header className="flex flex-wrap items-baseline gap-x-3 text-sm">
                   <Link
                     to={`/shift-reports/${report.id}`}
@@ -206,7 +207,7 @@ export default function CatDetailPage() {
                     ))}
                   </div>
                 )}
-              </article>
+              </Card>
             ))
           ) : (
             <p className="text-sm text-muted-foreground">

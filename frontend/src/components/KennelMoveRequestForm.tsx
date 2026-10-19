@@ -8,14 +8,11 @@ import {
 import { api } from "../lib/api";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
+import { NativeSelect, NativeSelectOption } from "./ui/native-select";
+import { Textarea } from "./ui/textarea";
 import ErrorAlert from "./ErrorAlert";
 import ErrorMessage from "./ErrorMessage";
 import { occupantLabel, type Kennel } from "./KennelsTable";
-
-const selectClassName =
-  "flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
-const textareaClassName =
-  "flex min-h-20 w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 interface KennelMoveRequestFormProps {
   kennel: Kennel;
@@ -37,7 +34,7 @@ export default function KennelMoveRequestForm({ kennel, onSuccess }: KennelMoveR
   const catId = kennel.cats[0]?.id;
   const groupId = kennel.groups[0]?.id;
 
-  const form = useForm<CreateKennelMoveRequestInput>({
+  const form = useForm({
     resolver: zodResolver(createKennelMoveRequestSchema),
     defaultValues: {
       catId,
@@ -77,27 +74,25 @@ export default function KennelMoveRequestForm({ kennel, onSuccess }: KennelMoveR
         </p>
         <div className="space-y-2">
           <Label htmlFor="toKennelId">Destination Kennel</Label>
-          <select
+          <NativeSelect
             id="toKennelId"
-            className={selectClassName}
             aria-invalid={!!form.formState.errors.toKennelId}
             {...form.register("toKennelId")}
           >
-            <option value="">Select a kennel</option>
+            <NativeSelectOption value="">Select a kennel</NativeSelectOption>
             {destinationOptions.map((k) => (
-              <option key={k.id} value={k.id}>
+              <NativeSelectOption key={k.id} value={k.id}>
                 Kennel {k.number} —{" "}
                 {k.cats.length === 0 && k.groups.length === 0 ? k.state : occupantLabel(k)}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
           <ErrorMessage message={form.formState.errors.toKennelId?.message} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="reason">Reason (optional)</Label>
-          <textarea
+          <Textarea
             id="reason"
-            className={textareaClassName}
             placeholder="e.g. reuniting a bonded pair"
             {...form.register("reason")}
           />

@@ -4,6 +4,7 @@ import { UserMinus } from "lucide-react";
 import { api } from "../lib/api";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
+import { Checkbox } from "./ui/checkbox";
 import ErrorAlert from "./ErrorAlert";
 import type { Cat } from "./CatsTable";
 
@@ -89,11 +90,9 @@ export default function EditGroupForm({ groupId }: EditGroupFormProps) {
             )}
             {eligibleToAdd.map((candidate) => (
               <label key={candidate.id} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4"
+                <Checkbox
                   checked={selectedToAdd.includes(candidate.id)}
-                  onChange={() =>
+                  onCheckedChange={() =>
                     setSelectedToAdd((prev) =>
                       prev.includes(candidate.id)
                         ? prev.filter((id) => id !== candidate.id)
@@ -120,13 +119,11 @@ export default function EditGroupForm({ groupId }: EditGroupFormProps) {
           <ErrorAlert error={addMutation.error} fallback="Failed to add cat to group" />
         )}
         <div className="flex items-center gap-2">
-          <input
+          <Checkbox
             id="bonded"
-            type="checkbox"
-            className="h-4 w-4"
             checked={bonded}
             disabled={members.length !== 2 || bondedMutation.isPending}
-            onChange={(e) => bondedMutation.mutate(e.target.checked)}
+            onCheckedChange={(checked) => bondedMutation.mutate(checked === true)}
           />
           <Label htmlFor="bonded">Bonded pair (only settable for exactly 2 cats)</Label>
         </div>

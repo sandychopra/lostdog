@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { X, Pencil, Image as ImageIcon, Camera } from "lucide-react";
 import AuthenticatedImage from "./AuthenticatedImage";
-import CatMultiSelect from "./CatMultiSelect";
+import CatMultiSelect, { type CatOption } from "./CatMultiSelect";
 import PhotoTagEditor from "./PhotoTagEditor";
 
 export interface QueuedPhoto {
@@ -12,11 +12,6 @@ export interface QueuedPhoto {
 export interface UploadedPhotoSummary {
   id: number;
   tags: { catId: number; cat: { id: number; name: string } }[];
-}
-
-interface CatOption {
-  id: number;
-  name: string;
 }
 
 interface PhotoUploadSectionProps {

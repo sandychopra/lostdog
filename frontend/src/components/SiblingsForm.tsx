@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { api } from "../lib/api";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
+import { Checkbox } from "./ui/checkbox";
 import ErrorAlert from "./ErrorAlert";
 import type { Cat } from "./CatsTable";
 
@@ -91,11 +92,9 @@ export default function SiblingsForm({ catId }: SiblingsFormProps) {
             )}
             {eligibleToAdd.map((candidate) => (
               <label key={candidate.id} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4"
+                <Checkbox
                   checked={selectedToAdd.includes(candidate.id)}
-                  onChange={() =>
+                  onCheckedChange={() =>
                     setSelectedToAdd((prev) =>
                       prev.includes(candidate.id)
                         ? prev.filter((id) => id !== candidate.id)

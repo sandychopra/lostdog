@@ -1,4 +1,6 @@
 import { isAxiosError } from "axios";
+import { CircleAlert } from "lucide-react";
+import { Alert, AlertDescription } from "./ui/alert";
 
 interface ErrorAlertProps {
   message?: string;
@@ -18,8 +20,9 @@ export default function ErrorAlert({
       : fallback);
 
   return (
-    <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-      {text}
-    </div>
+    <Alert variant="destructive" className="border-destructive/30 bg-destructive/10 px-3">
+      <CircleAlert />
+      <AlertDescription>{text}</AlertDescription>
+    </Alert>
   );
 }

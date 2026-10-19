@@ -15,6 +15,10 @@ import { getProbioticDoseLog } from "../lib/medicalAlerts.ts";
 
 const router = Router();
 
+// Email-outbox bookkeeping (attempt count, raw SendGrid error) is internal and
+// never sent to clients.
+const outboxOmit = { emailAttempts: true, emailLastError: true } as const;
+
 const announcementInclude = {
   cat: {
     select: {
@@ -83,6 +87,7 @@ router.get("/", requireAuth, async (req, res: Response) => {
       ...(from || to ? { createdAt: { ...(from && { gte: from }), ...(to && { lte: to }) } } : {}),
     },
     include: announcementInclude,
+    omit: outboxOmit,
     orderBy: { createdAt: "desc" },
   });
 
@@ -171,6 +176,7 @@ router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
         checklistId,
       },
       include: announcementInclude,
+      omit: outboxOmit,
     });
   });
 
@@ -202,6 +208,7 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
     where: { id },
     data: { title: data.title, message: data.message ?? null },
     include: announcementInclude,
+    omit: outboxOmit,
   });
 
   res.json({ announcement });
@@ -248,6 +255,7 @@ router.patch("/:id/resolve", requireAuth, requireAdmin, async (req, res: Respons
     where: { id },
     data: { resolved: true, resolvedAt: new Date(), resolvedById },
     include: announcementInclude,
+    omit: outboxOmit,
   });
 
   res.json({ announcement });
@@ -275,6 +283,7 @@ router.patch("/:id/comment", requireAuth, async (req, res: Response) => {
       ? { comment: null, commentedAt: null, commentedById: null }
       : { comment: data.comment, commentedAt: new Date(), commentedById },
     include: announcementInclude,
+    omit: outboxOmit,
   });
 
   res.json({ announcement });

@@ -1,6 +1,5 @@
 import { z } from "zod";
-
-const emptyToUndefined = (val: unknown) => (val === "" ? undefined : val);
+import { emptyToUndefined } from "./helpers.ts";
 
 export const createKennelMoveRequestSchema = z
   .object({

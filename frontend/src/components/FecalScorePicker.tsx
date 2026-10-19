@@ -1,4 +1,4 @@
-import { cn } from "../lib/utils";
+import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 
 interface FecalScorePickerProps {
   value: number | undefined;
@@ -6,41 +6,33 @@ interface FecalScorePickerProps {
 }
 
 const SCORES = [1, 2, 3, 4, 5, 6, 7] as const;
+const NONE = "none";
 
 const pillClassName =
-  "flex h-9 items-center justify-center rounded-full border px-3 text-sm transition-colors";
+  "h-9 rounded-full bg-white px-3 text-foreground data-[state=on]:border-navy data-[state=on]:bg-navy data-[state=on]:text-white data-[state=on]:hover:bg-navy data-[state=on]:hover:text-white";
 
 export default function FecalScorePicker({ value, onChange }: FecalScorePickerProps) {
   return (
-    <div className="flex flex-wrap gap-2">
-      <button
-        type="button"
-        className={cn(
-          pillClassName,
-          value === undefined
-            ? "border-navy bg-navy text-white"
-            : "border-input bg-white text-foreground",
-        )}
-        onClick={() => onChange(undefined)}
-      >
+    <ToggleGroup
+      type="single"
+      variant="outline"
+      aria-label="Fecal score"
+      className="flex-wrap"
+      value={value === undefined ? NONE : String(value)}
+      onValueChange={(next) => {
+        // Re-clicking the selected pill yields "" — keep the current selection.
+        if (next === "") return;
+        onChange(next === NONE ? undefined : Number(next));
+      }}
+    >
+      <ToggleGroupItem value={NONE} className={pillClassName}>
         None
-      </button>
+      </ToggleGroupItem>
       {SCORES.map((score) => (
-        <button
-          key={score}
-          type="button"
-          className={cn(
-            pillClassName,
-            "w-9",
-            value === score
-              ? "border-navy bg-navy text-white"
-              : "border-input bg-white text-foreground",
-          )}
-          onClick={() => onChange(score)}
-        >
+        <ToggleGroupItem key={score} value={String(score)} className={`${pillClassName} w-9`}>
           {score}
-        </button>
+        </ToggleGroupItem>
       ))}
-    </div>
+    </ToggleGroup>
   );
 }

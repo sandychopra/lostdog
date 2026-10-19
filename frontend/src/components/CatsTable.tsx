@@ -39,6 +39,7 @@ export interface Cat {
   microchipNumber: string | null;
   kennelId: number | null;
   groupId: number | null;
+  litterId: number | null;
   status: CatStatus;
   // Still needed by CatForm (editing) even though this table no longer
   // renders them itself — dewormer/probiotic are managed entirely from the
