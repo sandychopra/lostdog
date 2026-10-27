@@ -8,6 +8,7 @@ import { Checkbox } from "./ui/checkbox";
 import FoodAmountPicker from "./FoodAmountPicker";
 import FecalScorePicker from "./FecalScorePicker";
 import CollapsibleEntryCard from "./CollapsibleEntryCard";
+import ErrorMessage from "./ErrorMessage";
 import type { Cat } from "./CatsTable";
 import type { Kennel } from "./KennelsTable";
 import type { ShiftReportFormApi } from "../lib/shiftReportForm";
@@ -96,8 +97,12 @@ export default function GroupCatEntryFields({
   collapsed,
   onToggleCollapsed,
 }: GroupCatEntryFieldsProps) {
-  const { control, register, setValue } = form;
+  const { control, register, setValue, formState } = form;
   const base = `catEntries.${index}` as const;
+  // Individual and group entries share an index space, so the union's error
+  // type doesn't narrow; read it as a plain map of field → message.
+  const errors = formState.errors.catEntries?.[index] as
+    Record<string, { message?: string; root?: { message?: string } } | undefined> | undefined;
 
   const groups = kennels.flatMap((k) => k.groups);
   const groupId = useWatch({ control, name: `${base}.groupId` as const });
@@ -168,6 +173,13 @@ export default function GroupCatEntryFields({
       onSave={handleSave}
     >
       <input type="hidden" {...register(`${base}.groupId` as const)} />
+      <ErrorMessage
+        message={
+          errors?.groupId?.message ??
+          errors?.catDetails?.message ??
+          errors?.catDetails?.root?.message
+        }
+      />
 
       <div className="space-y-2">
         <Label>Fecal Score (shared)</Label>
@@ -175,6 +187,7 @@ export default function GroupCatEntryFields({
           value={fecalScore}
           onChange={(v) => setValue(`${base}.fecalScore` as const, v, { shouldValidate: true })}
         />
+        <ErrorMessage message={errors?.fecalScore?.message} />
       </div>
 
       <div className="flex items-center gap-2">

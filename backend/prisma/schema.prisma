@@ -445,7 +445,7 @@ model MeetAndGreet {
   id            Int         @id @default(autoincrement())
   shiftReportId Int         @map("shift_report_id")
   shiftReport   ShiftReport @relation(fields: [shiftReportId], references: [id], onDelete: Cascade)
-  note          String
+  note          String?
   createdAt     DateTime    @default(now()) @map("created_at")
 
   cats MeetAndGreetCat[]
@@ -471,7 +471,7 @@ model PlayGroup {
   id            Int         @id @default(autoincrement())
   shiftReportId Int         @map("shift_report_id")
   shiftReport   ShiftReport @relation(fields: [shiftReportId], references: [id], onDelete: Cascade)
-  note          String
+  note          String?
   createdAt     DateTime    @default(now()) @map("created_at")
 
   cats PlayGroupCat[]

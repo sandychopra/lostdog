@@ -171,7 +171,7 @@ describe("ShiftReportForm", () => {
     expect(within(picker).queryByRole("option", { name: "Pepsi" })).not.toBeInTheDocument();
   });
 
-  test("play group entry collapses via its Collapse button once it's valid", async () => {
+  test("a blank play group doesn't block Collapse or Save Draft", async () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
@@ -179,15 +179,36 @@ describe("ShiftReportForm", () => {
     const section = document.getElementById("section-playGroups")!;
     const trigger = within(section).getByRole("button", { name: "New entry" });
 
-    // Note is still empty: validation fails, so the entry stays open.
     await user.click(within(section).getByRole("button", { name: "Collapse" }));
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(trigger.getAttribute("aria-expanded")).toBe("true");
-
-    await user.type(within(section).getByLabelText("Note"), "Played nicely");
-    await user.click(within(section).getByRole("button", { name: "Collapse" }));
-
     await waitFor(() => expect(trigger.getAttribute("aria-expanded")).toBe("false"));
+
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(post).toHaveBeenCalledWith(
+      "/api/shift-reports",
+      expect.objectContaining({ status: "Draft" }),
+    );
+  });
+
+  test("submitting a blank play group reopens it and shows why", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+
+    await user.click(await screen.findByRole("button", { name: "Add Play Group" }));
+    const section = document.getElementById("section-playGroups")!;
+    const trigger = within(section).getByRole("button", { name: "New entry" });
+    await user.click(within(section).getByRole("button", { name: "Collapse" }));
+    await waitFor(() => expect(trigger.getAttribute("aria-expanded")).toBe("false"));
+
+    await user.click(screen.getByRole("button", { name: "Submit Report" }));
+
+    expect(
+      await screen.findByText("Please complete the highlighted fields before submitting."),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(trigger.getAttribute("aria-expanded")).toBe("true"));
+    expect(within(section).queryByText("Note is required")).toBeNull();
+    expect(within(section).getByText("Tag at least one cat")).toBeInTheDocument();
+    expect(post).not.toHaveBeenCalled();
   });
 
   test("play group cats are picked by search and shown as removable chips", async () => {

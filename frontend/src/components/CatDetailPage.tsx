@@ -37,7 +37,7 @@ interface HistoryEntry {
 
 interface NoteGroup {
   id: number;
-  note: string;
+  note: string | null;
   cats: { cat: NamedCat }[];
 }
 

@@ -81,7 +81,7 @@ function buildCatEntrySchema(strict: boolean) {
 function buildMeetAndGreetSchema(strict: boolean) {
   return z.object({
     id: z.coerce.number().int().positive().optional(),
-    note: z.string().trim().min(1, "Note is required"),
+    note: z.string().trim().optional().transform(emptyToUndefined),
     catIds: distinctCatIds("Cats must be distinct").min(strict ? 1 : 0, "Tag at least one cat"),
   });
 }
@@ -101,7 +101,7 @@ const kennelStatusSchema = z.object({
 function buildPlayGroupSchema(strict: boolean) {
   return z.object({
     id: z.coerce.number().int().positive().optional(),
-    note: z.string().trim().min(1, "Note is required"),
+    note: z.string().trim().optional().transform(emptyToUndefined),
     catIds: distinctCatIds("Cats must be distinct").min(strict ? 1 : 0, "Tag at least one cat"),
   });
 }

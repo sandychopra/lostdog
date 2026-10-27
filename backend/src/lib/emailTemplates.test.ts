@@ -122,7 +122,7 @@ describe("renderShiftReportEmail", () => {
         },
       ],
       meetAndGreets: [{ note: "Went well", cats: [{ cat: { id: 1, name: "Pepsi" } }] }],
-      playGroups: [],
+      playGroups: [{ note: null, cats: [{ cat: { id: 1, name: "Pepsi" } }] }],
     } as unknown as ShiftReportForEmail;
 
     const { subject, text } = renderShiftReportEmail(report);
@@ -131,6 +131,8 @@ describe("renderShiftReportEmail", () => {
     expect(text).toContain("- Pepsi");
     expect(text).toContain("Medical notes: Sneezing");
     expect(text).toContain("Pepsi: Went well");
+    // A blank play group note leaves no dangling colon.
+    expect(text).toMatch(/Play groups:\n- Pepsi$/m);
     expect(text).toContain("Photos are not included");
   });
 });

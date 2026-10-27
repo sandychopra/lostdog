@@ -184,7 +184,7 @@ erDiagram
   "meet_and_greet" {
     Int id "🗝️"
     Int shift_report_id 
-    String note 
+    String note "❓"
     DateTime created_at 
     }
   
@@ -198,7 +198,7 @@ erDiagram
   "play_group" {
     Int id "🗝️"
     Int shift_report_id 
-    String note 
+    String note "❓"
     DateTime created_at 
     }
   

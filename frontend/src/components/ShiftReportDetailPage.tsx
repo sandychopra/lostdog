@@ -230,7 +230,7 @@ export default function ShiftReportDetailPage() {
                     <p className="font-medium">
                       {playGroup.cats.map((c) => c.cat.name).join(", ")}
                     </p>
-                    <p>{playGroup.note}</p>
+                    {playGroup.note && <p>{playGroup.note}</p>}
                   </Card>
                 ))}
               </section>
@@ -242,7 +242,7 @@ export default function ShiftReportDetailPage() {
                 {report.meetAndGreets.map((mg) => (
                   <Card key={mg.id} size="sm" className="gap-0 p-3">
                     <p className="font-medium">{mg.cats.map((c) => c.cat.name).join(", ")}</p>
-                    <p>{mg.note}</p>
+                    {mg.note && <p>{mg.note}</p>}
                   </Card>
                 ))}
               </section>

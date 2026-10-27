@@ -6,6 +6,7 @@ import { Checkbox } from "./ui/checkbox";
 import FecalScorePicker from "./FecalScorePicker";
 import FoodAmountPicker from "./FoodAmountPicker";
 import CollapsibleEntryCard from "./CollapsibleEntryCard";
+import ErrorMessage from "./ErrorMessage";
 import type { Cat } from "./CatsTable";
 import type { ShiftReportFormApi } from "../lib/shiftReportForm";
 
@@ -26,8 +27,12 @@ export default function CatEntryFields({
   collapsed,
   onToggleCollapsed,
 }: CatEntryFieldsProps) {
-  const { control, register, setValue } = form;
+  const { control, register, setValue, formState } = form;
   const base = `catEntries.${index}` as const;
+  // Individual and group entries share an index space, so the union's error
+  // type doesn't narrow; read it as a plain map of field → message.
+  const errors = formState.errors.catEntries?.[index] as
+    Record<string, { message?: string; root?: { message?: string } } | undefined> | undefined;
 
   const catId = useWatch({ control, name: `${base}.catId` as const });
   const fecalScore = useWatch({ control, name: `${base}.fecalScore` as const });
@@ -63,6 +68,7 @@ export default function CatEntryFields({
       onSave={handleSave}
     >
       <input type="hidden" {...register(`${base}.catId` as const)} />
+      <ErrorMessage message={errors?.catId?.message} />
 
       <div className="space-y-2">
         <Label>Fecal Score</Label>
@@ -70,6 +76,7 @@ export default function CatEntryFields({
           value={fecalScore}
           onChange={(v) => setValue(`${base}.fecalScore` as const, v, { shouldValidate: true })}
         />
+        <ErrorMessage message={errors?.fecalScore?.message} />
       </div>
 
       <div className="flex items-center gap-2">

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
+import { Controller, useFieldArray, useForm, useWatch, type FieldErrors } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createShiftReportSchema,
@@ -89,12 +89,12 @@ function mapReportToDefaultValues(report: ShiftReport): DraftShiftReportInput {
     ),
     meetAndGreets: report.meetAndGreets.map((meetAndGreet) => ({
       id: meetAndGreet.id,
-      note: meetAndGreet.note,
+      note: meetAndGreet.note ?? "",
       catIds: meetAndGreet.cats.map((c) => c.catId),
     })),
     playGroups: report.playGroups.map((playGroup) => ({
       id: playGroup.id,
-      note: playGroup.note,
+      note: playGroup.note ?? "",
       catIds: playGroup.cats.map((c) => c.catId),
     })),
     kennelsStatus: report.kennelsStatus.map((k) => ({
@@ -252,6 +252,64 @@ export default function ShiftReportForm({
     setCollapsedEntryIds(new Set());
     playGroupsRef.current?.expandAll();
     meetAndGreetsRef.current?.expandAll();
+  }
+
+  // Validation errors often land in a collapsed section or entry, where
+  // they'd be invisible and the Save/Submit click would look like it did
+  // nothing — so expand everything that contains an error.
+  function revealErrorPaths(paths: (string | number)[][]) {
+    const sectionByField: Partial<Record<string, SectionKey>> = {
+      kennelsStatus: "kennelStatus",
+      kennelNotes: "kennelStatus",
+      catEntries: "catEntries",
+      playGroups: "playGroups",
+      meetAndGreets: "meetAndGreets",
+      cleaningNotes: "notes",
+      suppliesNotes: "notes",
+      otherNotes: "notes",
+    };
+    const sections = new Set<SectionKey>();
+    const entryIndices: Record<"catEntries" | "playGroups" | "meetAndGreets", number[]> = {
+      catEntries: [],
+      playGroups: [],
+      meetAndGreets: [],
+    };
+    for (const [field, index] of paths) {
+      const section = sectionByField[String(field)];
+      if (section) sections.add(section);
+      if (
+        typeof index === "number" &&
+        (field === "catEntries" || field === "playGroups" || field === "meetAndGreets")
+      ) {
+        entryIndices[field].push(index);
+      }
+    }
+    if (sections.size > 0) {
+      setCollapsedSections((prev) => {
+        const next = { ...prev };
+        for (const key of sections) next[key] = false;
+        return next;
+      });
+    }
+    if (entryIndices.catEntries.length > 0) {
+      const ids = new Set<string | undefined>(
+        entryIndices.catEntries.map((i) => catEntries.fields[i]?.id),
+      );
+      setCollapsedEntryIds((prev) => new Set([...prev].filter((id) => !ids.has(id))));
+    }
+    playGroupsRef.current?.expandEntries(entryIndices.playGroups);
+    meetAndGreetsRef.current?.expandEntries(entryIndices.meetAndGreets);
+  }
+
+  function handleInvalid(errors: FieldErrors<DraftShiftReportInput>) {
+    const paths: (string | number)[][] = [];
+    for (const [field, value] of Object.entries(errors)) {
+      const indices = Array.isArray(value) ? value.flatMap((entry, i) => (entry ? [i] : [])) : [];
+      if (indices.length === 0) paths.push([field]);
+      else for (const i of indices) paths.push([field, i]);
+    }
+    revealErrorPaths(paths);
+    setSubmitAttemptError("Please fix the highlighted fields.");
   }
 
   const shiftType = useWatch({ control, name: "shiftType" });
@@ -428,17 +486,22 @@ export default function ShiftReportForm({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           form.setError(issue.path.join(".") as any, { message: issue.message });
         }
+        revealErrorPaths(
+          result.error.issues.map((issue) =>
+            issue.path.filter((p): p is string | number => typeof p !== "symbol"),
+          ),
+        );
         setSubmitAttemptError("Please complete the highlighted fields before submitting.");
         return;
       }
       setSubmitAttemptError(null);
       void handleSubmitReport(result.data);
-    })();
+    }, handleInvalid)();
   }
 
   function handleSaveDraftClick() {
     if (autosavingRef.current) return;
-    form.handleSubmit((data) => handleSaveDraft(data))();
+    form.handleSubmit((data) => handleSaveDraft(data), handleInvalid)();
   }
 
   function addIndividualEntry(catId: number) {
