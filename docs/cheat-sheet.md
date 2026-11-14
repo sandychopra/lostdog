@@ -1,6 +1,6 @@
 # Cheat Sheet
 
-Quick-reference commands for Git, the Unix/macOS shell, macOS keyboard shortcuts, Bun, Claude Code, and this machine's `~/.zshrc`.
+Quick-reference commands for Git, the Unix/macOS shell, macOS keyboard shortcuts, Bun, ngrok, SendGrid, Claude Code, and this machine's `~/.zshrc`.
 
 ## Git
 
@@ -93,7 +93,8 @@ Quick-reference commands for Git, the Unix/macOS shell, macOS keyboard shortcuts
 - `ps aux` — list all running processes
 - `top` / `htop` — live process monitor
 - `kill <pid>` / `kill -9 <pid>` — terminate a process / force-terminate
-- `lsof -i :<port>` — see what's using a port
+- `lsof -i :<port>` — see what's using a port (servers *and* anything connected to it)
+- `lsof -iTCP:<port> -sTCP:LISTEN` — only the server listening on a port; use this form with `kill $(lsof -t …)` so you don't also kill clients like ngrok
 - `jobs`, `fg`, `bg` — manage background/foreground shell jobs
 
 ### Text processing
@@ -200,6 +201,99 @@ Quick-reference commands for Git, the Unix/macOS shell, macOS keyboard shortcuts
 - `bun install` — installs all workspaces defined in the root `package.json` in one pass
 - `bun run --cwd <path> <script>` — run a script scoped to one workspace
 - `bun run --filter <name> <script>` — run a script in workspace(s) matching a name/glob
+
+## ngrok
+
+Exposes the local frontend (`localhost:3000`) at a public HTTPS address so you can try the app from a phone or another computer. This machine's free ngrok domain is fixed: **https://gratify-polyester-talon.ngrok-free.dev**.
+
+> **Other developers:** that address belongs to Sandy's ngrok account. Each developer who wants a tunnel needs their own free ngrok account (steps below), which comes with its own fixed domain — use that wherever this section shows `gratify-polyester-talon.ngrok-free.dev`, including in your own `.env` files. Sharing one free account isn't practical: it has a single domain that only one person can tunnel through at a time, and shared monthly quotas. Only needed for testing from another device — everyday work on `localhost:3000` doesn't use ngrok.
+
+### Installing (one-time)
+
+- Install Homebrew first if you don't have it — the install command is on [brew.sh](https://brew.sh)
+- `brew install ngrok` — install the ngrok CLI
+- Sign up at [ngrok.com](https://ngrok.com) (free), then copy your authtoken from the dashboard and run `ngrok config add-authtoken <token>` — links the CLI to your account, which is what gives you the fixed domain above
+- `ngrok version` — confirm it's installed
+
+### One-time setup (`.env` files)
+
+- `frontend/.env`: `PUBLIC_API_URL=` (blank) — the app then calls the API through the frontend's own address instead of `localhost:4000`
+- `frontend/.env`: `TUNNEL_HOST=gratify-polyester-talon.ngrok-free.dev` — no `https://`; lets the dev server accept requests for that hostname
+- `backend/.env`: `TUNNEL_URL=https://gratify-polyester-talon.ngrok-free.dev` — lets you sign in through the tunnel
+- Restart after changing any of them: `bun run dev:restart`
+
+### Starting & stopping
+
+- `bun run dev:restart --ngrok` — restart both dev servers and start the tunnel; prints the public URL
+- `bun run dev:restart` — restart the servers only; leaves a running tunnel alone
+- `bun run dev:stop` — stop both servers and the tunnel
+- `pkill ngrok` — stop just ngrok (`pkill -9 ngrok` if it won't quit)
+- `pgrep -fl ngrok` — check whether it's running (no output = stopped)
+- `tail -f ngrok.log` — ngrok's log when started by the script
+
+### Using it
+
+- Use **https://gratify-polyester-talon.ngrok-free.dev** wherever you'd use `http://localhost:3000` (e.g. `…/login` instead of `localhost:3000/login`)
+- Health check: open **https://gratify-polyester-talon.ngrok-free.dev/api/health** — expect `{"status":"ok","database":"connected"}`
+- From the terminal: `curl -H "ngrok-skip-browser-warning: 1" https://gratify-polyester-talon.ngrok-free.dev/api/health`
+- It's `https://`, not `http://` — ngrok serves the tunnel over HTTPS
+- `http://localhost:3000` keeps working at the same time
+
+### Gotchas
+
+- First visit in a browser shows an ngrok warning page — click **Visit Site** (once per browser)
+- "The endpoint … is offline" (`ERR_NGROK_3200`) — ngrok isn't running; start it with `bun run dev:restart --ngrok`
+- "Can't reach server" on login — usually `PUBLIC_API_URL` isn't blank, or the frontend wasn't restarted after changing it; a hard refresh (`Cmd+Shift+R`) also clears the old cached app
+- Links in notification emails still point at `FRONTEND_URL` (`http://localhost:3000`), so they only open on this Mac
+- `kill $(lsof -t -i :3000)` also kills ngrok — use the `-sTCP:LISTEN` form (see Processes above) or `bun run dev:stop`
+
+### How it was set up on this machine (Sandy, Oct 2026)
+
+1. Installed Homebrew (7.0.11) using the install command from [brew.sh](https://brew.sh)
+2. `brew install ngrok` — installs ngrok 3.39.13 to `/opt/homebrew/bin/ngrok` (Homebrew installs it as a cask)
+3. Created a free account at [ngrok.com](https://ngrok.com), then `ngrok config add-authtoken <token>` — saved to `~/Library/Application Support/ngrok/ngrok.yml`; the account's domain is `gratify-polyester-talon.ngrok-free.dev`
+4. Ran `ngrok http 3000` and opened the tunnel URL — the page loaded, but login failed with "can't reach server" because the app was still calling the API at `localhost:4000`
+5. Made the app work through the tunnel (code changes, now shared in the repo): the frontend dev server forwards `/api` to the backend, a blank `PUBLIC_API_URL` means "use the page's own address", and the backend accepts sign-ins from `TUNNEL_URL`
+6. Set the three `.env` values from "One-time setup" above and restarted both servers — login then worked through the tunnel
+7. Added `scripts/dev-servers.sh` (`bun run dev:restart --ngrok` / `dev:stop`) so the tunnel starts and stops with the dev servers
+
+## SendGrid (email notifications)
+
+The app emails every submitted shift report and these announcements — new arrival, pending adoption, adopted, back available, returned to RCC, kennel move requested, kennel needs reset, and manual posts — all to one address, `NOTIFICATION_TO`. With the email settings blank, emails are printed to the backend log instead of sent, which is fine for most dev work. Nothing is ever sent under `bun test`.
+
+> **Other developers:** the SendGrid account and `team@7cornerscats.com` sender below are Sandy's personal setup. To get real emails, create your own free SendGrid account and verified sender (steps below) — or leave the settings blank. Outside production, always point `NOTIFICATION_TO` at your own address, never the org's Google Group.
+
+### Setting up (one-time)
+
+- Sign up at [sendgrid.com](https://sendgrid.com)
+- Settings → Sender Authentication → **Domain Authentication** — add the DNS records SendGrid gives you to the sending domain; best for landing in the inbox, but needs access to the domain's DNS
+- Settings → Sender Authentication → **Single Sender Verification** — verify one from-address by clicking a link emailed to it; quickest option
+- Settings → API Keys → Create API Key → **Restricted Access** with only **Mail Send** turned on — the key is shown once, so copy it straight into `backend/.env`
+
+### `backend/.env`
+
+- `SENDGRID_API_KEY=SG.…` — the API key
+- `EMAIL_FROM=` — a verified sender address (or any address on an authenticated domain)
+- `NOTIFICATION_TO=` — where every notification goes; your own address in dev
+- All three must be set — if any is blank, the app quietly falls back to printing emails to the log
+- Restart after changing them: `bun run dev:restart` (the mailer is set up once at startup)
+
+### Testing & troubleshooting
+
+- **Submit** a shift report (saving a draft doesn't email) — the email goes out within seconds
+- `tail -f backend.log` — watch for `[mailer] (not sent — console mailer)` (settings not loaded) or `[notifications] failed to send` (SendGrid rejected it)
+- A failed send is saved on the report/announcement (`emailLastError`, `emailAttempts`) and retried every 5 minutes, up to 5 attempts
+- Turning email on sends **every** submitted report and announcement that was never emailed — on a database with lots of old test data, that can be a burst of emails
+- Links inside the emails use `FRONTEND_URL` (`http://localhost:3000` in dev), so they only open on this Mac
+
+### How it was set up on this machine (Sandy, Oct 2026)
+
+1. Created a personal SendGrid account
+2. Authenticated the `7cornerscats.com` domain (Domain Authentication) — all DNS records validate
+3. Verified the single sender `team@7cornerscats.com`, display name "Cat Team"
+4. Created an API key — currently a full-access key; better to replace it with a **Mail Send**–only key (create it, paste it into `backend/.env`, `bun run dev:restart`, then delete the old key in SendGrid)
+5. Set `backend/.env`: the API key, `EMAIL_FROM=team@7cornerscats.com`, `NOTIFICATION_TO=sandy.chopra@gmail.com`
+6. Restarted the backend and submitted a shift report — the email arrived in the Gmail inbox (not spam)
 
 ## Claude Code
 
