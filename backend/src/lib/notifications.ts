@@ -13,6 +13,7 @@ export const MAX_EMAIL_ATTEMPTS = 5;
 const RETRY_INTERVAL_MS = 5 * 60 * 1000;
 
 let flushing = false;
+let rerunRequested = false;
 
 function describeError(error: unknown): string {
   const body = (error as { response?: { body?: unknown } })?.response?.body;
@@ -26,15 +27,27 @@ function describeError(error: unknown): string {
  * mailing for work that later rolls back) routes call this after the commit and
  * it picks up whatever rows are still pending. Never throws: a failed send is
  * recorded on the row and retried by the interval in `startEmailRetryLoop`.
+ *
+ * A call made while a flush is running doesn't start a second one; it asks the
+ * running flush to go round again, since its rows may have been committed after
+ * that flush's queries ran.
  */
 export async function flushPendingEmails(mailer: Mailer = defaultMailer): Promise<void> {
-  if (flushing) return;
+  if (flushing) {
+    rerunRequested = true;
+    return;
+  }
   flushing = true;
   try {
-    await flushAnnouncements(mailer);
-    await flushShiftReports(mailer);
-  } catch (error) {
-    console.error("[notifications] flush failed:", error);
+    do {
+      rerunRequested = false;
+      try {
+        await flushAnnouncements(mailer);
+        await flushShiftReports(mailer);
+      } catch (error) {
+        console.error("[notifications] flush failed:", error);
+      }
+    } while (rerunRequested);
   } finally {
     flushing = false;
   }
