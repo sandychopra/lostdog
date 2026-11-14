@@ -15,7 +15,7 @@ Run through these steps after pulling changes from `main` to keep your local set
 | 4d. One-time migration-history note | First-time only (delete once obsolete) |
 | 4e. `prisma generate` | Every pull |
 | 4f. `bun run seed` | First-time, or after a `migrate reset` |
-| 5. Start the dev servers | Every time you work on the app |
+| 5. Start the dev servers (`bun run dev:restart`) | Every time you work on the app |
 
 ## 1. Install dependencies `Every pull`
 
@@ -135,31 +135,43 @@ Creates (or updates) an admin user and a volunteer user (`SEED_ADMIN_EMAIL`/`SEE
 
 ## 5. Start the dev servers `Every time you work on the app`
 
-Check that they aren't already running first — starting a second copy silently lands on the next free port instead of 4000/3000, which breaks CORS (`FRONTEND_URL`) and `PUBLIC_API_URL` matching:
+From the repo root:
+
+```bash
+bun run dev:restart           # start both, or restart them if already running
+bun run dev:restart --ngrok   # same, plus an ngrok tunnel to the frontend
+bun run dev:stop              # stop both, and the ngrok tunnel if running
+
+tail -f backend.log frontend.log   # watch output, labeled by filename
+```
+
+`dev:restart` runs `scripts/dev-servers.sh`: it stops whatever is listening on 4000/3000, starts both servers in the background with their output in `backend.log`/`frontend.log` at the repo root (gitignored), and waits until each responds — printing ✓, or ✗ with the end of that server's log. Stopping first matters: a second copy silently lands on the next free port instead of 4000/3000, which breaks CORS (`FRONTEND_URL`) and `PUBLIC_API_URL` matching. Re-run it after any `.env` change — the servers only read their env at startup.
+
+`--ngrok` starts `ngrok http 3000` (if it isn't already running, logging to `ngrok.log`) and prints the public URL. It needs ngrok installed and logged in, plus the tunnel settings: `PUBLIC_API_URL=` (blank) and `TUNNEL_HOST=<subdomain>.ngrok-free.dev` in `frontend/.env`, and `TUNNEL_URL=https://<subdomain>.ngrok-free.dev` in `backend/.env` — see the comments in each `.env.example`. A plain `dev:restart` never starts ngrok and leaves an already-running tunnel alone; only `dev:stop` stops it.
+
+<details>
+<summary>Doing it by hand</summary>
+
+Check whether they're already up (`NAME` shows the port, `COMMAND`/`PID` what's listening):
 
 ```bash
 lsof -nP -iTCP:4000 -iTCP:3000 -sTCP:LISTEN
 ```
 
-If that prints any lines, the servers are already up — the `NAME` column shows which port, `COMMAND`/`PID` show what's listening on it; reuse that tab instead of starting another. Otherwise, start them:
-
-```bash
-bun run dev:backend < /dev/null &
-bun run dev:frontend < /dev/null &
-```
-
-Backgrounding both this way sends both servers' output to the same terminal, interleaved with no label — fine for a quick check, but hard to follow for long. To keep each log separate and tail-able, redirect to files instead:
+Start them:
 
 ```bash
 bun run dev:backend < /dev/null > backend.log 2>&1 &
 bun run dev:frontend < /dev/null > frontend.log 2>&1 &
-
-tail -f backend.log frontend.log   # both, labeled by filename
 ```
 
-To shut one down (e.g. it's on the wrong port, or you need a clean restart):
+Stop one:
 
 ```bash
-kill $(lsof -t -i :4000)   # backend
-kill $(lsof -t -i :3000)   # frontend
+kill $(lsof -t -iTCP:4000 -sTCP:LISTEN)   # backend
+kill $(lsof -t -iTCP:3000 -sTCP:LISTEN)   # frontend
 ```
+
+Keep `-sTCP:LISTEN`: a plain `lsof -t -i :3000` also matches processes *connected* to the port, such as an ngrok tunnel, and kills them too.
+
+</details>

@@ -4,3 +4,4 @@ backend/src/generated
 bun.lock
 .agents
 *.md
+backend/uploads

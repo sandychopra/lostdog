@@ -22,9 +22,9 @@ bun install                # install all workspace deps, from repo root
 bun run dev:backend < /dev/null &   # start the Express API with watch mode (http://localhost:4000)
 bun run dev:frontend < /dev/null &  # start the React dev server with HMR (http://localhost:3000)
 
-
-kill $(lsof -t -i :4000)   # backend
-kill $(lsof -t -i :3000)   # frontend
+bun run dev:restart        # or: stop/start both in the background, logs to backend.log/frontend.log
+bun run dev:restart --ngrok  # same, plus an ngrok tunnel to :3000 (restart alone never starts or stops ngrok)
+bun run dev:stop           # stop both, plus the ngrok tunnel if running
 ```
 
 Each can also be run directly from its own directory: `cd backend && bun run dev`.

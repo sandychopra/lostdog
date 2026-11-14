@@ -22,7 +22,11 @@ export const auth = betterAuth({
     },
   },
   emailAndPassword: { enabled: true, disableSignUp: true },
-  trustedOrigins: [process.env.FRONTEND_URL!],
+  // TUNNEL_URL: optional public origin of a dev tunnel (e.g. ngrok) in front of the frontend.
+  trustedOrigins: [
+    process.env.FRONTEND_URL!,
+    ...(process.env.TUNNEL_URL ? [process.env.TUNNEL_URL] : []),
+  ],
   user: {
     additionalFields: {
       role: {

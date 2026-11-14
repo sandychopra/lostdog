@@ -9,6 +9,8 @@
   "scripts": {
     "dev:backend": "bun run --cwd backend dev",
     "dev:frontend": "bun run --cwd frontend dev",
+    "dev:restart": "scripts/dev-servers.sh restart",
+    "dev:stop": "scripts/dev-servers.sh stop",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
