@@ -26,6 +26,7 @@ First-time setup (env vars, database migrations) is covered in [`docs/post-pull-
 - [`docs/tech-stack.md`](docs/tech-stack.md) — tech stack and the reasoning behind each choice
 - [`docs/implementation-plan.md`](docs/implementation-plan.md) — build order, phased, with current status
 - [`docs/post-pull-checklist.md`](docs/post-pull-checklist.md) — steps to run after pulling changes (or for first-time setup)
+- [`docs/external-services.md`](docs/external-services.md) — setup and troubleshooting for Cloudflare R2, SendGrid, ngrok, Better Auth, and DataGrip
 - [`docs/cheat-sheet.md`](docs/cheat-sheet.md) — quick reference for common tasks
 
 `CLAUDE.md` holds operating instructions for Claude Code specifically, not general project documentation.

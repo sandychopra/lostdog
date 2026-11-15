@@ -17,6 +17,7 @@ const photos = [
 const get = mock(async (url: string) => {
   if (url === "/api/photos") return { data: { photos } };
   if (url === "/api/cats") return { data: { cats: [{ id: 1, name: "Whiskers", active: true }] } };
+  if (url.endsWith("/url")) return { data: { url: null } };
   return { data: new Blob(["x"]), headers: {} };
 });
 

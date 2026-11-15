@@ -13,7 +13,7 @@ import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
-import { storage } from "../lib/storage.ts";
+import { photoStorageKeys, queueStorageDeletes } from "../lib/storageDeletes.ts";
 import { Prisma } from "../generated/prisma/client.ts";
 import {
   parseDateParam,
@@ -486,15 +486,16 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
     return;
   }
 
-  const photos = await prisma.photo.findMany({
-    where: { shiftReportId: id },
-    select: { storageKey: true },
+  // Storage isn't transactional with Postgres, so the files are queued in the
+  // same transaction and deleted after commit (and retried) by the outbox.
+  await prisma.$transaction(async (tx) => {
+    const photos = await tx.photo.findMany({
+      where: { shiftReportId: id },
+      select: { storageKey: true, thumbnailKey: true },
+    });
+    await tx.shiftReport.delete({ where: { id } });
+    await queueStorageDeletes(tx, photoStorageKeys(photos));
   });
-
-  await prisma.shiftReport.delete({ where: { id } });
-
-  // Storage isn't transactional with Postgres — best-effort cleanup after commit.
-  await Promise.all(photos.map((photo) => storage.delete(photo.storageKey)));
 
   res.json({ message: "Shift report deleted" });
 });

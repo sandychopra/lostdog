@@ -15,7 +15,7 @@
 - **PostgreSQL**
 - **Prisma** as ORM
 - Authentication via **database-backed sessions** (session records stored in Postgres rather than JWTs) — implemented via **Better Auth**'s Prisma adapter; no separate session store (e.g. Redis) needed
-- Photo/file storage: **Cloudflare R2** (S3-compatible) — chosen over AWS S3 to avoid egress fees on photo downloads/bulk zip exports; Postgres stores metadata/references only, not the binary files
+- Photo/file storage: **Cloudflare R2** (S3-compatible) — chosen over AWS S3 to avoid egress fees on photo downloads/bulk zip exports; Postgres stores metadata/references only, not the binary files. Accessed through a generic S3 client (`@aws-sdk/client-s3`, `S3Storage` in `backend/src/lib/storage.ts`), so any S3-compatible store works by config alone; local disk is used when the `S3_*` env vars are unset. Grid views load ~480px thumbnails (generated at upload by **sharp**) straight from the bucket via 15-minute presigned URLs; Admin original/zip downloads still stream through the API
 
 ## Deployment
 - **Docker** for containerized deployment

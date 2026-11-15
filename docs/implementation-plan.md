@@ -158,10 +158,11 @@ Status: Code complete. Real-device checks on iPhone (install, camera/HEIC upload
 
 ## Phase 9 — Deployment & hardening
 Goal: it runs in production, reliably, with backups.
-Status: Not started
+Status: In progress — photo storage code is ready for R2 (see below); everything else not started.
 
 - Production Dockerfiles for frontend and backend
 - Provision managed Postgres, S3-compatible bucket, and container host (per `Tech-Stack.md`)
+- Photo storage for production: S3-compatible `S3Storage` selected by `S3_*` env vars; thumbnails generated at upload (`bun run backfill-thumbnails` for older photos); presigned thumbnail URLs; storage deletes go through the `PendingStorageDelete` outbox; `bun run storage:reconcile` reports/deletes orphaned objects (code done; not yet run against a real R2 bucket)
 - Production secrets/env vars
 - Deploy pipeline
 - Basic logging and error monitoring

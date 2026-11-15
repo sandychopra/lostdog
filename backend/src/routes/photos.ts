@@ -9,6 +9,8 @@ import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
 import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
 import { storage } from "../lib/storage.ts";
+import { makeThumbnail, thumbnailKeyFor } from "../lib/thumbnail.ts";
+import { photoStorageKeys } from "../lib/storageDeletes.ts";
 import { ZipArchive } from "archiver";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { buildPhotoFilename, uniqueFilename } from "../lib/photoFilename.ts";
@@ -17,6 +19,9 @@ import { detectImageType, isAllowedImageType } from "../lib/imageType.ts";
 import type { Prisma } from "../generated/prisma/client.ts";
 
 const router = Router();
+
+// Long enough to outlast a page view; the frontend re-signs on an <img> error.
+const SIGNED_URL_TTL_SECONDS = 15 * 60;
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -142,18 +147,37 @@ router.post("/", requireAuth, uploadLimiter, upload.single("photo"), async (req,
   const key = buildStorageKey(shiftReportId, req.file.originalname);
   await storage.put(key, req.file.buffer, contentType);
 
-  const uploadedById = session.user.id;
+  let thumbnailKey: string | null = null;
+  try {
+    const thumbnail = await makeThumbnail(req.file.buffer);
+    await storage.put(thumbnailKeyFor(key), thumbnail, "image/jpeg");
+    thumbnailKey = thumbnailKeyFor(key);
+  } catch (error) {
+    // Views fall back to the original; not worth failing the upload over.
+    console.error(`[photos] thumbnail for ${key} failed:`, error);
+  }
 
-  const photo = await prisma.photo.create({
-    data: {
-      shiftReportId,
-      uploadedById,
-      catEntryId: catEntryId ?? null,
-      storageKey: key,
-      tags: { create: [...tagCatIds].map((catId) => ({ catId })) },
-    },
-    include: photoInclude,
-  });
+  let photo;
+  try {
+    photo = await prisma.photo.create({
+      data: {
+        shiftReportId,
+        uploadedById: session.user.id,
+        catEntryId: catEntryId ?? null,
+        storageKey: key,
+        thumbnailKey,
+        tags: { create: [...tagCatIds].map((catId) => ({ catId })) },
+      },
+      include: photoInclude,
+    });
+  } catch (error) {
+    // No row will ever point at these objects; remove them now rather than
+    // leaving them for the reconcile script.
+    await Promise.allSettled(
+      photoStorageKeys([{ storageKey: key, thumbnailKey }]).map((k) => storage.delete(k)),
+    );
+    throw error;
+  }
 
   res.status(201).json({ photo });
 });
@@ -261,6 +285,30 @@ router.get("/:id/download", requireAuth, requireAdmin, async (req, res: Response
   sendPhotoFile(res, file, `attachment; filename="${name}"`);
 });
 
+// `?size=thumb` → the small copy (falling back to the original for photos
+// without one); anything else → the original.
+function viewKey(
+  photo: { storageKey: string; thumbnailKey: string | null },
+  size: unknown,
+): string {
+  return size === "thumb" ? (photo.thumbnailKey ?? photo.storageKey) : photo.storageKey;
+}
+
+// A short-lived direct-from-bucket URL, so image bytes skip the API entirely.
+// `{ url: null }` means storage can't sign (local disk in dev): use /file.
+router.get("/:id/url", requireAuth, async (req, res: Response) => {
+  const id = Number(req.params.id);
+
+  const photo = await prisma.photo.findUnique({ where: { id } });
+  if (!photo) {
+    res.status(404).json({ error: "Photo not found" });
+    return;
+  }
+
+  const url = await storage.signedUrl(viewKey(photo, req.query.size), SIGNED_URL_TTL_SECONDS);
+  res.json({ url });
+});
+
 router.get("/:id/file", requireAuth, async (req, res: Response) => {
   const id = Number(req.params.id);
 
@@ -270,7 +318,7 @@ router.get("/:id/file", requireAuth, async (req, res: Response) => {
     return;
   }
 
-  const file = await storage.get(photo.storageKey);
+  const file = await storage.get(viewKey(photo, req.query.size));
   if (!file) {
     res.status(404).json({ error: "Photo file not found in storage" });
     return;
