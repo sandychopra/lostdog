@@ -18,7 +18,7 @@ bun run dev:frontend &     # start the React dev server with HMR (http://localho
 - Frontend: http://localhost:3000
 - Backend healthcheck: http://localhost:4000/api/health
 
-First-time setup (env vars, database migrations) is covered in [`docs/post-pull-checklist.md`](docs/post-pull-checklist.md) — follow it before running the commands above for the first time.
+First-time setup: install the tools in [`docs/dev-machine-setup.md`](docs/dev-machine-setup.md), then follow [`docs/post-pull-checklist.md`](docs/post-pull-checklist.md) (env vars, database migrations) before running the commands above for the first time.
 
 ## Further documentation
 
@@ -26,7 +26,8 @@ First-time setup (env vars, database migrations) is covered in [`docs/post-pull-
 - [`docs/tech-stack.md`](docs/tech-stack.md) — tech stack and the reasoning behind each choice
 - [`docs/implementation-plan.md`](docs/implementation-plan.md) — build order, phased, with current status
 - [`docs/post-pull-checklist.md`](docs/post-pull-checklist.md) — steps to run after pulling changes (or for first-time setup)
-- [`docs/external-services.md`](docs/external-services.md) — setup and troubleshooting for Cloudflare R2, SendGrid, ngrok, Better Auth, and DataGrip
+- [`docs/dev-machine-setup.md`](docs/dev-machine-setup.md) — setting up a Mac: Homebrew, Bun, Postgres, VS Code, Claude Code, DataGrip
+- [`docs/external-services.md`](docs/external-services.md) — setup and troubleshooting for the domain, Cloudflare R2, SendGrid, ngrok, and Better Auth
 - [`docs/cheat-sheet.md`](docs/cheat-sheet.md) — quick reference for common tasks
 
 `CLAUDE.md` holds operating instructions for Claude Code specifically, not general project documentation.

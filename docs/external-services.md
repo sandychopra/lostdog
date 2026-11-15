@@ -1,6 +1,6 @@
 # External Services & Tools
 
-Setup, configuration, and troubleshooting for the third-party services and tools this app depends on: the `7cornerscats.com` domain (GoDaddy), Cloudflare R2 (photo storage), SendGrid (email), ngrok (testing from a phone), Better Auth (sign-in and sessions), and DataGrip (browsing and querying the database). R2, SendGrid, and ngrok are optional in local development. With their settings blank, the app falls back to local disk, logs emails to the console, and runs only on `localhost`. For everyday commands, see [`cheat-sheet.md`](cheat-sheet.md). For the full list of env vars, see [`post-pull-checklist.md`](post-pull-checklist.md).
+Setup, configuration, and troubleshooting for the third-party services this app depends on: the `7cornerscats.com` domain (GoDaddy), Cloudflare R2 (photo storage), SendGrid (email), ngrok (testing from a phone), and Better Auth (sign-in and sessions). R2, SendGrid, and ngrok are optional in local development. With their settings blank, the app falls back to local disk, logs emails to the console, and runs only on `localhost`. Tools installed on your own Mac (VS Code, Claude Code, DataGrip) are in [`dev-machine-setup.md`](dev-machine-setup.md). For everyday commands, see [`cheat-sheet.md`](cheat-sheet.md). For the full list of env vars, see [`post-pull-checklist.md`](post-pull-checklist.md).
 
 | Service | Used for | Needed in dev? | Settings (`backend/.env` unless noted) |
 |---|---|---|---|
@@ -9,7 +9,6 @@ Setup, configuration, and troubleshooting for the third-party services and tools
 | [SendGrid](#sendgrid-email-notifications) | Notification emails | No — printed to the log by default | `SENDGRID_API_KEY`, `EMAIL_FROM`, `NOTIFICATION_TO` |
 | [ngrok](#ngrok-phone--remote-testing) | Using the dev app from another device | No — only for phone testing | `TUNNEL_URL`, plus `PUBLIC_API_URL` and `TUNNEL_HOST` in `frontend/.env` |
 | [Better Auth](#better-auth-sign-in--sessions) | Sign-in, sessions, roles | Yes — always on (a library, no account) | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `FRONTEND_URL` |
-| [DataGrip](#datagrip-database-gui) | Querying tables by hand | No — optional desktop tool | Uses `DATABASE_URL`'s connection details |
 
 ## Domain & DNS (`7cornerscats.com` on GoDaddy)
 
@@ -93,7 +92,7 @@ Always copy the exact values from the provider's own setup page at the time you 
 
 Stores uploaded photos and their thumbnails in a bucket. R2 is S3-compatible, and the app talks to it with the standard AWS S3 SDK, so any S3-compatible store works with the same settings. It was chosen over AWS S3 because downloads are free (see [`tech-stack.md`](tech-stack.md)). With the `S3_*` settings blank, photos are saved to `UPLOADS_DIR` (default `backend/uploads`), which is fine for most dev work. Nothing touches a bucket under `bun test`.
 
-> **Other developers:** use your own dev bucket (or local disk), never the production bucket. Uploading or deleting reports in dev would change real photos.
+> **Other developers:** the Cloudflare account and `lostdog-photos-dev` bucket below are Sandy's personal setup, and the token can't be shared. Either leave the `S3_*` settings blank (local disk) or create your own free Cloudflare account, dev bucket, and token (steps below). Never point dev at the production bucket. Uploading or deleting reports in dev would change real photos.
 
 ### How it works
 
@@ -137,9 +136,21 @@ Stores uploaded photos and their thumbnails in a bucket. R2 is S3-compatible, an
 - Images go blank after a tab sits open for a long time — the signed links expired. The app re-signs once on error; a page refresh fixes anything left over.
 - R2 has no object versioning, so a deleted file is gone for good. For backups, use a scheduled `rclone sync` to a second bucket or provider (not set up yet; see Phase 9 in [`implementation-plan.md`](implementation-plan.md)).
 
-### How it was set up on this machine
+### How it was set up on this machine (Sandy, Nov 2026)
 
-Not set up yet: photos are still on local disk. Once the account and dev bucket exist, record the steps here, the way the SendGrid and ngrok sections do.
+1. Created a personal Cloudflare account and enabled R2, which meant adding a payment method. Usage stays within the free tier.
+2. Created the bucket `lostdog-photos-dev`, with public access left off and no CORS policy. The production bucket (`lostdog-photos`) hasn't been created yet; that's part of Phase 9 deployment.
+3. Created an R2 API token with **Object Read & Write**, limited to `lostdog-photos-dev`, and put the Account ID (in `S3_ENDPOINT`), Access Key ID, and Secret Access Key into `backend/.env`
+4. First restart: every request would have failed with a signature error, because the `.env` line read `S3_SECRET_ACCESS_KEY==…`. The extra `=` became part of the key, making it 65 characters instead of 64. Fixed by removing it. If R2 rejects requests, check that the secret is exactly 64 hex characters.
+5. `bun run dev:restart` — `backend.log` shows `[storage] using S3-compatible bucket "lostdog-photos-dev"`
+6. Verified end to end:
+   - Upload stores the original plus a 480px thumbnail
+   - Grid images load from `*.r2.cloudflarestorage.com` through signed URLs; the same URL unsigned is denied
+   - Admin single and zip downloads work
+   - Deleting a report or a single photo removes its objects
+   - A failed photo insert leaves no objects behind
+   - `storage:reconcile` reports 0 orphans
+7. Photos uploaded before the switch are still in `backend/uploads` on local disk, so they show as broken images while R2 is on. They weren't copied over; it's dev data. Clearing the four `S3_*` lines in `backend/.env` and restarting switches back to local disk.
 
 ## ngrok (phone & remote testing)
 
@@ -266,32 +277,3 @@ Handles email/password sign-in, sessions, and the user's role. Unlike everything
 - "This account has been deactivated." — the user is soft-deleted (`user.deleted_at` is set). An Admin can't undo this from the UI yet.
 - Locked out of every Admin account in dev — `bun run seed` resets the seeded admin from `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD`
 - Docs: [better-auth.com/docs](https://www.better-auth.com/docs). Check the docs for the version in `package.json` before changing config, since options move between releases.
-
-## DataGrip (database GUI)
-
-JetBrains' desktop database IDE, for browsing tables, running ad-hoc SQL, and checking what the app actually wrote (e.g. a photo's `thumbnail_key`, the email outbox columns, `pending_storage_delete`). It's optional: everything it does can also be done with `psql` or `bunx prisma studio`.
-
-> **Other developers:** DataGrip needs a JetBrains license. It's free for non-commercial use, students, and open-source work; otherwise it's paid. Any Postgres client works the same way here: `psql`, [Prisma Studio](https://www.prisma.io/studio) (`cd backend && bunx prisma studio`), TablePlus, DBeaver (free), or the Database tool built into IntelliJ IDEA Ultimate/WebStorm.
-
-### Setting up (one-time)
-
-- Install from [jetbrains.com/datagrip](https://www.jetbrains.com/datagrip/) (or the JetBrains Toolbox app)
-- **New → Data Source → PostgreSQL**, then fill in the fields from `DATABASE_URL` in `backend/.env` (`postgresql://<user>:<password>@<host>:<port>/<database>`):
-  - Host `localhost`, port `5432`
-  - User, password, and database from the URL. With the `docker-compose.yml` defaults: `lostdog_app` / `changeme` / `lostdog`.
-- Click **Download missing driver files** if prompted, then **Test Connection**
-- In the data source's **Schemas** tab, tick only `public` so the tree isn't cluttered with system schemas
-
-### Using it
-
-- Tables and columns are `snake_case` (e.g. `shift_report`, `cat_entry`, `photo_cat_tag`), matching the `@map`s in `schema.prisma`, not the Prisma model names
-- Check `backend/prisma/ERD.md` for how tables relate before writing joins
-- Treat it as **read-only** for app data:
-  - Edit through the app or the API so side effects run: activity log, announcements, email outbox, storage deletes
-  - A row deleted by hand skips all of that (e.g. deleting a `photo` row leaves its files in storage until `bun run storage:reconcile`)
-- Schema changes go through Prisma migrations (`bunx prisma migrate dev`), never DataGrip's table editor. A hand-made change makes the next migration fail with drift.
-- Production (once deployed): connect with a read-only database user if possible, and use DataGrip's per-data-source **Read-only** setting
-
-### How it was set up on this machine
-
-DataGrip is installed (`/Applications/DataGrip.app`). Record the data source details here if they differ from the steps above.
