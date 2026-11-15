@@ -1,6 +1,6 @@
 # Post-pull checklist
 
-Run through these steps after pulling changes from `main` to keep your local setup in sync — new dependencies, environment variables, and database migrations don't apply themselves. The same steps also work for first-time setup.
+Run through these steps after pulling changes from `main` to keep your local setup in sync — new dependencies, environment variables, and database migrations don't apply themselves. The same steps also work for first-time setup, once the tools in [`dev-machine-setup.md`](dev-machine-setup.md) are installed.
 
 **Quick reference** — on a routine pull you only need the "Every pull" rows; everything else is first-time setup or situational:
 

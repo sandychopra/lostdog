@@ -1,6 +1,6 @@
 # Cheat Sheet
 
-Quick-reference commands for Git, the Unix/macOS shell, macOS keyboard shortcuts, Bun, Claude Code, and this machine's `~/.zshrc`. Setup for third-party services and tools (Cloudflare R2, SendGrid, ngrok, Better Auth, DataGrip) lives in [`external-services.md`](external-services.md).
+Quick-reference commands for Git, the Unix/macOS shell, macOS keyboard shortcuts, Bun, Claude Code, and this machine's `~/.zshrc`. Setup for third-party services (Cloudflare R2, SendGrid, ngrok, Better Auth) lives in [`external-services.md`](external-services.md); installing tools on your Mac (VS Code, Claude Code, DataGrip) is in [`dev-machine-setup.md`](dev-machine-setup.md).
 
 ## Git
 
