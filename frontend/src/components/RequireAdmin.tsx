@@ -8,7 +8,7 @@ export default function RequireAdmin({ children }: { children: ReactNode }) {
 
   if (isPending) {
     return (
-      <main style={{ fontFamily: "sans-serif", padding: "2rem" }}>
+      <main className="mx-auto max-w-sm px-6 py-16 text-center">
         <p>Loading...</p>
       </main>
     );

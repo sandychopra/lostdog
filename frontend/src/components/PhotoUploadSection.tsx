@@ -3,6 +3,8 @@ import { X, Pencil, Image as ImageIcon, Camera } from "lucide-react";
 import AuthenticatedImage from "./AuthenticatedImage";
 import CatMultiSelect, { type CatOption } from "./CatMultiSelect";
 import PhotoTagEditor from "./PhotoTagEditor";
+import { buttonVariants } from "./ui/button";
+import { cn } from "../lib/utils";
 
 export interface QueuedPhoto {
   file: File;
@@ -49,11 +51,11 @@ function QueuedThumb({
     <div className="relative w-28 rounded-md border border-input p-1.5">
       <button
         type="button"
-        className="absolute -right-1.5 -top-1.5 rounded-full bg-destructive p-0.5 text-white"
+        className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-destructive text-white"
         onClick={onRemove}
         aria-label="Remove photo"
       >
-        <X className="h-3 w-3" />
+        <X className="h-4 w-4" />
       </button>
       {previewFailed ? (
         <div className="flex h-24 w-full flex-col items-center justify-center gap-1 rounded bg-muted p-1 text-center">
@@ -171,7 +173,7 @@ export default function PhotoUploadSection({
         ))}
       </div>
       <div className="flex flex-wrap gap-2">
-        <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-input px-3 py-1.5 text-sm">
+        <label className={cn(buttonVariants({ variant: "outline" }), "flex-1 sm:flex-none")}>
           <input
             type="file"
             accept="image/*,image/heic,image/heif"
@@ -185,7 +187,7 @@ export default function PhotoUploadSection({
           <ImageIcon className="h-4 w-4" />
           Choose from Library
         </label>
-        <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-input px-3 py-1.5 text-sm">
+        <label className={cn(buttonVariants({ variant: "outline" }), "flex-1 sm:flex-none")}>
           <input
             type="file"
             accept="image/*"

@@ -18,7 +18,7 @@ import ErrorAlert from "./ErrorAlert";
 import UserForm from "./UserForm";
 import UsersTable from "./UsersTable";
 import { Role } from "shared/constants/role.ts";
-import Navbar from "./Navbar";
+import AppLayout from "./AppLayout";
 
 interface EditingUser {
   id: string;
@@ -50,66 +50,63 @@ export default function UsersPage() {
   });
 
   return (
-    <>
-      <Navbar />
-      <main className="mx-auto max-w-4xl px-6 py-8">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
-          <Button onClick={() => setDialog({ mode: "create" })}>
-            <Plus className="mr-1 h-4 w-4" />
-            New User
-          </Button>
-        </div>
-        <UsersTable
-          onEdit={(user) => setDialog({ mode: "edit", user })}
-          onDelete={(user) => setDeletingUser(user)}
-        />
-        <Dialog
-          open={dialog !== null}
-          onOpenChange={(open) => {
-            if (!open) close();
-          }}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{dialog?.mode === "edit" ? "Edit User" : "Create User"}</DialogTitle>
-            </DialogHeader>
-            <UserForm
-              key={dialog?.mode === "edit" ? dialog.user.id : "create"}
-              user={dialog?.mode === "edit" ? dialog.user : undefined}
-              onSuccess={close}
-            />
-          </DialogContent>
-        </Dialog>
-        <AlertDialog
-          open={deletingUser !== null}
-          onOpenChange={(open) => {
-            if (!open) {
-              setDeletingUser(null);
-              deleteMutation.reset();
-            }
-          }}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete User</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to delete {deletingUser?.name}? They will no longer be able to
-                log in, but their account and past shift reports will be kept.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            {deleteMutation.isError && <ErrorAlert message="Failed to delete user" />}
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => deletingUser && deleteMutation.mutate(deletingUser.id)}
-              >
-                Confirm
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </main>
-    </>
+    <AppLayout width="4xl">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
+        <Button onClick={() => setDialog({ mode: "create" })}>
+          <Plus className="mr-1 h-4 w-4" />
+          New User
+        </Button>
+      </div>
+      <UsersTable
+        onEdit={(user) => setDialog({ mode: "edit", user })}
+        onDelete={(user) => setDeletingUser(user)}
+      />
+      <Dialog
+        open={dialog !== null}
+        onOpenChange={(open) => {
+          if (!open) close();
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{dialog?.mode === "edit" ? "Edit User" : "Create User"}</DialogTitle>
+          </DialogHeader>
+          <UserForm
+            key={dialog?.mode === "edit" ? dialog.user.id : "create"}
+            user={dialog?.mode === "edit" ? dialog.user : undefined}
+            onSuccess={close}
+          />
+        </DialogContent>
+      </Dialog>
+      <AlertDialog
+        open={deletingUser !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeletingUser(null);
+            deleteMutation.reset();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {deletingUser?.name}? They will no longer be able to
+              log in, but their account and past shift reports will be kept.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteMutation.isError && <ErrorAlert message="Failed to delete user" />}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingUser && deleteMutation.mutate(deletingUser.id)}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </AppLayout>
   );
 }

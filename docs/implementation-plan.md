@@ -147,12 +147,13 @@ Status: Done (real SendGrid delivery verified to a personal address)
 
 ## Phase 8 — PWA, mobile & desktop polish
 Goal: it works like an app on a volunteer's phone, and is equally usable in a desktop browser.
-Status: Partly done. PWA scaffolding exists; icons, device testing and the responsive pass remain.
+Status: Code complete. Real-device checks on iPhone (install, camera/HEIC upload) still to do; Android install unverified (no test device).
 
-- Service worker and manifest via `vite-plugin-pwa` (done)
-- Real manifest icons, once the org provides brand assets
+- Service worker and manifest via `vite-plugin-pwa`, with a "new version — Reload" prompt instead of silent auto-update (done)
+- Manifest/apple-touch icons and favicon generated from the org's site icon on lostdogrescue.org (done; swap in an official file by replacing `frontend/public/logo.png` and running `bun run generate-pwa-assets`)
 - "Add to home screen" verified on iOS and Android
-- Mobile-first responsive pass across all screens, checked on phone and desktop widths
+- Mobile-first responsive pass across all screens: hamburger nav, phone cards in place of wide tables, 16px inputs (no iOS focus zoom), safe-area padding, offline banner (done; checked at 390px and desktop widths in Chrome)
+- Photos converted to JPEG (max 2560px) on the device before upload, so HEIC displays everywhere; the Admin "original" download is that JPEG (done)
 - Real-device test of photo capture/upload
 
 ## Phase 9 — Deployment & hardening
