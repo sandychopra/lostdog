@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "../test/render";
 
@@ -43,7 +43,9 @@ describe("UsersPage", () => {
     const user = userEvent.setup();
     renderWithQuery(<UsersPage />);
 
-    await user.click(await screen.findByLabelText("Delete Vera Volunteer"));
+    await user.click(
+      within(await screen.findByRole("table")).getByLabelText("Delete Vera Volunteer"),
+    );
     expect(screen.getByText(/Are you sure you want to delete Vera Volunteer/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Confirm" }));

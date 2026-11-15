@@ -16,7 +16,8 @@ export const buttonVariants = cva(
       size: {
         default: "h-10 px-5",
         sm: "h-8 px-3",
-        icon: "h-8 w-8",
+        // Larger tap target on phones; desktop keeps the compact size.
+        icon: "h-10 w-10 md:h-8 md:w-8",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

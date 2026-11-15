@@ -4,7 +4,7 @@ import { ActivityEntityType } from "shared/constants/activityLog.ts";
 import { api } from "../lib/api";
 import ActivitySection from "./ActivitySection";
 import ErrorAlert from "./ErrorAlert";
-import Navbar from "./Navbar";
+import AppLayout from "./AppLayout";
 import { kennelStateBadgeVariant, occupantLabel, type Kennel } from "./KennelsTable";
 import { Badge } from "./ui/badge";
 import { Skeleton } from "./ui/skeleton";
@@ -23,54 +23,51 @@ export default function KennelDetailPage() {
   });
 
   return (
-    <>
-      <Navbar />
-      <main className="mx-auto max-w-4xl space-y-8 px-6 py-8">
-        {error ? (
-          <ErrorAlert message="Kennel not found" />
-        ) : !kennel ? (
-          <Skeleton className="h-16 w-full" />
-        ) : (
-          <section className="space-y-2">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-semibold tracking-tight">Kennel {kennel.number}</h1>
-              <Badge variant={kennelStateBadgeVariant(kennel.state)}>{kennel.state}</Badge>
-            </div>
-            <p className="text-sm">
-              <span className="text-muted-foreground">Occupant: </span>
-              {kennel.cats.map((cat, i) => (
+    <AppLayout width="4xl" className="space-y-8">
+      {error ? (
+        <ErrorAlert message="Kennel not found" />
+      ) : !kennel ? (
+        <Skeleton className="h-16 w-full" />
+      ) : (
+        <section className="space-y-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight">Kennel {kennel.number}</h1>
+            <Badge variant={kennelStateBadgeVariant(kennel.state)}>{kennel.state}</Badge>
+          </div>
+          <p className="text-sm">
+            <span className="text-muted-foreground">Occupant: </span>
+            {kennel.cats.map((cat, i) => (
+              <span key={cat.id}>
+                {i > 0 && ", "}
+                <Link to={`/cats/${cat.id}`} className="text-blue hover:underline">
+                  {cat.name}
+                </Link>
+              </span>
+            ))}
+            {kennel.groups
+              .flatMap((g) => g.cats)
+              .map((cat, i) => (
                 <span key={cat.id}>
-                  {i > 0 && ", "}
+                  {(i > 0 || kennel.cats.length > 0) && ", "}
                   <Link to={`/cats/${cat.id}`} className="text-blue hover:underline">
                     {cat.name}
                   </Link>
                 </span>
               ))}
-              {kennel.groups
-                .flatMap((g) => g.cats)
-                .map((cat, i) => (
-                  <span key={cat.id}>
-                    {(i > 0 || kennel.cats.length > 0) && ", "}
-                    <Link to={`/cats/${cat.id}`} className="text-blue hover:underline">
-                      {cat.name}
-                    </Link>
-                  </span>
-                ))}
-              {occupantLabel(kennel) === "—" && "—"}
-            </p>
-            <p className="text-sm">
-              <Link to="/shift-reports" className="text-blue hover:underline">
-                Search shift reports
-              </Link>{" "}
-              <span className="text-muted-foreground">
-                (filter by Kennel {kennel.number} to see reports mentioning it)
-              </span>
-            </p>
-          </section>
-        )}
+            {occupantLabel(kennel) === "—" && "—"}
+          </p>
+          <p className="text-sm">
+            <Link to="/shift-reports" className="text-blue hover:underline">
+              Search shift reports
+            </Link>{" "}
+            <span className="text-muted-foreground">
+              (filter by Kennel {kennel.number} to see reports mentioning it)
+            </span>
+          </p>
+        </section>
+      )}
 
-        <ActivitySection entityType={ActivityEntityType.Kennel} entityId={id} />
-      </main>
-    </>
+      <ActivitySection entityType={ActivityEntityType.Kennel} entityId={id} />
+    </AppLayout>
   );
 }

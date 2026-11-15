@@ -20,6 +20,8 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Skeleton } from "./ui/skeleton";
+import { Card } from "./ui/card";
+import { DesktopOnly, MobileCardList } from "./ResponsiveList";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -102,15 +104,7 @@ function siblingsLabel(cat: Cat): string {
   return names.length > 0 ? names.join(", ") : "—";
 }
 
-export default function CatsTable({
-  onEdit,
-  onDelete,
-  onRemoveFromGroup,
-  onEditGroup,
-  onManageSiblings,
-  onChangeStatus,
-  onReturnToRcc,
-}: CatsTableProps) {
+export default function CatsTable(handlers: CatsTableProps) {
   const { data: session } = authClient.useSession();
   const isAdmin = session?.user.role === Role.Admin;
 
@@ -131,155 +125,191 @@ export default function CatsTable({
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Name</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Age</TableHead>
-          <TableHead>Sex</TableHead>
-          <TableHead>Color/Pattern</TableHead>
-          <TableHead>Kennel</TableHead>
-          <TableHead>Flags</TableHead>
-          {isAdmin && <TableHead>Actions</TableHead>}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {isLoading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <TableRow key={i}>
-                <TableCell>
-                  <Skeleton className="h-4 w-24" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-5 w-20 rounded-full" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-4 w-8" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-4 w-16" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-4 w-24" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-4 w-8" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-4 w-24" />
-                </TableCell>
-                {isAdmin && (
-                  <TableCell>
-                    <Skeleton className="h-8 w-8 rounded" />
-                  </TableCell>
-                )}
-              </TableRow>
-            ))
-          : cats?.map((cat) => (
-              <TableRow key={cat.id}>
-                <TableCell>
-                  <Link to={`/cats/${cat.id}`} className="text-blue hover:underline">
-                    {cat.name}
-                  </Link>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={catStatusBadgeVariant(cat.status)}>
-                    {CAT_STATUS_LABELS[cat.status]}
-                  </Badge>
-                </TableCell>
-                <TableCell>{ageLabel(cat)}</TableCell>
-                <TableCell>{cat.sex}</TableCell>
-                <TableCell>{cat.colorPattern}</TableCell>
-                <TableCell>{kennelLabel(cat)}</TableCell>
-                <TableCell>
-                  {cat.pickupAt || cat.litter ? (
-                    <div className="flex flex-col gap-1 text-sm">
-                      {cat.pickupAt && (
-                        <span className="text-muted-foreground">
-                          Pickup: {new Date(cat.pickupAt).toLocaleString()}
-                        </span>
-                      )}
-                      {cat.litter && (
-                        <span className="text-muted-foreground">
-                          Siblings: {siblingsLabel(cat)}
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    "—"
-                  )}
-                </TableCell>
-                {isAdmin && (
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      {cat.groupId !== null && (
-                        <>
-                          <span className="text-sm text-muted-foreground">In Group</span>
-                          {cat.group?.bonded && <Badge variant="secondary">Bonded</Badge>}
-                        </>
-                      )}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Actions for ${cat.name}`}
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <DropdownMenuItem onClick={() => onEdit(cat)}>
-                            <Pencil className="h-4 w-4" />
-                            Edit
-                          </DropdownMenuItem>
-                          {cat.groupId !== null && (
-                            <DropdownMenuItem onClick={() => onEditGroup(cat)}>
-                              <Users2 className="h-4 w-4" />
-                              Edit Group
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem onClick={() => onManageSiblings(cat)}>
-                            <Users2 className="h-4 w-4" />
-                            Manage Siblings
-                          </DropdownMenuItem>
-                          {cat.groupId === null &&
-                            VALID_STATUS_TRANSITIONS[cat.status].length > 0 && (
-                              <DropdownMenuItem onClick={() => onChangeStatus(cat)}>
-                                <ArrowRightLeft className="h-4 w-4" />
-                                Change Status
-                              </DropdownMenuItem>
-                            )}
-                          {cat.groupId === null && (
-                            <DropdownMenuItem onClick={() => onReturnToRcc(cat)}>
-                              <LogOut className="h-4 w-4" />
-                              Return to RCC
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuSeparator />
-                          {cat.groupId !== null ? (
-                            <DropdownMenuItem
-                              variant="destructive"
-                              onClick={() => onRemoveFromGroup(cat)}
-                            >
-                              <UserMinus className="h-4 w-4" />
-                              Remove from Group
-                            </DropdownMenuItem>
-                          ) : (
-                            <DropdownMenuItem variant="destructive" onClick={() => onDelete(cat)}>
-                              <Trash2 className="h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </TableCell>
-                )}
-              </TableRow>
-            ))}
-      </TableBody>
-    </Table>
+    <>
+      <MobileCardList isLoading={isLoading}>
+        {cats?.map((cat) => (
+          <Card key={cat.id} className="gap-2 px-4">
+            <div className="flex items-center justify-between gap-3">
+              <Link to={`/cats/${cat.id}`} className="text-base font-medium text-blue">
+                {cat.name}
+              </Link>
+              <Badge variant={catStatusBadgeVariant(cat.status)}>
+                {CAT_STATUS_LABELS[cat.status]}
+              </Badge>
+            </div>
+            <p>
+              Kennel {kennelLabel(cat)} · {ageLabel(cat)} · {cat.sex} · {cat.colorPattern}
+            </p>
+            <CatFlags cat={cat} />
+            {isAdmin && <CatActions cat={cat} {...handlers} />}
+          </Card>
+        ))}
+      </MobileCardList>
+      <DesktopOnly>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Age</TableHead>
+              <TableHead>Sex</TableHead>
+              <TableHead>Color/Pattern</TableHead>
+              <TableHead>Kennel</TableHead>
+              <TableHead>Flags</TableHead>
+              {isAdmin && <TableHead>Actions</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading
+              ? Array.from({ length: 4 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell>
+                      <Skeleton className="h-4 w-24" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-20 rounded-full" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-8" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-16" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-24" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-8" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-24" />
+                    </TableCell>
+                    {isAdmin && (
+                      <TableCell>
+                        <Skeleton className="h-8 w-8 rounded" />
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))
+              : cats?.map((cat) => (
+                  <TableRow key={cat.id}>
+                    <TableCell>
+                      <Link to={`/cats/${cat.id}`} className="text-blue hover:underline">
+                        {cat.name}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={catStatusBadgeVariant(cat.status)}>
+                        {CAT_STATUS_LABELS[cat.status]}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{ageLabel(cat)}</TableCell>
+                    <TableCell>{cat.sex}</TableCell>
+                    <TableCell>{cat.colorPattern}</TableCell>
+                    <TableCell>{kennelLabel(cat)}</TableCell>
+                    <TableCell>
+                      <CatFlags cat={cat} fallback="—" />
+                    </TableCell>
+                    {isAdmin && (
+                      <TableCell>
+                        <CatActions cat={cat} {...handlers} />
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+          </TableBody>
+        </Table>
+      </DesktopOnly>
+    </>
+  );
+}
+
+function CatFlags({ cat, fallback = null }: { cat: Cat; fallback?: string | null }) {
+  return (
+    <>
+      {cat.pickupAt || cat.litter ? (
+        <div className="flex flex-col gap-1 text-sm">
+          {cat.pickupAt && (
+            <span className="text-muted-foreground">
+              Pickup: {new Date(cat.pickupAt).toLocaleString()}
+            </span>
+          )}
+          {cat.litter && (
+            <span className="text-muted-foreground">Siblings: {siblingsLabel(cat)}</span>
+          )}
+        </div>
+      ) : (
+        fallback
+      )}
+    </>
+  );
+}
+
+function CatActions({
+  cat,
+  onEdit,
+  onDelete,
+  onRemoveFromGroup,
+  onEditGroup,
+  onManageSiblings,
+  onChangeStatus,
+  onReturnToRcc,
+}: CatsTableProps & { cat: Cat }) {
+  return (
+    <div className="flex items-center gap-1">
+      {cat.groupId !== null && (
+        <>
+          <span className="text-sm text-muted-foreground">In Group</span>
+          {cat.group?.bonded && <Badge variant="secondary">Bonded</Badge>}
+        </>
+      )}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" aria-label={`Actions for ${cat.name}`}>
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem onClick={() => onEdit(cat)}>
+            <Pencil className="h-4 w-4" />
+            Edit
+          </DropdownMenuItem>
+          {cat.groupId !== null && (
+            <DropdownMenuItem onClick={() => onEditGroup(cat)}>
+              <Users2 className="h-4 w-4" />
+              Edit Group
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onClick={() => onManageSiblings(cat)}>
+            <Users2 className="h-4 w-4" />
+            Manage Siblings
+          </DropdownMenuItem>
+          {cat.groupId === null && VALID_STATUS_TRANSITIONS[cat.status].length > 0 && (
+            <DropdownMenuItem onClick={() => onChangeStatus(cat)}>
+              <ArrowRightLeft className="h-4 w-4" />
+              Change Status
+            </DropdownMenuItem>
+          )}
+          {cat.groupId === null && (
+            <DropdownMenuItem onClick={() => onReturnToRcc(cat)}>
+              <LogOut className="h-4 w-4" />
+              Return to RCC
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+          {cat.groupId !== null ? (
+            <DropdownMenuItem variant="destructive" onClick={() => onRemoveFromGroup(cat)}>
+              <UserMinus className="h-4 w-4" />
+              Remove from Group
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem variant="destructive" onClick={() => onDelete(cat)}>
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }

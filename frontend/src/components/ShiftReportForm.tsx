@@ -13,6 +13,7 @@ import { CatEntryType } from "shared/constants/catEntryType.ts";
 import { SplitShiftPosition } from "shared/constants/splitShiftPosition.ts";
 import { ShiftReportStatus } from "shared/constants/shiftReportStatus.ts";
 import { api } from "../lib/api";
+import { prepareImageForUpload } from "../lib/prepareImage";
 import { shiftReportResolver } from "../lib/shiftReportForm";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
@@ -106,7 +107,7 @@ function mapReportToDefaultValues(report: ShiftReport): DraftShiftReportInput {
 
 async function uploadPhoto(args: { file: File; shiftReportId: number; catIds: number[] }) {
   const formData = new FormData();
-  formData.append("photo", args.file);
+  formData.append("photo", await prepareImageForUpload(args.file));
   formData.append("shiftReportId", String(args.shiftReportId));
   if (args.catIds.length > 0) formData.append("catIds", JSON.stringify(args.catIds));
   return api.post("/api/photos", formData);
@@ -626,7 +627,7 @@ export default function ShiftReportForm({
         ]}
         onBeforeNavigate={(key) => setCollapsedSections((prev) => ({ ...prev, [key]: false }))}
       />
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="shiftType">Shift Type</Label>
           <NativeSelect id="shiftType" {...register("shiftType")}>
@@ -685,13 +686,14 @@ export default function ShiftReportForm({
         onToggleCollapsed={() => toggleSection("catEntries")}
         anchorId="section-cat-entries"
         headerExtra={
-          <div className="flex gap-2">
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
             {catEntries.fields.length > 1 && (
               <>
                 <Button
                   type="button"
                   variant="secondary"
                   size="sm"
+                  className="h-10 md:h-8"
                   onClick={() => setCollapsedEntryIds(new Set())}
                 >
                   Expand all
@@ -700,6 +702,7 @@ export default function ShiftReportForm({
                   type="button"
                   variant="secondary"
                   size="sm"
+                  className="h-10 md:h-8"
                   onClick={() => setCollapsedEntryIds(new Set(catEntries.fields.map((f) => f.id)))}
                 >
                   Collapse all
@@ -708,8 +711,7 @@ export default function ShiftReportForm({
             )}
             <NativeSelect
               aria-label="Add a cat"
-              size="sm"
-              className="w-56"
+              className="w-full sm:w-56"
               value={pickerValue}
               onChange={(e) => handlePickerChange(e.target.value)}
             >

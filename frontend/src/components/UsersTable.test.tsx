@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { renderWithQuery } from "../test/render";
 
 const users = [
@@ -44,14 +44,24 @@ describe("UsersTable", () => {
   test("lists users, allows deleting other Admins, and hides delete on your own row", async () => {
     renderWithQuery(<UsersTable onEdit={() => {}} onDelete={() => {}} />);
 
-    expect(await screen.findByText("Vera Volunteer")).toBeInTheDocument();
-    expect(screen.getByText("Ann Admin")).toBeInTheDocument();
+    // Phone cards and the desktop table both render (CSS picks one); check the table.
+    const table = within(await screen.findByRole("table"));
+    expect(await table.findByText("Vera Volunteer")).toBeInTheDocument();
+    expect(table.getByText("Ann Admin")).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Delete Vera Volunteer")).toBeInTheDocument();
+      expect(table.getByLabelText("Delete Vera Volunteer")).toBeInTheDocument();
     });
-    expect(screen.getByLabelText("Delete Otto Otheradmin")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Delete Ann Admin")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Edit Ann Admin")).toBeInTheDocument();
+    expect(table.getByLabelText("Delete Otto Otheradmin")).toBeInTheDocument();
+    expect(table.queryByLabelText("Delete Ann Admin")).not.toBeInTheDocument();
+    expect(table.getByLabelText("Edit Ann Admin")).toBeInTheDocument();
+  });
+
+  test("renders the same per-user actions on the phone cards", async () => {
+    renderWithQuery(<UsersTable onEdit={() => {}} onDelete={() => {}} />);
+
+    await screen.findAllByText("Vera Volunteer");
+    expect(screen.getAllByLabelText("Delete Vera Volunteer")).toHaveLength(2);
+    expect(screen.queryAllByLabelText("Delete Ann Admin")).toHaveLength(0);
   });
 });

@@ -10,7 +10,7 @@ import { catOptionLabel, useCatOptions } from "../lib/useCatOptions";
 import type { CatOption } from "./CatMultiSelect";
 import AuthenticatedImage from "./AuthenticatedImage";
 import ErrorAlert from "./ErrorAlert";
-import Navbar from "./Navbar";
+import AppLayout from "./AppLayout";
 import PhotoTagEditor from "./PhotoTagEditor";
 import { formatReportDate, type ShiftReportPhoto } from "./ShiftReportsTable";
 import { Button } from "./ui/button";
@@ -60,7 +60,7 @@ function PhotoTile({
             {canEditTags && (
               <button
                 type="button"
-                className="text-blue"
+                className="-m-1.5 p-1.5 text-blue"
                 onClick={() => setEditing((v) => !v)}
                 aria-label="Edit tags"
               >
@@ -70,7 +70,7 @@ function PhotoTile({
             {canDownload && (
               <button
                 type="button"
-                className="text-blue"
+                className="-m-1.5 p-1.5 text-blue"
                 onClick={() =>
                   downloadFromApi(
                     `/api/photos/${photo.id}/download`,
@@ -126,91 +126,88 @@ export default function PhotosPage() {
   });
 
   return (
-    <>
-      <Navbar />
-      <main className="mx-auto max-w-5xl px-6 py-8">
-        <h1 className="mb-6 text-2xl font-semibold tracking-tight">Photos</h1>
+    <AppLayout width="5xl">
+      <h1 className="mb-6 text-2xl font-semibold tracking-tight">Photos</h1>
 
-        <div className="mb-6 flex flex-wrap items-end gap-3">
-          <div className="space-y-1">
-            <Label htmlFor="photoCat">Cat</Label>
-            <NativeSelect
-              id="photoCat"
-              className="w-fit"
-              value={catId}
-              disabled={unassigned}
-              onChange={(e) => {
-                setCatId(e.target.value);
-                setLimit(PAGE_SIZE);
-              }}
-            >
-              <NativeSelectOption value="">All cats</NativeSelectOption>
-              {cats?.map((cat) => (
-                <NativeSelectOption key={cat.id} value={cat.id}>
-                  {catOptionLabel(cat)}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </div>
-          <label className="flex h-10 items-center gap-2 text-sm">
-            <Checkbox
-              checked={unassigned}
-              onCheckedChange={(checked) => {
-                setUnassigned(checked === true);
-                setLimit(PAGE_SIZE);
-              }}
-            />
-            Unassigned only
-          </label>
-          {isAdmin && (
-            <Button
-              variant="secondary"
-              disabled={!photos || photos.length === 0}
-              onClick={() => {
-                setZipError(false);
-                downloadFromApi(
-                  "/api/photos/download-zip" +
-                    (unassigned ? "?unassigned=true" : catId ? `?catId=${catId}` : ""),
-                  "photos.zip",
-                ).catch(() => setZipError(true));
-              }}
-            >
-              <Download className="mr-1 h-4 w-4" />
-              Download all (zip)
-            </Button>
-          )}
+      <div className="mb-6 flex flex-wrap items-end gap-3">
+        <div className="space-y-1">
+          <Label htmlFor="photoCat">Cat</Label>
+          <NativeSelect
+            id="photoCat"
+            className="w-fit"
+            value={catId}
+            disabled={unassigned}
+            onChange={(e) => {
+              setCatId(e.target.value);
+              setLimit(PAGE_SIZE);
+            }}
+          >
+            <NativeSelectOption value="">All cats</NativeSelectOption>
+            {cats?.map((cat) => (
+              <NativeSelectOption key={cat.id} value={cat.id}>
+                {catOptionLabel(cat)}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
         </div>
-        {zipError && <ErrorAlert message="Couldn't download the zip" />}
-
-        {error ? (
-          <ErrorAlert message="Failed to fetch photos" />
-        ) : isLoading ? (
-          <Skeleton className="h-48 w-full" />
-        ) : photos && photos.length > 0 ? (
-          <>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {photos.map((photo) => (
-                <PhotoTile
-                  key={photo.id}
-                  photo={photo}
-                  canDownload={isAdmin}
-                  canEditTags={isAdmin || photo.uploadedBy.id === session?.user.id}
-                  catOptions={cats ?? []}
-                />
-              ))}
-            </div>
-            {photos.length >= limit && (
-              <div className="mt-4 flex justify-center">
-                <Button variant="secondary" onClick={() => setLimit((l) => l + PAGE_SIZE)}>
-                  Load more
-                </Button>
-              </div>
-            )}
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground">No photos match.</p>
+        <label className="flex h-10 items-center gap-2 text-sm">
+          <Checkbox
+            checked={unassigned}
+            onCheckedChange={(checked) => {
+              setUnassigned(checked === true);
+              setLimit(PAGE_SIZE);
+            }}
+          />
+          Unassigned only
+        </label>
+        {isAdmin && (
+          <Button
+            variant="secondary"
+            disabled={!photos || photos.length === 0}
+            onClick={() => {
+              setZipError(false);
+              downloadFromApi(
+                "/api/photos/download-zip" +
+                  (unassigned ? "?unassigned=true" : catId ? `?catId=${catId}` : ""),
+                "photos.zip",
+              ).catch(() => setZipError(true));
+            }}
+          >
+            <Download className="mr-1 h-4 w-4" />
+            Download all (zip)
+          </Button>
         )}
-      </main>
-    </>
+      </div>
+      {zipError && <ErrorAlert message="Couldn't download the zip" />}
+
+      {error ? (
+        <ErrorAlert message="Failed to fetch photos" />
+      ) : isLoading ? (
+        <Skeleton className="h-48 w-full" />
+      ) : photos && photos.length > 0 ? (
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {photos.map((photo) => (
+              <PhotoTile
+                key={photo.id}
+                photo={photo}
+                canDownload={isAdmin}
+                canEditTags={isAdmin || photo.uploadedBy.id === session?.user.id}
+                catOptions={cats ?? []}
+              />
+            ))}
+          </div>
+          {photos.length >= limit && (
+            <div className="mt-4 flex justify-center">
+              <Button variant="secondary" onClick={() => setLimit((l) => l + PAGE_SIZE)}>
+                Load more
+              </Button>
+            </div>
+          )}
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">No photos match.</p>
+      )}
+    </AppLayout>
   );
 }

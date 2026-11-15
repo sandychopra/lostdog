@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "generate-pwa-assets": "pwa-assets-generator"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -29,18 +30,20 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@happy-dom/global-registrator": "^19.0.2",
+    "@tailwindcss/vite": "^4.1.18",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@vite-pwa/assets-generator": "^2.0.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "@tailwindcss/vite": "^4.1.18",
+    "bun-types": "latest",
+    "tailwindcss": "^4.1.18",
     "vite": "^6.0.0",
     "vite-plugin-pwa": "^0.21.1",
-    "@happy-dom/global-registrator": "^19.0.2",
-    "bun-types": "latest",
-    "tailwindcss": "^4.1.18"
+    "workbox-window": "^7.4.1"
   }
 }

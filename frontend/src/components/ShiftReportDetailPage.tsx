@@ -30,7 +30,7 @@ import {
   type CatEntry,
   type ShiftReport,
 } from "./ShiftReportsTable";
-import Navbar from "./Navbar";
+import AppLayout from "./AppLayout";
 
 function shiftTypeLabel(shiftType: string): string {
   return shiftType === "MidDay" ? "Mid-day" : shiftType;
@@ -48,7 +48,7 @@ function CatEntrySummary({ entry }: { entry: CatEntry }) {
         <span className="font-medium">{title}</span>
         <Badge variant="secondary">{entry.entryType}</Badge>
       </div>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+      <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
         <dt className="text-muted-foreground">Fecal score</dt>
         <dd>{entry.fecalScore ?? "None"}</dd>
         <dt className="text-muted-foreground">Pee</dt>
@@ -135,195 +135,190 @@ export default function ShiftReportDetailPage() {
   const canEdit = report && (report.authorId === session?.user.id || isAdmin);
 
   return (
-    <>
-      <Navbar />
-      <main className="mx-auto max-w-3xl px-6 py-8">
-        <Link to="/shift-reports" className="text-sm text-blue hover:underline">
-          ← Back to Shift Reports
-        </Link>
+    <AppLayout width="3xl">
+      <Link to="/shift-reports" className="text-sm text-blue hover:underline">
+        ← Back to Shift Reports
+      </Link>
 
-        {isLoading && (
-          <div className="mt-4 space-y-4">
-            <Skeleton className="h-8 w-64" />
-            <Skeleton className="h-32 w-full" />
-          </div>
-        )}
-        {error && <ErrorAlert message="Failed to load shift report" />}
+      {isLoading && (
+        <div className="mt-4 space-y-4">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-32 w-full" />
+        </div>
+      )}
+      {error && <ErrorAlert message="Failed to load shift report" />}
 
-        {report && (
-          <>
-            <div className="mt-4 flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-semibold tracking-tight">
-                    {formatReportDate(report.date)} — {shiftTypeLabel(report.shiftType)}
-                  </h1>
-                  <Badge variant={shiftReportStatusBadgeVariant(report.status)}>
-                    {SHIFT_REPORT_STATUS_LABELS[report.status]}
-                  </Badge>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  By {report.author.name}
-                  {report.isSplitShift &&
-                    ` · Split shift${report.splitShiftPosition ? ` (${splitShiftPositionLabel(report.splitShiftPosition)} shift)` : ""}`}
-                </p>
+      {report && (
+        <>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-semibold tracking-tight">
+                  {formatReportDate(report.date)} — {shiftTypeLabel(report.shiftType)}
+                </h1>
+                <Badge variant={shiftReportStatusBadgeVariant(report.status)}>
+                  {SHIFT_REPORT_STATUS_LABELS[report.status]}
+                </Badge>
               </div>
-              <div className="flex gap-2">
-                {canEdit && (
-                  <Button
-                    variant="secondary"
-                    type="button"
-                    onClick={() => navigate(`/shift-reports/${report.id}/edit`)}
-                  >
-                    <Pencil className="mr-1 h-4 w-4" />
-                    Edit
-                  </Button>
-                )}
-                {isAdmin && (
-                  <Button
-                    variant="destructive"
-                    type="button"
-                    onClick={() => setConfirmingDelete(true)}
-                  >
-                    <Trash2 className="mr-1 h-4 w-4" />
-                    Delete
-                  </Button>
-                )}
-              </div>
+              <p className="text-sm text-muted-foreground">
+                By {report.author.name}
+                {report.isSplitShift &&
+                  ` · Split shift${report.splitShiftPosition ? ` (${splitShiftPositionLabel(report.splitShiftPosition)} shift)` : ""}`}
+              </p>
             </div>
-
-            {report.kennelsStatus.length > 0 && (
-              <section className="mt-6 space-y-2">
-                <h2 className="text-lg font-semibold">Kennel Status</h2>
-                <div className="flex flex-wrap gap-2">
-                  {report.kennelsStatus.map((k) => (
-                    <Badge key={k.kennelId} variant="secondary">
-                      #{k.kennel.number}: {k.reportedState}
-                    </Badge>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {report.kennelNotes && (
-              <section className="mt-6 space-y-2">
-                <h2 className="text-lg font-semibold">Kennel Notes</h2>
-                <p className="text-sm">{report.kennelNotes}</p>
-              </section>
-            )}
-
-            <section className="mt-6 space-y-3">
-              <h2 className="text-lg font-semibold">Food &amp; Medical</h2>
-              {report.catEntries.length === 0 && (
-                <p className="text-sm text-muted-foreground">No cat entries logged.</p>
+            <div className="flex gap-2">
+              {canEdit && (
+                <Button
+                  variant="secondary"
+                  type="button"
+                  onClick={() => navigate(`/shift-reports/${report.id}/edit`)}
+                >
+                  <Pencil className="mr-1 h-4 w-4" />
+                  Edit
+                </Button>
               )}
-              {report.catEntries.map((entry) => (
-                <CatEntrySummary key={entry.id} entry={entry} />
+              {isAdmin && (
+                <Button
+                  variant="destructive"
+                  type="button"
+                  onClick={() => setConfirmingDelete(true)}
+                >
+                  <Trash2 className="mr-1 h-4 w-4" />
+                  Delete
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {report.kennelsStatus.length > 0 && (
+            <section className="mt-6 space-y-2">
+              <h2 className="text-lg font-semibold">Kennel Status</h2>
+              <div className="flex flex-wrap gap-2">
+                {report.kennelsStatus.map((k) => (
+                  <Badge key={k.kennelId} variant="secondary">
+                    #{k.kennel.number}: {k.reportedState}
+                  </Badge>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {report.kennelNotes && (
+            <section className="mt-6 space-y-2">
+              <h2 className="text-lg font-semibold">Kennel Notes</h2>
+              <p className="text-sm">{report.kennelNotes}</p>
+            </section>
+          )}
+
+          <section className="mt-6 space-y-3">
+            <h2 className="text-lg font-semibold">Food &amp; Medical</h2>
+            {report.catEntries.length === 0 && (
+              <p className="text-sm text-muted-foreground">No cat entries logged.</p>
+            )}
+            {report.catEntries.map((entry) => (
+              <CatEntrySummary key={entry.id} entry={entry} />
+            ))}
+          </section>
+
+          {report.playGroups.length > 0 && (
+            <section className="mt-6 space-y-2">
+              <h2 className="text-lg font-semibold">Play Groups</h2>
+              {report.playGroups.map((playGroup) => (
+                <Card key={playGroup.id} size="sm" className="gap-0 p-3">
+                  <p className="font-medium">{playGroup.cats.map((c) => c.cat.name).join(", ")}</p>
+                  {playGroup.note && <p>{playGroup.note}</p>}
+                </Card>
               ))}
             </section>
+          )}
 
-            {report.playGroups.length > 0 && (
-              <section className="mt-6 space-y-2">
-                <h2 className="text-lg font-semibold">Play Groups</h2>
-                {report.playGroups.map((playGroup) => (
-                  <Card key={playGroup.id} size="sm" className="gap-0 p-3">
-                    <p className="font-medium">
-                      {playGroup.cats.map((c) => c.cat.name).join(", ")}
+          {report.meetAndGreets.length > 0 && (
+            <section className="mt-6 space-y-2">
+              <h2 className="text-lg font-semibold">Meet & Greets</h2>
+              {report.meetAndGreets.map((mg) => (
+                <Card key={mg.id} size="sm" className="gap-0 p-3">
+                  <p className="font-medium">{mg.cats.map((c) => c.cat.name).join(", ")}</p>
+                  {mg.note && <p>{mg.note}</p>}
+                </Card>
+              ))}
+            </section>
+          )}
+
+          {report.photos.length > 0 && (
+            <section className="mt-6 space-y-2">
+              <h2 className="text-lg font-semibold">Photos</h2>
+              <div className="flex flex-wrap gap-2">
+                {report.photos.map((photo) => (
+                  <div key={photo.id} className="w-24">
+                    <AuthenticatedImage
+                      photoId={photo.id}
+                      alt="Shift report photo"
+                      className="h-24 w-full rounded-md object-cover"
+                    />
+                    <p className="truncate text-xs text-muted-foreground">
+                      {photo.tags.length > 0
+                        ? photo.tags.map((t) => t.cat.name).join(", ")
+                        : "Unassigned"}
                     </p>
-                    {playGroup.note && <p>{playGroup.note}</p>}
-                  </Card>
+                  </div>
                 ))}
-              </section>
-            )}
+              </div>
+            </section>
+          )}
 
-            {report.meetAndGreets.length > 0 && (
-              <section className="mt-6 space-y-2">
-                <h2 className="text-lg font-semibold">Meet & Greets</h2>
-                {report.meetAndGreets.map((mg) => (
-                  <Card key={mg.id} size="sm" className="gap-0 p-3">
-                    <p className="font-medium">{mg.cats.map((c) => c.cat.name).join(", ")}</p>
-                    {mg.note && <p>{mg.note}</p>}
-                  </Card>
-                ))}
-              </section>
-            )}
+          {(report.cleaningNotes || report.suppliesNotes || report.otherNotes) && (
+            <section className="mt-6 space-y-2">
+              <h2 className="text-lg font-semibold">Overall Notes</h2>
+              <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
+                {report.cleaningNotes && (
+                  <>
+                    <dt className="text-muted-foreground">Cleaning</dt>
+                    <dd>{report.cleaningNotes}</dd>
+                  </>
+                )}
+                {report.suppliesNotes && (
+                  <>
+                    <dt className="text-muted-foreground">Supplies</dt>
+                    <dd>{report.suppliesNotes}</dd>
+                  </>
+                )}
+                {report.otherNotes && (
+                  <>
+                    <dt className="text-muted-foreground">Other</dt>
+                    <dd>{report.otherNotes}</dd>
+                  </>
+                )}
+              </dl>
+            </section>
+          )}
+        </>
+      )}
 
-            {report.photos.length > 0 && (
-              <section className="mt-6 space-y-2">
-                <h2 className="text-lg font-semibold">Photos</h2>
-                <div className="flex flex-wrap gap-2">
-                  {report.photos.map((photo) => (
-                    <div key={photo.id} className="w-24">
-                      <AuthenticatedImage
-                        photoId={photo.id}
-                        alt="Shift report photo"
-                        className="h-24 w-full rounded-md object-cover"
-                      />
-                      <p className="truncate text-xs text-muted-foreground">
-                        {photo.tags.length > 0
-                          ? photo.tags.map((t) => t.cat.name).join(", ")
-                          : "Unassigned"}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {(report.cleaningNotes || report.suppliesNotes || report.otherNotes) && (
-              <section className="mt-6 space-y-2">
-                <h2 className="text-lg font-semibold">Overall Notes</h2>
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                  {report.cleaningNotes && (
-                    <>
-                      <dt className="text-muted-foreground">Cleaning</dt>
-                      <dd>{report.cleaningNotes}</dd>
-                    </>
-                  )}
-                  {report.suppliesNotes && (
-                    <>
-                      <dt className="text-muted-foreground">Supplies</dt>
-                      <dd>{report.suppliesNotes}</dd>
-                    </>
-                  )}
-                  {report.otherNotes && (
-                    <>
-                      <dt className="text-muted-foreground">Other</dt>
-                      <dd>{report.otherNotes}</dd>
-                    </>
-                  )}
-                </dl>
-              </section>
-            )}
-          </>
-        )}
-
-        <AlertDialog
-          open={confirmingDelete}
-          onOpenChange={(open) => {
-            if (!open) {
-              setConfirmingDelete(false);
-              deleteMutation.reset();
-            }
-          }}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Shift Report</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to delete this shift report? This cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            {deleteMutation.isError && (
-              <ErrorAlert error={deleteMutation.error} fallback="Failed to delete shift report" />
-            )}
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => deleteMutation.mutate()}>Confirm</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </main>
-    </>
+      <AlertDialog
+        open={confirmingDelete}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmingDelete(false);
+            deleteMutation.reset();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Shift Report</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this shift report? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteMutation.isError && (
+            <ErrorAlert error={deleteMutation.error} fallback="Failed to delete shift report" />
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteMutation.mutate()}>Confirm</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </AppLayout>
   );
 }

@@ -20,7 +20,7 @@ import ErrorAlert from "./ErrorAlert";
 import KennelForm from "./KennelForm";
 import KennelMoveRequestForm from "./KennelMoveRequestForm";
 import KennelsTable, { type Kennel, type KennelMoveRequest } from "./KennelsTable";
-import Navbar from "./Navbar";
+import AppLayout from "./AppLayout";
 
 type DialogState =
   | { mode: "create" }
@@ -55,88 +55,85 @@ export default function KennelsPage() {
   });
 
   return (
-    <>
-      <Navbar />
-      <main className="mx-auto max-w-4xl px-6 py-8">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-2xl font-semibold tracking-tight">Kennels</h1>
-          {isAdmin && (
-            <Button onClick={() => setDialog({ mode: "create" })}>
-              <Plus className="mr-1 h-4 w-4" />
-              New Kennel
-            </Button>
-          )}
-        </div>
-        <KennelsTable
-          onEdit={(kennel) => setDialog({ mode: "edit", kennel })}
-          onDelete={(kennel) => setDeletingKennel(kennel)}
-          onRequestMove={(kennel) => setDialog({ mode: "request-move", kennel })}
-          onCancelMoveRequest={(request: KennelMoveRequest) =>
-            cancelMoveRequestMutation.mutate(request.id)
-          }
-        />
+    <AppLayout width="4xl">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight">Kennels</h1>
         {isAdmin && (
-          <>
-            <Dialog
-              open={dialog !== null}
-              onOpenChange={(open) => {
-                if (!open) close();
-              }}
-            >
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>
-                    {dialog?.mode === "edit"
-                      ? "Edit Kennel"
-                      : dialog?.mode === "request-move"
-                        ? "Request Kennel Move"
-                        : "Create Kennel"}
-                  </DialogTitle>
-                </DialogHeader>
-                {dialog?.mode === "request-move" ? (
-                  <KennelMoveRequestForm kennel={dialog.kennel} onSuccess={close} />
-                ) : (
-                  <KennelForm
-                    key={dialog?.mode === "edit" ? dialog.kennel.id : "create"}
-                    kennel={dialog?.mode === "edit" ? dialog.kennel : undefined}
-                    onSuccess={close}
-                  />
-                )}
-              </DialogContent>
-            </Dialog>
-            <AlertDialog
-              open={deletingKennel !== null}
-              onOpenChange={(open) => {
-                if (!open) {
-                  setDeletingKennel(null);
-                  deleteMutation.reset();
-                }
-              }}
-            >
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete Kennel</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Are you sure you want to delete kennel {deletingKennel?.number}? This cannot be
-                    undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                {deleteMutation.isError && (
-                  <ErrorAlert error={deleteMutation.error} fallback="Failed to delete kennel" />
-                )}
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => deletingKennel && deleteMutation.mutate(deletingKennel.id)}
-                  >
-                    Confirm
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </>
+          <Button onClick={() => setDialog({ mode: "create" })}>
+            <Plus className="mr-1 h-4 w-4" />
+            New Kennel
+          </Button>
         )}
-      </main>
-    </>
+      </div>
+      <KennelsTable
+        onEdit={(kennel) => setDialog({ mode: "edit", kennel })}
+        onDelete={(kennel) => setDeletingKennel(kennel)}
+        onRequestMove={(kennel) => setDialog({ mode: "request-move", kennel })}
+        onCancelMoveRequest={(request: KennelMoveRequest) =>
+          cancelMoveRequestMutation.mutate(request.id)
+        }
+      />
+      {isAdmin && (
+        <>
+          <Dialog
+            open={dialog !== null}
+            onOpenChange={(open) => {
+              if (!open) close();
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {dialog?.mode === "edit"
+                    ? "Edit Kennel"
+                    : dialog?.mode === "request-move"
+                      ? "Request Kennel Move"
+                      : "Create Kennel"}
+                </DialogTitle>
+              </DialogHeader>
+              {dialog?.mode === "request-move" ? (
+                <KennelMoveRequestForm kennel={dialog.kennel} onSuccess={close} />
+              ) : (
+                <KennelForm
+                  key={dialog?.mode === "edit" ? dialog.kennel.id : "create"}
+                  kennel={dialog?.mode === "edit" ? dialog.kennel : undefined}
+                  onSuccess={close}
+                />
+              )}
+            </DialogContent>
+          </Dialog>
+          <AlertDialog
+            open={deletingKennel !== null}
+            onOpenChange={(open) => {
+              if (!open) {
+                setDeletingKennel(null);
+                deleteMutation.reset();
+              }
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Kennel</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete kennel {deletingKennel?.number}? This cannot be
+                  undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {deleteMutation.isError && (
+                <ErrorAlert error={deleteMutation.error} fallback="Failed to delete kennel" />
+              )}
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => deletingKennel && deleteMutation.mutate(deletingKennel.id)}
+                >
+                  Confirm
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      )}
+    </AppLayout>
   );
 }

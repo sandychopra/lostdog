@@ -5,7 +5,7 @@
 - **Tailwind CSS** for styling
 - **React Router** for client-side routing
 - Bundled/hot-reloaded by **Vite** (`@vitejs/plugin-react`, `@tailwindcss/vite`) — dev/build/test commands still run through Bun, but Vite owns the bundling
-- PWA support (installable to home screen) via **`vite-plugin-pwa`** — manifest/service worker wired up; icon assets still pending from the org (see project-scope.md's Design/Branding section)
+- PWA support (installable to home screen) via **`vite-plugin-pwa`** — manifest, service worker (update prompt, not auto-reload) and icons. Icons are generated from `frontend/public/logo.png` (the org's site icon) by `@vite-pwa/assets-generator` via `bun run generate-pwa-assets`
 
 ## Backend
 - **Node.js** with **Express**
@@ -28,4 +28,4 @@
 - **SendGrid** for transactional email (sent to the existing Google Group per project-scope.md) — chosen for its free tier
 
 ## Open Questions
-None currently — see `implementation-plan.md` Phase 8 for remaining PWA polish (icons, install verification on real devices) once brand assets are available.
+None currently — see `implementation-plan.md` Phase 8 for the remaining real-device install checks.

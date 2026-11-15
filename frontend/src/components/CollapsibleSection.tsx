@@ -29,7 +29,7 @@ export default function CollapsibleSection({
   return (
     <Collapsible asChild open={!collapsed} onOpenChange={onToggleCollapsed}>
       <section id={anchorId} className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 text-left">
             {collapsed ? (
               <ChevronRight className="h-4 w-4 shrink-0" />

@@ -5,7 +5,7 @@ import { api } from "../lib/api";
 import ActivitySection from "./ActivitySection";
 import AuthenticatedImage from "./AuthenticatedImage";
 import ErrorAlert from "./ErrorAlert";
-import Navbar from "./Navbar";
+import AppLayout from "./AppLayout";
 import { CAT_STATUS_LABELS, catStatusBadgeVariant, type Cat } from "./CatsTable";
 import { formatReportDate } from "./ShiftReportsTable";
 import { Badge } from "./ui/badge";
@@ -108,116 +108,113 @@ export default function CatDetailPage() {
   const cat = catQuery.data;
 
   return (
-    <>
-      <Navbar />
-      <main className="mx-auto max-w-4xl space-y-8 px-6 py-8">
-        {catQuery.error ? (
-          <ErrorAlert message="Cat not found" />
-        ) : !cat ? (
-          <Skeleton className="h-24 w-full" />
-        ) : (
-          <section className="space-y-2">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-semibold tracking-tight">{cat.name}</h1>
-              <Badge variant={catStatusBadgeVariant(cat.status)}>
-                {CAT_STATUS_LABELS[cat.status]}
-              </Badge>
-              {!cat.active && <Badge variant="outline">Inactive (returned to RCC)</Badge>}
-            </div>
-            <div className="grid gap-x-8 gap-y-1 text-sm sm:grid-cols-2">
-              <Detail label="Age" value={ageLabel(cat)} />
-              <Detail label="Sex" value={cat.sex} />
-              <Detail label="Color/pattern" value={cat.colorPattern} />
-              <Detail label="Collar" value={cat.collarColor} />
-              <Detail label="Microchip" value={cat.microchipNumber} />
-              <Detail
-                label="Kennel"
-                value={
-                  (cat.kennel ?? cat.group?.kennel)
-                    ? `Kennel ${(cat.kennel ?? cat.group?.kennel)!.number}`
-                    : null
-                }
-              />
-              <Detail label="Dewormer" value={cat.dewormerStatus} />
-              <Detail label="Needs probiotic" value={cat.needsProbiotic ? "Yes" : null} />
-              <Detail
-                label="Pickup"
-                value={cat.pickupAt ? new Date(cat.pickupAt).toLocaleString() : null}
-              />
-              <Detail label="Bonded pair" value={cat.group?.bonded ? "Yes" : null} />
-              <Detail
-                label="Siblings"
-                value={
-                  cat.litter
-                    ? cat.litter.cats
-                        .filter((c) => c.id !== cat.id)
-                        .map((c) => c.name)
-                        .join(", ") || null
-                    : null
-                }
-              />
-            </div>
-          </section>
-        )}
-
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Report history</h2>
-          {historyQuery.error ? (
-            <ErrorAlert message="Failed to fetch report history" />
-          ) : historyQuery.isLoading ? (
-            <Skeleton className="h-32 w-full" />
-          ) : historyQuery.data && historyQuery.data.length > 0 ? (
-            historyQuery.data.map((report) => (
-              <Card key={report.id} size="sm" className="gap-2 p-3 text-base">
-                <header className="flex flex-wrap items-baseline gap-x-3 text-sm">
-                  <Link
-                    to={`/shift-reports/${report.id}`}
-                    className="font-medium text-blue hover:underline"
-                  >
-                    {formatReportDate(report.date)} · {report.shiftType}
-                  </Link>
-                  <span className="text-muted-foreground">by {report.author.name}</span>
-                </header>
-                {report.catEntries.map((entry) => (
-                  <EntryDetails key={entry.id} entry={entry} />
-                ))}
-                {report.meetAndGreets.map((m) => (
-                  <p key={`m${m.id}`} className="text-sm">
-                    <span className="text-muted-foreground">Meet &amp; greet: </span>
-                    {m.note}
-                  </p>
-                ))}
-                {report.playGroups.map((p) => (
-                  <p key={`p${p.id}`} className="text-sm">
-                    <span className="text-muted-foreground">
-                      Play with {p.cats.map((c) => c.cat.name).join(", ")}:{" "}
-                    </span>
-                    {p.note}
-                  </p>
-                ))}
-                {report.photos.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {report.photos.map((photo) => (
-                      <AuthenticatedImage
-                        key={photo.id}
-                        photoId={photo.id}
-                        alt={`Photo of ${cat?.name ?? "cat"}`}
-                        className="h-24 w-24 rounded object-cover"
-                      />
-                    ))}
-                  </div>
-                )}
-              </Card>
-            ))
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No submitted reports mention this cat yet.
-            </p>
-          )}
+    <AppLayout width="4xl" className="space-y-8">
+      {catQuery.error ? (
+        <ErrorAlert message="Cat not found" />
+      ) : !cat ? (
+        <Skeleton className="h-24 w-full" />
+      ) : (
+        <section className="space-y-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight">{cat.name}</h1>
+            <Badge variant={catStatusBadgeVariant(cat.status)}>
+              {CAT_STATUS_LABELS[cat.status]}
+            </Badge>
+            {!cat.active && <Badge variant="outline">Inactive (returned to RCC)</Badge>}
+          </div>
+          <div className="grid gap-x-8 gap-y-1 text-sm sm:grid-cols-2">
+            <Detail label="Age" value={ageLabel(cat)} />
+            <Detail label="Sex" value={cat.sex} />
+            <Detail label="Color/pattern" value={cat.colorPattern} />
+            <Detail label="Collar" value={cat.collarColor} />
+            <Detail label="Microchip" value={cat.microchipNumber} />
+            <Detail
+              label="Kennel"
+              value={
+                (cat.kennel ?? cat.group?.kennel)
+                  ? `Kennel ${(cat.kennel ?? cat.group?.kennel)!.number}`
+                  : null
+              }
+            />
+            <Detail label="Dewormer" value={cat.dewormerStatus} />
+            <Detail label="Needs probiotic" value={cat.needsProbiotic ? "Yes" : null} />
+            <Detail
+              label="Pickup"
+              value={cat.pickupAt ? new Date(cat.pickupAt).toLocaleString() : null}
+            />
+            <Detail label="Bonded pair" value={cat.group?.bonded ? "Yes" : null} />
+            <Detail
+              label="Siblings"
+              value={
+                cat.litter
+                  ? cat.litter.cats
+                      .filter((c) => c.id !== cat.id)
+                      .map((c) => c.name)
+                      .join(", ") || null
+                  : null
+              }
+            />
+          </div>
         </section>
+      )}
 
-        <ActivitySection entityType={ActivityEntityType.Cat} entityId={id} />
-      </main>
-    </>
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Report history</h2>
+        {historyQuery.error ? (
+          <ErrorAlert message="Failed to fetch report history" />
+        ) : historyQuery.isLoading ? (
+          <Skeleton className="h-32 w-full" />
+        ) : historyQuery.data && historyQuery.data.length > 0 ? (
+          historyQuery.data.map((report) => (
+            <Card key={report.id} size="sm" className="gap-2 p-3 text-base">
+              <header className="flex flex-wrap items-baseline gap-x-3 text-sm">
+                <Link
+                  to={`/shift-reports/${report.id}`}
+                  className="font-medium text-blue hover:underline"
+                >
+                  {formatReportDate(report.date)} · {report.shiftType}
+                </Link>
+                <span className="text-muted-foreground">by {report.author.name}</span>
+              </header>
+              {report.catEntries.map((entry) => (
+                <EntryDetails key={entry.id} entry={entry} />
+              ))}
+              {report.meetAndGreets.map((m) => (
+                <p key={`m${m.id}`} className="text-sm">
+                  <span className="text-muted-foreground">Meet &amp; greet: </span>
+                  {m.note}
+                </p>
+              ))}
+              {report.playGroups.map((p) => (
+                <p key={`p${p.id}`} className="text-sm">
+                  <span className="text-muted-foreground">
+                    Play with {p.cats.map((c) => c.cat.name).join(", ")}:{" "}
+                  </span>
+                  {p.note}
+                </p>
+              ))}
+              {report.photos.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {report.photos.map((photo) => (
+                    <AuthenticatedImage
+                      key={photo.id}
+                      photoId={photo.id}
+                      alt={`Photo of ${cat?.name ?? "cat"}`}
+                      className="h-24 w-24 rounded object-cover"
+                    />
+                  ))}
+                </div>
+              )}
+            </Card>
+          ))
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No submitted reports mention this cat yet.
+          </p>
+        )}
+      </section>
+
+      <ActivitySection entityType={ActivityEntityType.Cat} entityId={id} />
+    </AppLayout>
   );
 }

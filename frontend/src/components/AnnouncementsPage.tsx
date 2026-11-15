@@ -38,7 +38,10 @@ import {
   AlertDialogTitle,
 } from "./ui/alert-dialog";
 import AnnouncementForm from "./AnnouncementForm";
-import Navbar from "./Navbar";
+import AppLayout from "./AppLayout";
+import { DesktopOnly, MobileCardList } from "./ResponsiveList";
+import { Card } from "./ui/card";
+import { NativeSelect, NativeSelectOption } from "./ui/native-select";
 import { Plus, Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 
 interface AnnouncementCat {
@@ -433,7 +436,19 @@ function statusBadge(announcement: Announcement): {
   return { label: "Open", variant: "warning" };
 }
 
+function kennelNumberOf(announcement: Announcement): number | null {
+  return announcement.cat?.kennel?.number ?? announcement.kennel?.number ?? null;
+}
+
 type SortColumn = "type" | "cat" | "kennel" | "created" | "status";
+
+const SORT_COLUMNS: [SortColumn, string][] = [
+  ["created", "Created"],
+  ["type", "Type"],
+  ["cat", "Cat"],
+  ["kennel", "Kennel"],
+  ["status", "Status"],
+];
 
 function sortValue(announcement: Announcement, column: SortColumn): string | number {
   switch (column) {
@@ -695,390 +710,462 @@ export default function AnnouncementsPage() {
     }
   }
 
+  function announcementTitle(announcement: Announcement): string {
+    return announcement.type === AnnouncementType.Manual
+      ? (announcement.title ?? "Announcement")
+      : ANNOUNCEMENT_TYPE_LABELS[announcement.type];
+  }
+
+  // Cell contents shared by the desktop table and the phone cards.
+  function renderActions(announcement: Announcement) {
+    const subActions = getSubActions(announcement);
+    return (
+      <>
+        {announcement.type === AnnouncementType.Manual && announcement.message && (
+          <p className="text-muted-foreground">{announcement.message}</p>
+        )}
+        {announcement.type === AnnouncementType.ProbioticNeeded ? (
+          <ProbioticStatus
+            announcement={announcement}
+            collapsed={collapsedIds.has(announcement.id)}
+            onToggle={() => toggleCollapsed(announcement.id)}
+            onLogDose={() => logProbioticDose.mutate(announcement.cat!.id)}
+            isLoggingDose={
+              logProbioticDose.isPending && logProbioticDose.variables === announcement.cat?.id
+            }
+            logDoseError={
+              logProbioticDose.isError && logProbioticDose.variables === announcement.cat?.id
+                ? logProbioticDose.error
+                : undefined
+            }
+          />
+        ) : subActions.length === 0 ? (
+          announcement.type !== AnnouncementType.Manual && "—"
+        ) : announcement.checklist && subActions.length > 1 ? (
+          (() => {
+            const collapsed = collapsedIds.has(announcement.id);
+            const doneCount = subActions.filter((a) => a.status === "done").length;
+            return (
+              <Collapsible open={!collapsed} onOpenChange={() => toggleCollapsed(announcement.id)}>
+                <CollapsibleTrigger className="flex items-center gap-1 text-sm font-medium">
+                  {collapsed ? (
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  )}
+                  {doneCount} of {subActions.length} steps done
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2 flex flex-col gap-2">
+                  {subActions.map((action) => (
+                    <ActionRow
+                      key={`${action.kind}-${action.id}`}
+                      action={action}
+                      isBusy={isBusy(action.kind, action.id)}
+                      onComplete={() => triggerComplete(action)}
+                      onUncomplete={() => triggerUncomplete(action)}
+                      error={uncompleteErrorFor(action.kind, action.id)}
+                    />
+                  ))}
+                </CollapsibleContent>
+              </Collapsible>
+            );
+          })()
+        ) : (
+          <div className="flex flex-col gap-2">
+            {subActions.map((action) => (
+              <ActionRow
+                key={`${action.kind}-${action.id}`}
+                action={action}
+                isBusy={isBusy(action.kind, action.id)}
+                onComplete={() => triggerComplete(action)}
+                onUncomplete={() => triggerUncomplete(action)}
+                error={uncompleteErrorFor(action.kind, action.id)}
+              />
+            ))}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  function renderStatus(announcement: Announcement) {
+    const status = statusBadge(announcement);
+    return (
+      <>
+        <Badge variant={status.variant}>{status.label}</Badge>
+        {announcement.resolvedAt && (
+          <div className="text-xs text-muted-foreground">
+            {new Date(announcement.resolvedAt).toLocaleString()}
+            {announcement.resolvedBy && ` — ${announcement.resolvedBy.name}`}
+          </div>
+        )}
+        {announcement.type === AnnouncementType.Manual && !announcement.resolved && isAdmin && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-2 mt-1 whitespace-nowrap"
+            disabled={resolveManual.isPending}
+            onClick={() => resolveManual.mutate(announcement.id)}
+          >
+            Mark resolved
+          </Button>
+        )}
+      </>
+    );
+  }
+
+  function renderComment(announcement: Announcement) {
+    const isCommenting = commentEditingId === announcement.id;
+    return (
+      <>
+        {isCommenting ? (
+          <div className="space-y-1">
+            <Textarea
+              className="min-h-16 px-2 py-1"
+              value={commentDraft}
+              onChange={(e) => setCommentDraft(e.target.value)}
+            />
+            <div className="flex gap-1">
+              <Button
+                size="sm"
+                disabled={saveComment.isPending}
+                onClick={() =>
+                  saveComment.mutate({
+                    id: announcement.id,
+                    comment: commentDraft,
+                  })
+                }
+              >
+                Save
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setCommentEditingId(null)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-1 text-sm">
+            {announcement.comment && (
+              <p>
+                {announcement.comment}
+                {announcement.commentedBy && (
+                  <span className="text-muted-foreground">
+                    {" "}
+                    — {announcement.commentedBy.name}
+                    {announcement.commentedAt
+                      ? `, ${new Date(announcement.commentedAt).toLocaleString()}`
+                      : ""}
+                  </span>
+                )}
+              </p>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setCommentEditingId(announcement.id);
+                setCommentDraft(announcement.comment ?? "");
+              }}
+            >
+              {announcement.comment ? "Edit comment" : "Add comment"}
+            </Button>
+          </div>
+        )}
+      </>
+    );
+  }
+
+  function renderAdminActions(announcement: Announcement) {
+    return (
+      <>
+        {announcement.type === AnnouncementType.Manual && (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Edit announcement"
+              onClick={() =>
+                setDialog({
+                  mode: "edit",
+                  announcement: {
+                    id: announcement.id,
+                    title: announcement.title,
+                    message: announcement.message,
+                  },
+                })
+              }
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Delete announcement"
+              onClick={() =>
+                setDeletingAnnouncement({
+                  id: announcement.id,
+                  title: announcement.title,
+                })
+              }
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </>
+    );
+  }
+
   const close = () => setDialog(null);
 
   return (
-    <>
-      <Navbar />
-      <main className="mx-auto max-w-6xl px-6 py-8">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-2xl font-semibold tracking-tight">Announcements</h1>
-          {isAdmin && (
-            <Button onClick={() => setDialog({ mode: "create" })}>
-              <Plus className="mr-1 h-4 w-4" />
-              New Announcement
-            </Button>
-          )}
-        </div>
-
-        <div className="mb-6 flex flex-wrap items-end gap-4">
-          <div className="space-y-1">
-            <Label htmlFor="dateFrom">From</Label>
-            <Input
-              id="dateFrom"
-              type="date"
-              className="w-auto"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="dateTo">To</Label>
-            <Input
-              id="dateTo"
-              type="date"
-              className="w-auto"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-            />
-          </div>
-          <label className="flex h-10 items-center gap-2 text-sm">
-            <Checkbox
-              checked={activeOnly}
-              onCheckedChange={(checked) => setActiveOnly(checked === true)}
-            />
-            Active only
-          </label>
-        </div>
-
-        {error ? (
-          <ErrorAlert message="Failed to fetch announcements" />
-        ) : (
-          <Table className="min-w-[56rem] table-fixed">
-            <TableHeader>
-              <TableRow>
-                <SortableTableHead
-                  className="w-[12%]"
-                  active={sort.column === "type"}
-                  direction={sort.direction}
-                  onSort={() => toggleSort("type")}
-                >
-                  Type
-                </SortableTableHead>
-                <SortableTableHead
-                  className="w-[9%]"
-                  active={sort.column === "cat"}
-                  direction={sort.direction}
-                  onSort={() => toggleSort("cat")}
-                >
-                  Cat
-                </SortableTableHead>
-                <SortableTableHead
-                  className="w-[8%]"
-                  active={sort.column === "kennel"}
-                  direction={sort.direction}
-                  onSort={() => toggleSort("kennel")}
-                >
-                  Kennel
-                </SortableTableHead>
-                <TableHead className="w-[24%]">Action</TableHead>
-                <SortableTableHead
-                  className="w-[12%]"
-                  active={sort.column === "created"}
-                  direction={sort.direction}
-                  onSort={() => toggleSort("created")}
-                >
-                  Created
-                </SortableTableHead>
-                <SortableTableHead
-                  className="w-[12%]"
-                  active={sort.column === "status"}
-                  direction={sort.direction}
-                  onSort={() => toggleSort("status")}
-                >
-                  Status
-                </SortableTableHead>
-                <TableHead className="w-[15%]">Comment</TableHead>
-                {isAdmin && <TableHead className="w-[8%]">Admin</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading
-                ? Array.from({ length: 3 }).map((_, i) => (
-                    <TableRow key={i}>
-                      {Array.from({ length: isAdmin ? 8 : 7 }).map((_, j) => (
-                        <TableCell key={j}>
-                          <Skeleton className="h-4 w-20" />
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                : sorted.map((announcement) => {
-                    const subActions = getSubActions(announcement);
-                    const status = statusBadge(announcement);
-                    const kennelNumber =
-                      announcement.cat?.kennel?.number ?? announcement.kennel?.number ?? null;
-                    const isCommenting = commentEditingId === announcement.id;
-
-                    return (
-                      <TableRow key={announcement.id}>
-                        <TableCell>
-                          {announcement.type === AnnouncementType.Manual
-                            ? (announcement.title ?? "Announcement")
-                            : ANNOUNCEMENT_TYPE_LABELS[announcement.type]}
-                        </TableCell>
-                        <TableCell>{announcement.cat?.name ?? "—"}</TableCell>
-                        <TableCell>{kennelNumber ?? "—"}</TableCell>
-                        <TableCell>
-                          {announcement.type === AnnouncementType.Manual &&
-                            announcement.message && (
-                              <p className="text-muted-foreground">{announcement.message}</p>
-                            )}
-                          {announcement.type === AnnouncementType.ProbioticNeeded ? (
-                            <ProbioticStatus
-                              announcement={announcement}
-                              collapsed={collapsedIds.has(announcement.id)}
-                              onToggle={() => toggleCollapsed(announcement.id)}
-                              onLogDose={() => logProbioticDose.mutate(announcement.cat!.id)}
-                              isLoggingDose={
-                                logProbioticDose.isPending &&
-                                logProbioticDose.variables === announcement.cat?.id
-                              }
-                              logDoseError={
-                                logProbioticDose.isError &&
-                                logProbioticDose.variables === announcement.cat?.id
-                                  ? logProbioticDose.error
-                                  : undefined
-                              }
-                            />
-                          ) : subActions.length === 0 ? (
-                            announcement.type !== AnnouncementType.Manual && "—"
-                          ) : announcement.checklist && subActions.length > 1 ? (
-                            (() => {
-                              const collapsed = collapsedIds.has(announcement.id);
-                              const doneCount = subActions.filter(
-                                (a) => a.status === "done",
-                              ).length;
-                              return (
-                                <Collapsible
-                                  open={!collapsed}
-                                  onOpenChange={() => toggleCollapsed(announcement.id)}
-                                >
-                                  <CollapsibleTrigger className="flex items-center gap-1 text-sm font-medium">
-                                    {collapsed ? (
-                                      <ChevronRight className="h-3.5 w-3.5" />
-                                    ) : (
-                                      <ChevronDown className="h-3.5 w-3.5" />
-                                    )}
-                                    {doneCount} of {subActions.length} steps done
-                                  </CollapsibleTrigger>
-                                  <CollapsibleContent className="mt-2 flex flex-col gap-2">
-                                    {subActions.map((action) => (
-                                      <ActionRow
-                                        key={`${action.kind}-${action.id}`}
-                                        action={action}
-                                        isBusy={isBusy(action.kind, action.id)}
-                                        onComplete={() => triggerComplete(action)}
-                                        onUncomplete={() => triggerUncomplete(action)}
-                                        error={uncompleteErrorFor(action.kind, action.id)}
-                                      />
-                                    ))}
-                                  </CollapsibleContent>
-                                </Collapsible>
-                              );
-                            })()
-                          ) : (
-                            <div className="flex flex-col gap-2">
-                              {subActions.map((action) => (
-                                <ActionRow
-                                  key={`${action.kind}-${action.id}`}
-                                  action={action}
-                                  isBusy={isBusy(action.kind, action.id)}
-                                  onComplete={() => triggerComplete(action)}
-                                  onUncomplete={() => triggerUncomplete(action)}
-                                  error={uncompleteErrorFor(action.kind, action.id)}
-                                />
-                              ))}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell>{new Date(announcement.createdAt).toLocaleString()}</TableCell>
-                        <TableCell>
-                          <Badge variant={status.variant}>{status.label}</Badge>
-                          {announcement.resolvedAt && (
-                            <div className="text-xs text-muted-foreground">
-                              {new Date(announcement.resolvedAt).toLocaleString()}
-                              {announcement.resolvedBy && ` — ${announcement.resolvedBy.name}`}
-                            </div>
-                          )}
-                          {announcement.type === AnnouncementType.Manual &&
-                            !announcement.resolved &&
-                            isAdmin && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="-ml-2 mt-1 whitespace-nowrap"
-                                disabled={resolveManual.isPending}
-                                onClick={() => resolveManual.mutate(announcement.id)}
-                              >
-                                Mark resolved
-                              </Button>
-                            )}
-                        </TableCell>
-                        <TableCell>
-                          {isCommenting ? (
-                            <div className="space-y-1">
-                              <Textarea
-                                className="min-h-16 px-2 py-1"
-                                value={commentDraft}
-                                onChange={(e) => setCommentDraft(e.target.value)}
-                              />
-                              <div className="flex gap-1">
-                                <Button
-                                  size="sm"
-                                  disabled={saveComment.isPending}
-                                  onClick={() =>
-                                    saveComment.mutate({
-                                      id: announcement.id,
-                                      comment: commentDraft,
-                                    })
-                                  }
-                                >
-                                  Save
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => setCommentEditingId(null)}
-                                >
-                                  Cancel
-                                </Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="space-y-1 text-sm">
-                              {announcement.comment && (
-                                <p>
-                                  {announcement.comment}
-                                  {announcement.commentedBy && (
-                                    <span className="text-muted-foreground">
-                                      {" "}
-                                      — {announcement.commentedBy.name}
-                                      {announcement.commentedAt
-                                        ? `, ${new Date(announcement.commentedAt).toLocaleString()}`
-                                        : ""}
-                                    </span>
-                                  )}
-                                </p>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setCommentEditingId(announcement.id);
-                                  setCommentDraft(announcement.comment ?? "");
-                                }}
-                              >
-                                {announcement.comment ? "Edit comment" : "Add comment"}
-                              </Button>
-                            </div>
-                          )}
-                        </TableCell>
-                        {isAdmin && (
-                          <TableCell>
-                            {announcement.type === AnnouncementType.Manual && (
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  aria-label="Edit announcement"
-                                  onClick={() =>
-                                    setDialog({
-                                      mode: "edit",
-                                      announcement: {
-                                        id: announcement.id,
-                                        title: announcement.title,
-                                        message: announcement.message,
-                                      },
-                                    })
-                                  }
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  aria-label="Delete announcement"
-                                  onClick={() =>
-                                    setDeletingAnnouncement({
-                                      id: announcement.id,
-                                      title: announcement.title,
-                                    })
-                                  }
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            )}
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    );
-                  })}
-              {!isLoading && sorted.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={isAdmin ? 8 : 7}
-                    className="text-center text-muted-foreground"
-                  >
-                    No announcements to show.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+    <AppLayout width="6xl">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight">Announcements</h1>
+        {isAdmin && (
+          <Button onClick={() => setDialog({ mode: "create" })}>
+            <Plus className="mr-1 h-4 w-4" />
+            New Announcement
+          </Button>
         )}
+      </div>
 
-        <Dialog
-          open={dialog !== null}
-          onOpenChange={(open) => {
-            if (!open) close();
-          }}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {dialog?.mode === "edit" ? "Edit Announcement" : "New Announcement"}
-              </DialogTitle>
-            </DialogHeader>
-            <AnnouncementForm
-              key={dialog?.mode === "edit" ? dialog.announcement.id : "create"}
-              announcement={dialog?.mode === "edit" ? dialog.announcement : undefined}
-              onSuccess={close}
-            />
-          </DialogContent>
-        </Dialog>
+      <div className="mb-6 flex flex-wrap items-end gap-4">
+        <div className="w-full space-y-1 sm:w-auto">
+          <Label htmlFor="dateFrom">From</Label>
+          <Input
+            id="dateFrom"
+            type="date"
+            className="w-full sm:w-auto"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+          />
+        </div>
+        <div className="w-full space-y-1 sm:w-auto">
+          <Label htmlFor="dateTo">To</Label>
+          <Input
+            id="dateTo"
+            type="date"
+            className="w-full sm:w-auto"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+          />
+        </div>
+        <label className="flex h-10 items-center gap-2 text-sm">
+          <Checkbox
+            checked={activeOnly}
+            onCheckedChange={(checked) => setActiveOnly(checked === true)}
+          />
+          Active only
+        </label>
+      </div>
 
-        <AlertDialog
-          open={deletingAnnouncement !== null}
-          onOpenChange={(open) => {
-            if (!open) {
-              setDeletingAnnouncement(null);
-              deleteManual.reset();
-            }
-          }}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Announcement</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to delete &ldquo;
-                {deletingAnnouncement?.title ?? "this announcement"}
-                &rdquo;? This can&apos;t be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            {deleteManual.isError && <ErrorAlert message="Failed to delete announcement" />}
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => deletingAnnouncement && deleteManual.mutate(deletingAnnouncement.id)}
+      {error ? (
+        <ErrorAlert message="Failed to fetch announcements" />
+      ) : (
+        <>
+          <MobileCardList isLoading={isLoading}>
+            <div className="flex items-end gap-2">
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="sortBy">Sort by</Label>
+                <NativeSelect
+                  id="sortBy"
+                  value={sort.column}
+                  onChange={(e) =>
+                    setSort((prev) => ({ ...prev, column: e.target.value as SortColumn }))
+                  }
+                >
+                  {SORT_COLUMNS.map(([column, label]) => (
+                    <NativeSelectOption key={column} value={column}>
+                      {label}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() =>
+                  setSort((prev) => ({
+                    ...prev,
+                    direction: prev.direction === "asc" ? "desc" : "asc",
+                  }))
+                }
               >
-                Confirm
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </main>
-    </>
+                {sort.direction === "asc" ? "Ascending" : "Descending"}
+              </Button>
+            </div>
+            {sorted.map((announcement) => {
+              const kennelNumber = kennelNumberOf(announcement);
+              return (
+                <Card key={announcement.id} className="gap-3 px-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-base font-medium text-navy">
+                        {announcementTitle(announcement)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {[
+                          announcement.cat?.name,
+                          kennelNumber !== null ? `Kennel ${kennelNumber}` : null,
+                          new Date(announcement.createdAt).toLocaleString(),
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    </div>
+                    {isAdmin && (
+                      <div className="-mt-2 -mr-2 shrink-0">{renderAdminActions(announcement)}</div>
+                    )}
+                  </div>
+                  <div>{renderActions(announcement)}</div>
+                  <div>{renderStatus(announcement)}</div>
+                  <div className="border-t pt-2">{renderComment(announcement)}</div>
+                </Card>
+              );
+            })}
+            {sorted.length === 0 && (
+              <p className="text-center text-sm text-muted-foreground">No announcements to show.</p>
+            )}
+          </MobileCardList>
+          <DesktopOnly>
+            <Table className="min-w-[56rem] table-fixed">
+              <TableHeader>
+                <TableRow>
+                  <SortableTableHead
+                    className="w-[12%]"
+                    active={sort.column === "type"}
+                    direction={sort.direction}
+                    onSort={() => toggleSort("type")}
+                  >
+                    Type
+                  </SortableTableHead>
+                  <SortableTableHead
+                    className="w-[9%]"
+                    active={sort.column === "cat"}
+                    direction={sort.direction}
+                    onSort={() => toggleSort("cat")}
+                  >
+                    Cat
+                  </SortableTableHead>
+                  <SortableTableHead
+                    className="w-[8%]"
+                    active={sort.column === "kennel"}
+                    direction={sort.direction}
+                    onSort={() => toggleSort("kennel")}
+                  >
+                    Kennel
+                  </SortableTableHead>
+                  <TableHead className="w-[24%]">Action</TableHead>
+                  <SortableTableHead
+                    className="w-[12%]"
+                    active={sort.column === "created"}
+                    direction={sort.direction}
+                    onSort={() => toggleSort("created")}
+                  >
+                    Created
+                  </SortableTableHead>
+                  <SortableTableHead
+                    className="w-[12%]"
+                    active={sort.column === "status"}
+                    direction={sort.direction}
+                    onSort={() => toggleSort("status")}
+                  >
+                    Status
+                  </SortableTableHead>
+                  <TableHead className="w-[15%]">Comment</TableHead>
+                  {isAdmin && <TableHead className="w-[8%]">Admin</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading
+                  ? Array.from({ length: 3 }).map((_, i) => (
+                      <TableRow key={i}>
+                        {Array.from({ length: isAdmin ? 8 : 7 }).map((_, j) => (
+                          <TableCell key={j}>
+                            <Skeleton className="h-4 w-20" />
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))
+                  : sorted.map((announcement) => {
+                      return (
+                        <TableRow key={announcement.id}>
+                          <TableCell>{announcementTitle(announcement)}</TableCell>
+                          <TableCell>{announcement.cat?.name ?? "—"}</TableCell>
+                          <TableCell>{kennelNumberOf(announcement) ?? "—"}</TableCell>
+                          <TableCell>{renderActions(announcement)}</TableCell>
+                          <TableCell>{new Date(announcement.createdAt).toLocaleString()}</TableCell>
+                          <TableCell>{renderStatus(announcement)}</TableCell>
+                          <TableCell>{renderComment(announcement)}</TableCell>
+                          {isAdmin && <TableCell>{renderAdminActions(announcement)}</TableCell>}
+                        </TableRow>
+                      );
+                    })}
+                {!isLoading && sorted.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={isAdmin ? 8 : 7}
+                      className="text-center text-muted-foreground"
+                    >
+                      No announcements to show.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </DesktopOnly>
+        </>
+      )}
+
+      <Dialog
+        open={dialog !== null}
+        onOpenChange={(open) => {
+          if (!open) close();
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {dialog?.mode === "edit" ? "Edit Announcement" : "New Announcement"}
+            </DialogTitle>
+          </DialogHeader>
+          <AnnouncementForm
+            key={dialog?.mode === "edit" ? dialog.announcement.id : "create"}
+            announcement={dialog?.mode === "edit" ? dialog.announcement : undefined}
+            onSuccess={close}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={deletingAnnouncement !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeletingAnnouncement(null);
+            deleteManual.reset();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Announcement</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete &ldquo;
+              {deletingAnnouncement?.title ?? "this announcement"}
+              &rdquo;? This can&apos;t be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteManual.isError && <ErrorAlert message="Failed to delete announcement" />}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingAnnouncement && deleteManual.mutate(deletingAnnouncement.id)}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </AppLayout>
   );
 }
