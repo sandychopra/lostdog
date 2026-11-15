@@ -613,16 +613,16 @@ export default function ShiftReportForm({
             anchorId: "section-meetAndGreets",
           },
           {
-            key: "photos",
-            label: "Photos",
-            count: uploadedPhotos.length + photoQueue.length,
-            anchorId: "section-photos",
-          },
-          {
             key: "notes",
             label: "Overall Notes",
             count: notesCount,
             anchorId: "section-notes",
+          },
+          {
+            key: "photos",
+            label: "Photos",
+            count: uploadedPhotos.length + photoQueue.length,
+            anchorId: "section-photos",
           },
         ]}
         onBeforeNavigate={(key) => setCollapsedSections((prev) => ({ ...prev, [key]: false }))}
@@ -779,22 +779,6 @@ export default function ShiftReportForm({
       />
 
       <CollapsibleSection
-        title="Photos"
-        count={uploadedPhotos.length + photoQueue.length}
-        collapsed={collapsedSections.photos}
-        onToggleCollapsed={() => toggleSection("photos")}
-        anchorId="section-photos"
-      >
-        <PhotoUploadSection
-          queued={photoQueue}
-          onQueuedChange={setPhotoQueue}
-          uploaded={uploadedPhotos}
-          catOptions={catOptions}
-          showTagPicker
-        />
-      </CollapsibleSection>
-
-      <CollapsibleSection
         title="Overall Notes"
         count={notesCount}
         collapsed={collapsedSections.notes}
@@ -813,6 +797,25 @@ export default function ShiftReportForm({
           <Label htmlFor="otherNotes">Other Notes</Label>
           <Textarea id="otherNotes" className="min-h-16" {...register("otherNotes")} />
         </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Photos"
+        count={uploadedPhotos.length + photoQueue.length}
+        collapsed={collapsedSections.photos}
+        onToggleCollapsed={() => toggleSection("photos")}
+        anchorId="section-photos"
+      >
+        <PhotoUploadSection
+          queued={photoQueue}
+          onQueuedChange={setPhotoQueue}
+          uploaded={uploadedPhotos}
+          onUploadedDeleted={(photoId) =>
+            setUploadedPhotos((prev) => prev.filter((p) => p.id !== photoId))
+          }
+          catOptions={catOptions}
+          showTagPicker
+        />
       </CollapsibleSection>
 
       {submitAttemptError && <ErrorAlert message={submitAttemptError} />}

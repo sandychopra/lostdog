@@ -3,7 +3,10 @@ import { X, Pencil, Image as ImageIcon, Camera } from "lucide-react";
 import AuthenticatedImage from "./AuthenticatedImage";
 import CatMultiSelect, { type CatOption } from "./CatMultiSelect";
 import PhotoTagEditor from "./PhotoTagEditor";
+import DeletePhotoButton from "./DeletePhotoButton";
 import { buttonVariants } from "./ui/button";
+import { Role } from "shared/constants/role.ts";
+import { authClient } from "../lib/auth-client";
 import { cn } from "../lib/utils";
 
 export interface QueuedPhoto {
@@ -14,12 +17,14 @@ export interface QueuedPhoto {
 export interface UploadedPhotoSummary {
   id: number;
   tags: { catId: number; cat: { id: number; name: string } }[];
+  uploadedBy: { id: string; name: string };
 }
 
 interface PhotoUploadSectionProps {
   queued: QueuedPhoto[];
   onQueuedChange: (next: QueuedPhoto[]) => void;
   uploaded?: UploadedPhotoSummary[];
+  onUploadedDeleted?: (photoId: number) => void;
   catOptions: CatOption[];
   // Individual cat entries auto-tag server-side, so they don't need a tag
   // picker; group entries and the report-level section do (see photos.ts).
@@ -92,15 +97,26 @@ function UploadedThumb({
   photo,
   catOptions,
   showTagPicker,
+  onDeleted,
 }: {
   photo: UploadedPhotoSummary;
   catOptions: CatOption[];
   showTagPicker?: boolean;
+  onDeleted?: () => void;
 }) {
   const [editingTags, setEditingTags] = useState(false);
+  const { data: session } = authClient.useSession();
+  const canDelete = session?.user.role === Role.Admin || photo.uploadedBy.id === session?.user.id;
 
   return (
-    <div className="w-28 rounded-md border border-input p-1.5">
+    <div className="relative w-28 rounded-md border border-input p-1.5">
+      {canDelete && (
+        <DeletePhotoButton
+          photoId={photo.id}
+          onDeleted={onDeleted}
+          className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-destructive text-white [&_svg]:h-4 [&_svg]:w-4"
+        />
+      )}
       <AuthenticatedImage
         photoId={photo.id}
         alt="Shift report photo"
@@ -137,6 +153,7 @@ export default function PhotoUploadSection({
   queued,
   onQueuedChange,
   uploaded = [],
+  onUploadedDeleted,
   catOptions,
   showTagPicker = true,
 }: PhotoUploadSectionProps) {
@@ -157,6 +174,7 @@ export default function PhotoUploadSection({
             photo={photo}
             catOptions={catOptions}
             showTagPicker={showTagPicker}
+            onDeleted={() => onUploadedDeleted?.(photo.id)}
           />
         ))}
         {queued.map((photo, index) => (
