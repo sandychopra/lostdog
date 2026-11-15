@@ -137,10 +137,10 @@ Status: Done
 
 ## Phase 7 — Email notifications
 Goal: the Google Group keeps receiving what it receives today, without anyone re-typing it.
-Status: Done (code complete; real SendGrid delivery still to be verified with a sender and API key)
+Status: Done (real SendGrid delivery verified to a personal address)
 
 - SendGrid integration
-- Templates for the six Announcement-triggered events (new arrival, pending/adopted, back available, returned to RCC, checklist assigned, kennel move requested)
+- Templates for the seven emailed Announcement types (new arrival, pending/adopted, back available, returned to RCC, kennel needs reset, ad-hoc/manual including kennel-prep checklists, kennel move requested); dewormer due and probiotic needed stay in-app only
 - Send emails from the same Announcement-creation events
 - "Shift report submitted" email, sent on report creation (plain text, no photos)
 - Send-failure handling and logging
