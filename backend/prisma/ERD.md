@@ -170,8 +170,18 @@ erDiagram
     Int shift_report_id 
     String uploaded_by_id 
     String storage_key 
+    String thumbnail_key "❓"
     DateTime uploaded_at 
     Int cat_entry_id "❓"
+    }
+  
+
+  "pending_storage_delete" {
+    Int id "🗝️"
+    String key 
+    Int attempts 
+    String last_error "❓"
+    DateTime created_at 
     }
   
 

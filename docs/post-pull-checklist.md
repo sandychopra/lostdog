@@ -42,7 +42,11 @@ SEED_VOLUNTEER_EMAIL="volunteer@example.com"
 SEED_VOLUNTEER_PASSWORD="changeme"
 ```
 
-Email notifications (`SENDGRID_API_KEY`, `EMAIL_FROM`, `NOTIFICATION_TO`) can stay blank locally — emails are then logged to the backend console instead of sent. To try real delivery, set all three and point `NOTIFICATION_TO` at a personal address, **not** the Google Group; only production config uses the group address. Nothing is ever sent under `bun test`.
+Photo storage (`S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, optional `S3_REGION`) can stay blank locally — photos are then written to `UPLOADS_DIR` (default `backend/uploads`). Set all four to use an S3-compatible bucket (Cloudflare R2 in production; use a separate dev bucket locally). The backend logs which storage it picked at startup. Nothing touches a bucket under `bun test`. Account and bucket setup: [`external-services.md`](external-services.md#cloudflare-r2-photo-storage).
+
+Photos uploaded before thumbnails existed show their full-size original until you run, from `backend/`, `bun run backfill-thumbnails` (safe to re-run).
+
+Email notifications (`SENDGRID_API_KEY`, `EMAIL_FROM`, `NOTIFICATION_TO`) can stay blank locally — emails are then logged to the backend console instead of sent. To try real delivery, set all three and point `NOTIFICATION_TO` at a personal address, **not** the Google Group; only production config uses the group address. Nothing is ever sent under `bun test`. Account setup: [`external-services.md`](external-services.md#sendgrid-email-notifications).
 
 `backend/.env` is untracked/local, so each developer's credentials stay separate. After a pull, diff your `.env` against `backend/.env.example` — a new variable can land there without an announcement, and a missing value fails silently or falls back to a default you didn't expect:
 

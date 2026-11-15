@@ -6,6 +6,7 @@ import { toNodeHandler } from "better-auth/node";
 import { auth } from "./lib/auth.ts";
 import { prisma } from "./lib/prisma.ts";
 import { notifyPending, startEmailRetryLoop } from "./lib/notifications.ts";
+import { flushPendingDeletes, startStorageDeleteLoop } from "./lib/storageDeletes.ts";
 import { requireAuth, type AuthedRequest } from "./middleware/requireAuth.ts";
 import usersRouter from "./routes/users.ts";
 import kennelsRouter from "./routes/kennels.ts";
@@ -56,12 +57,14 @@ app.all("/api/auth/*splat", toNodeHandler(auth));
 
 app.use(express.json());
 
-// Any successful write may have created an Announcement or submitted a shift
-// report; send whatever email is now pending once the response is out.
+// Any successful write may have created an Announcement, submitted a shift
+// report, or queued storage deletes; drain those outboxes once the response is out.
 app.use((req, res, next) => {
   if (req.method !== "GET") {
     res.on("finish", () => {
-      if (res.statusCode < 400) notifyPending();
+      if (res.statusCode >= 400) return;
+      notifyPending();
+      void flushPendingDeletes();
     });
   }
   next();
@@ -108,4 +111,5 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 app.listen(PORT, () => {
   console.log(`Backend listening on http://localhost:${PORT}`);
   startEmailRetryLoop();
+  startStorageDeleteLoop();
 });

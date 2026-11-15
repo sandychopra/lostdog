@@ -419,6 +419,9 @@ model Photo {
   uploadedById  String      @map("uploaded_by_id")
   uploadedBy    User        @relation(fields: [uploadedById], references: [id])
   storageKey    String      @map("storage_key")
+  // Null when the thumbnail couldn't be generated (e.g. a HEIC sharp can't
+  // decode); views then fall back to the original.
+  thumbnailKey  String?     @map("thumbnail_key")
   uploadedAt    DateTime    @default(now()) @map("uploaded_at")
   catEntryId    Int?        @map("cat_entry_id")
   catEntry      CatEntry?   @relation(fields: [catEntryId], references: [id])
@@ -428,6 +431,19 @@ model Photo {
   @@index([shiftReportId])
   @@index([catEntryId])
   @@map("photo")
+}
+
+// Outbox of storage objects to delete once their rows are gone: written in the
+// same transaction that deletes the Photo rows, drained by storageDeletes.ts,
+// so a storage outage can't leave orphaned files behind.
+model PendingStorageDelete {
+  id        Int      @id @default(autoincrement())
+  key       String
+  attempts  Int      @default(0)
+  lastError String?  @map("last_error")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("pending_storage_delete")
 }
 
 // A photo with no rows here is "unassigned".
