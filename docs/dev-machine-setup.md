@@ -106,12 +106,9 @@ Open a new terminal and check with `claude --version`. It updates itself in the 
 ### What it picks up from the repo
 
 - **`CLAUDE.md`** (committed): project rules and architecture notes, read at the start of every session. Keep it up to date when a convention changes.
-- **The Better Auth skill:** committed under `.agents/skills/better-auth-best-practices/` (tracked in `skills-lock.json`). Claude Code looks for skills in `.claude/skills/`, which is gitignored, so link it once after cloning:
-  ```bash
-  mkdir -p .claude/skills
-  ln -s ../../.agents/skills/better-auth-best-practices .claude/skills/better-auth-best-practices
-  ```
-- **The `security-reviewer` agent** lives in `.claude/agents/`, which is gitignored, so it only exists on Sandy's machine for now.
+- **The Better Auth skill:** lives in `.agents/skills/better-auth-best-practices/` (tracked in `skills-lock.json`). `.claude/skills/better-auth-best-practices` is a committed symlink to it, which is where Claude Code looks for skills.
+- **The `security-reviewer` agent** (`.claude/agents/security-reviewer.md`): a read-only security review of the codebase or a branch. Ask Claude to "run the security reviewer" before merging a feature that touches routes, auth, uploads, email, or env handling.
+- The rest of `.claude/` (local settings, lock files) stays gitignored. Only `agents/` and `skills/` are committed.
 
 Session commands and shortcuts: [`cheat-sheet.md`](cheat-sheet.md#claude-code).
 
