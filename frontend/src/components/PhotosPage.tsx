@@ -9,6 +9,7 @@ import { downloadFromApi } from "../lib/download";
 import { catOptionLabel, useCatOptions } from "../lib/useCatOptions";
 import type { CatOption } from "./CatMultiSelect";
 import AuthenticatedImage from "./AuthenticatedImage";
+import DeletePhotoButton from "./DeletePhotoButton";
 import ErrorAlert from "./ErrorAlert";
 import AppLayout from "./AppLayout";
 import PhotoTagEditor from "./PhotoTagEditor";
@@ -30,11 +31,13 @@ function PhotoTile({
   photo,
   canEditTags,
   canDownload,
+  canDelete,
   catOptions,
 }: {
   photo: BrowsePhoto;
   canEditTags: boolean;
   canDownload: boolean;
+  canDelete: boolean;
   catOptions: CatOption[];
 }) {
   const [editing, setEditing] = useState(false);
@@ -82,6 +85,7 @@ function PhotoTile({
                 <Download className="h-3 w-3" />
               </button>
             )}
+            {canDelete && <DeletePhotoButton photoId={photo.id} className="-m-1.5 p-1.5" />}
           </span>
         </div>
         {downloadError && <p className="text-destructive">Download failed</p>}
@@ -193,6 +197,7 @@ export default function PhotosPage() {
                 photo={photo}
                 canDownload={isAdmin}
                 canEditTags={isAdmin || photo.uploadedBy.id === session?.user.id}
+                canDelete={isAdmin || photo.uploadedBy.id === session?.user.id}
                 catOptions={cats ?? []}
               />
             ))}

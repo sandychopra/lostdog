@@ -244,28 +244,6 @@ export default function ShiftReportDetailPage() {
             </section>
           )}
 
-          {report.photos.length > 0 && (
-            <section className="mt-6 space-y-2">
-              <h2 className="text-lg font-semibold">Photos</h2>
-              <div className="flex flex-wrap gap-2">
-                {report.photos.map((photo) => (
-                  <div key={photo.id} className="w-24">
-                    <AuthenticatedImage
-                      photoId={photo.id}
-                      alt="Shift report photo"
-                      className="h-24 w-full rounded-md object-cover"
-                    />
-                    <p className="truncate text-xs text-muted-foreground">
-                      {photo.tags.length > 0
-                        ? photo.tags.map((t) => t.cat.name).join(", ")
-                        : "Unassigned"}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
           {(report.cleaningNotes || report.suppliesNotes || report.otherNotes) && (
             <section className="mt-6 space-y-2">
               <h2 className="text-lg font-semibold">Overall Notes</h2>
@@ -289,6 +267,28 @@ export default function ShiftReportDetailPage() {
                   </>
                 )}
               </dl>
+            </section>
+          )}
+
+          {report.photos.length > 0 && (
+            <section className="mt-6 space-y-2">
+              <h2 className="text-lg font-semibold">Photos</h2>
+              <div className="flex flex-wrap gap-2">
+                {report.photos.map((photo) => (
+                  <div key={photo.id} className="w-24">
+                    <AuthenticatedImage
+                      photoId={photo.id}
+                      alt="Shift report photo"
+                      className="h-24 w-full rounded-md object-cover"
+                    />
+                    <p className="truncate text-xs text-muted-foreground">
+                      {photo.tags.length > 0
+                        ? photo.tags.map((t) => t.cat.name).join(", ")
+                        : "Unassigned"}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </section>
           )}
         </>

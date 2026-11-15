@@ -36,22 +36,24 @@ const { default: PhotosPage } = await import("./PhotosPage");
 describe("PhotosPage", () => {
   beforeEach(() => get.mockClear());
 
-  test("lets an Admin download and edit tags", async () => {
+  test("lets an Admin download, edit tags, and delete", async () => {
     role = "Admin";
     renderWithQuery(<PhotosPage />);
 
     expect(await screen.findByLabelText("Download original")).toBeInTheDocument();
     expect(screen.getByLabelText("Edit tags")).toBeInTheDocument();
+    expect(screen.getByLabelText("Delete photo")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Download all/ })).toBeInTheDocument();
   });
 
-  test("hides downloads and others' tag editing from a Volunteer", async () => {
+  test("hides downloads and editing/deleting others' photos from a Volunteer", async () => {
     role = "Volunteer";
     renderWithQuery(<PhotosPage />);
 
     expect(await screen.findByText("Unassigned")).toBeInTheDocument();
     expect(screen.queryByLabelText("Download original")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Edit tags")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Delete photo")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Download all/ })).not.toBeInTheDocument();
   });
 

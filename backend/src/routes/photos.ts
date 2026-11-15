@@ -10,7 +10,7 @@ import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
 import { storage } from "../lib/storage.ts";
 import { makeThumbnail, thumbnailKeyFor } from "../lib/thumbnail.ts";
-import { photoStorageKeys } from "../lib/storageDeletes.ts";
+import { photoStorageKeys, queueStorageDeletes } from "../lib/storageDeletes.ts";
 import { ZipArchive } from "archiver";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { buildPhotoFilename, uniqueFilename } from "../lib/photoFilename.ts";
@@ -363,6 +363,30 @@ router.put("/:id/tags", requireAuth, async (req, res: Response) => {
   });
 
   res.json({ photo: updated });
+});
+
+// Same rule as editing tags: the uploader or any Admin. The files are queued
+// in the same transaction and removed by the storage-delete outbox.
+router.delete("/:id", requireAuth, async (req, res: Response) => {
+  const id = Number(req.params.id);
+  const session = (req as AuthedRequest).session;
+
+  const photo = await prisma.photo.findUnique({ where: { id } });
+  if (!photo) {
+    res.status(404).json({ error: "Photo not found" });
+    return;
+  }
+  if (photo.uploadedById !== session.user.id && session.user.role !== Role.Admin) {
+    res.status(403).json({ error: "Only the uploader or an Admin can delete this photo" });
+    return;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.photo.delete({ where: { id } });
+    await queueStorageDeletes(tx, photoStorageKeys([photo]));
+  });
+
+  res.json({ message: "Photo deleted" });
 });
 
 export default router;
