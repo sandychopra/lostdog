@@ -106,7 +106,9 @@ Open a new terminal and check with `claude --version`. It updates itself in the 
 ### What it picks up from the repo
 
 - **`CLAUDE.md`** (committed): project rules and architecture notes, read at the start of every session. Keep it up to date when a convention changes.
-- **The Better Auth skill:** lives in `.agents/skills/better-auth-best-practices/` (tracked in `skills-lock.json`). `.claude/skills/better-auth-best-practices` is a committed symlink to it, which is where Claude Code looks for skills.
+- **Skills** (`.claude/skills/`, committed): extra instructions Claude loads by itself when a task matches the skill's description. Run `/skills` in a session to list them.
+  - **`better-auth-best-practices`:** Better Auth setup, sessions, plugins, and env vars. Installed from [`better-auth/skills`](https://github.com/better-auth/skills) with the `skills` CLI, which put it in `.agents/skills/better-auth-best-practices/` and recorded it in `skills-lock.json`. `.claude/skills/better-auth-best-practices` is a committed symlink to that folder.
+  - **`frontend-design`:** guidance on visual design (palette, type, layout, UI copy) when building or reworking UI. Copied unchanged from [`anthropics/skills`](https://github.com/anthropics/skills/tree/main/skills/frontend-design) at commit `e4bb5d9` straight into `.claude/skills/frontend-design/` (no symlink or lock entry). To update it, copy that folder again from the newer commit. It pushes for bold, original looks, so tell Claude to stick with the brand tokens in `frontend/src/index.css` and the shadcn/ui components (see `CLAUDE.md`).
 - **The `security-reviewer` agent** (`.claude/agents/security-reviewer.md`): a read-only security review of the codebase or a branch. Ask Claude to "run the security reviewer" before merging a feature that touches routes, auth, uploads, email, or env handling.
 - The rest of `.claude/` (local settings, lock files) stays gitignored. Only `agents/` and `skills/` are committed.
 
