@@ -67,6 +67,9 @@ export default defineConfig(({ mode }) => {
           // Never answer an /api navigation (e.g. a download link via the same-origin proxy)
           // with the cached app shell.
           navigateFallbackDenylist: [/^\/api\//],
+          // The service worker is written after the Sentry plugin deletes .map files, so it
+          // must not emit its own when build.sourcemap is on.
+          sourcemap: false,
         },
       }),
       // Must stay last.
