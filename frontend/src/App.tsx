@@ -1,4 +1,5 @@
-import { Navigate, Route, Routes } from "react-router";
+import { Navigate, Route, Routes as RouterRoutes } from "react-router";
+import { withSentryReactRouterV7Routing } from "@sentry/react";
 import LoginPage from "./components/LoginPage";
 import UsersPage from "./components/UsersPage";
 import KennelsPage from "./components/KennelsPage";
@@ -13,6 +14,9 @@ import AnnouncementsPage from "./components/AnnouncementsPage";
 import RequireAuth from "./components/RequireAuth";
 import RequireAdmin from "./components/RequireAdmin";
 import ReloadPrompt from "./components/ReloadPrompt";
+
+// Names Sentry navigation traces after the matched route (e.g. /cats/:id).
+const Routes = withSentryReactRouterV7Routing(RouterRoutes);
 
 export default function App() {
   return (

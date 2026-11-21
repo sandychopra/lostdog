@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --watch src/index.ts",
-    "start": "bun src/index.ts",
+    "dev": "bun --watch --preload ./src/instrument.ts src/index.ts",
+    "start": "bun --preload ./src/instrument.ts src/index.ts",
     "seed": "bun prisma/seed.ts",
     "typecheck": "tsc --noEmit -p .",
     "backfill-thumbnails": "bun src/scripts/backfillThumbnails.ts",
@@ -16,6 +16,7 @@
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "7.10.0",
     "@sendgrid/mail": "^8.1.6",
+    "@sentry/bun": "^11.16.0",
     "archiver": "^8.0.0",
     "better-auth": "^1.7.5",
     "cors": "^2.8.5",

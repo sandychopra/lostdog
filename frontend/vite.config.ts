@@ -3,6 +3,7 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { sentryVitePlugin } from "@sentry/bundler-plugins/vite";
 
 // Brand colors per docs/project-scope.md's Design/Branding section. Icons in public/ are
 // generated from public/logo.png by `bun run generate-pwa-assets` (see pwa-assets.config.ts).
@@ -10,9 +11,15 @@ export default defineConfig(({ mode }) => {
   // Loaded with no prefix filter so non-PUBLIC_ vars (like TUNNEL_HOST) are readable here;
   // they still never reach the browser bundle, which only gets envPrefix vars.
   const env = loadEnv(mode, import.meta.dirname, "");
+  // Source maps are built and uploaded to Sentry only when SENTRY_AUTH_TOKEN is set (never
+  // commit it), then deleted from dist/ so they never ship.
+  const uploadSourceMaps = Boolean(env.SENTRY_AUTH_TOKEN);
 
   return {
     envPrefix: "PUBLIC_",
+    build: {
+      sourcemap: uploadSourceMaps ? "hidden" : false,
+    },
     resolve: {
       alias: {
         "@": path.resolve(import.meta.dirname, "src"),
@@ -61,6 +68,15 @@ export default defineConfig(({ mode }) => {
           // with the cached app shell.
           navigateFallbackDenylist: [/^\/api\//],
         },
+      }),
+      // Must stay last.
+      sentryVitePlugin({
+        org: "foglight-innovations",
+        project: "lostdog-frontend",
+        authToken: env.SENTRY_AUTH_TOKEN,
+        disable: !uploadSourceMaps,
+        release: env.PUBLIC_SENTRY_RELEASE ? { name: env.PUBLIC_SENTRY_RELEASE } : undefined,
+        sourcemaps: { filesToDeleteAfterUpload: ["./dist/**/*.map"] },
       }),
     ],
   };
