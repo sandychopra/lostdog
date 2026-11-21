@@ -28,9 +28,7 @@ export default function ShiftReportFormPage() {
   return (
     <AppLayout width="3xl">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {isEdit ? "Edit Shift Report" : "New Shift Report"}
-        </h1>
+        <h1 className="text-3xl font-bold">{isEdit ? "Edit Shift Report" : "New Shift Report"}</h1>
         {isEdit && report && (
           <Link to={`/shift-reports/${id}`} className="text-sm text-blue hover:underline">
             View full report →

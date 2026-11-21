@@ -6,6 +6,7 @@ import ActivitySection from "./ActivitySection";
 import AuthenticatedImage from "./AuthenticatedImage";
 import ErrorAlert from "./ErrorAlert";
 import AppLayout from "./AppLayout";
+import CollarDot from "./CollarDot";
 import { CAT_STATUS_LABELS, catStatusBadgeVariant, type Cat } from "./CatsTable";
 import { formatReportDate } from "./ShiftReportsTable";
 import { Badge } from "./ui/badge";
@@ -116,7 +117,10 @@ export default function CatDetailPage() {
       ) : (
         <section className="space-y-2">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">{cat.name}</h1>
+            <h1 className="flex items-center gap-3 text-3xl font-bold">
+              <CollarDot color={cat.collarColor} className="size-5 border-4" />
+              {cat.name}
+            </h1>
             <Badge variant={catStatusBadgeVariant(cat.status)}>
               {CAT_STATUS_LABELS[cat.status]}
             </Badge>

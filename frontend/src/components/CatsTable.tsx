@@ -18,10 +18,10 @@ import { authClient } from "../lib/auth-client";
 import ErrorAlert from "./ErrorAlert";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Skeleton } from "./ui/skeleton";
 import { Card } from "./ui/card";
-import { DesktopOnly, MobileCardList } from "./ResponsiveList";
+import CollarDot from "./CollarDot";
+import KennelTile from "./KennelTile";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -87,16 +87,26 @@ export function catStatusBadgeVariant(
   }
 }
 
-function kennelLabel(cat: Cat): string {
-  const number = cat.kennel?.number ?? cat.group?.kennel?.number;
-  return number !== undefined ? String(number) : "—";
+function kennelNumberOf(cat: Cat): number | null {
+  return cat.kennel?.number ?? cat.group?.kennel?.number ?? null;
 }
 
-function ageLabel(cat: Cat): string {
+function ageLabel(cat: Cat): string | null {
   const parts = [];
-  if (cat.ageYears) parts.push(`${cat.ageYears}y`);
-  if (cat.ageMonths) parts.push(`${cat.ageMonths}m`);
-  return parts.length > 0 ? parts.join(" ") : "—";
+  if (cat.ageYears) parts.push(`${cat.ageYears} yr`);
+  if (cat.ageMonths) parts.push(`${cat.ageMonths} mo`);
+  return parts.length > 0 ? parts.join(" ") : null;
+}
+
+function detailsLabel(cat: Cat): string {
+  return [
+    ageLabel(cat),
+    cat.sex,
+    cat.colorPattern,
+    cat.collarColor ? `${cat.collarColor.toLowerCase()} collar` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
 }
 
 function siblingsLabel(cat: Cat): string {
@@ -124,110 +134,70 @@ export default function CatsTable(handlers: CatsTableProps) {
     return <ErrorAlert message="Failed to fetch cats" />;
   }
 
-  return (
-    <>
-      <MobileCardList isLoading={isLoading}>
-        {cats?.map((cat) => (
-          <Card key={cat.id} className="gap-2 px-4">
-            <div className="flex items-center justify-between gap-3">
-              <Link to={`/cats/${cat.id}`} className="text-base font-medium text-blue">
-                {cat.name}
-              </Link>
-              <Badge variant={catStatusBadgeVariant(cat.status)}>
-                {CAT_STATUS_LABELS[cat.status]}
-              </Badge>
-            </div>
-            <p>
-              Kennel {kennelLabel(cat)} · {ageLabel(cat)} · {cat.sex} · {cat.colorPattern}
-            </p>
-            <CatFlags cat={cat} />
-            {isAdmin && <CatActions cat={cat} {...handlers} />}
-          </Card>
+  if (isLoading) {
+    return (
+      <div className="grid gap-3 lg:grid-cols-2">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-24 w-full rounded-xl" />
         ))}
-      </MobileCardList>
-      <DesktopOnly>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Age</TableHead>
-              <TableHead>Sex</TableHead>
-              <TableHead>Color/Pattern</TableHead>
-              <TableHead>Kennel</TableHead>
-              <TableHead>Flags</TableHead>
-              {isAdmin && <TableHead>Actions</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading
-              ? Array.from({ length: 4 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell>
-                      <Skeleton className="h-4 w-24" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-5 w-20 rounded-full" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-8" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-16" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-24" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-8" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-24" />
-                    </TableCell>
-                    {isAdmin && (
-                      <TableCell>
-                        <Skeleton className="h-8 w-8 rounded" />
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))
-              : cats?.map((cat) => (
-                  <TableRow key={cat.id}>
-                    <TableCell>
-                      <Link to={`/cats/${cat.id}`} className="text-blue hover:underline">
-                        {cat.name}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={catStatusBadgeVariant(cat.status)}>
-                        {CAT_STATUS_LABELS[cat.status]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{ageLabel(cat)}</TableCell>
-                    <TableCell>{cat.sex}</TableCell>
-                    <TableCell>{cat.colorPattern}</TableCell>
-                    <TableCell>{kennelLabel(cat)}</TableCell>
-                    <TableCell>
-                      <CatFlags cat={cat} fallback="—" />
-                    </TableCell>
-                    {isAdmin && (
-                      <TableCell>
-                        <CatActions cat={cat} {...handlers} />
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-          </TableBody>
-        </Table>
-      </DesktopOnly>
-    </>
+      </div>
+    );
+  }
+
+  if (!cats || cats.length === 0) {
+    return (
+      <Card className="items-center px-4 py-10 text-center">
+        <p className="font-display text-lg font-semibold text-navy">No cats on the roster</p>
+        {isAdmin && <p className="text-sm text-muted-foreground">Add a cat when one arrives.</p>}
+      </Card>
+    );
+  }
+
+  return (
+    <ul className="grid gap-3 lg:grid-cols-2">
+      {cats.map((cat) => (
+        <li key={cat.id}>
+          <Card className="h-full flex-row items-start gap-3 px-3 sm:px-4">
+            <KennelTile number={kennelNumberOf(cat)} />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <div className="flex items-start justify-between gap-2">
+                <Link
+                  to={`/cats/${cat.id}`}
+                  className="flex min-w-0 items-center gap-2 font-display text-lg leading-snug font-semibold text-navy hover:underline"
+                >
+                  <CollarDot color={cat.collarColor} />
+                  <span className="min-w-0 break-words">{cat.name}</span>
+                </Link>
+                <div className="-mt-1 -mr-2 flex shrink-0 items-center gap-1">
+                  <Badge variant={catStatusBadgeVariant(cat.status)}>
+                    {CAT_STATUS_LABELS[cat.status]}
+                  </Badge>
+                  {isAdmin && <CatActions cat={cat} {...handlers} />}
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">{detailsLabel(cat)}</p>
+              {cat.groupId !== null && (
+                <p className="flex items-center gap-2 text-sm">
+                  {cat.group?.bonded ? (
+                    <Badge variant="secondary">Bonded pair</Badge>
+                  ) : (
+                    "In a group"
+                  )}
+                </p>
+              )}
+              <CatFlags cat={cat} />
+            </div>
+          </Card>
+        </li>
+      ))}
+    </ul>
   );
 }
 
-function CatFlags({ cat, fallback = null }: { cat: Cat; fallback?: string | null }) {
+function CatFlags({ cat }: { cat: Cat }) {
   return (
     <>
-      {cat.pickupAt || cat.litter ? (
+      {(cat.pickupAt || cat.litter) && (
         <div className="flex flex-col gap-1 text-sm">
           {cat.pickupAt && (
             <span className="text-muted-foreground">
@@ -238,8 +208,6 @@ function CatFlags({ cat, fallback = null }: { cat: Cat; fallback?: string | null
             <span className="text-muted-foreground">Siblings: {siblingsLabel(cat)}</span>
           )}
         </div>
-      ) : (
-        fallback
       )}
     </>
   );
@@ -257,12 +225,6 @@ function CatActions({
 }: CatsTableProps & { cat: Cat }) {
   return (
     <div className="flex items-center gap-1">
-      {cat.groupId !== null && (
-        <>
-          <span className="text-sm text-muted-foreground">In Group</span>
-          {cat.group?.bonded && <Badge variant="secondary">Bonded</Badge>}
-        </>
-      )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" aria-label={`Actions for ${cat.name}`}>

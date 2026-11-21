@@ -45,7 +45,7 @@ export default function ShiftReportsPage() {
   return (
     <AppLayout width="5xl">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Shift Reports</h1>
+        <h1 className="text-3xl font-bold">Shift Reports</h1>
         <Link to="/shift-reports/new" className={buttonVariants({ variant: "default" })}>
           <Plus className="mr-1 h-4 w-4" />
           New Report

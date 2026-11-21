@@ -48,7 +48,7 @@ export default defineConfig(({ mode }) => {
           name: "Lost Dog and Cat Rescue Foundation",
           short_name: "Lost Dog Rescue",
           theme_color: "#001F70",
-          background_color: "#F6F5F4",
+          background_color: "#EEF1F6",
           display: "standalone",
           start_url: "/",
           icons: [
@@ -64,6 +64,8 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
+          // Precache the self-hosted fonts too, so the installed app keeps its type offline.
+          globPatterns: ["**/*.{js,css,html,woff2}"],
           // Never answer an /api navigation (e.g. a download link via the same-origin proxy)
           // with the cached app shell.
           navigateFallbackDenylist: [/^\/api\//],

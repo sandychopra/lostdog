@@ -31,7 +31,7 @@ export default function KennelDetailPage() {
       ) : (
         <section className="space-y-2">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">Kennel {kennel.number}</h1>
+            <h1 className="text-3xl font-bold">Kennel {kennel.number}</h1>
             <Badge variant={kennelStateBadgeVariant(kennel.state)}>{kennel.state}</Badge>
           </div>
           <p className="text-sm">

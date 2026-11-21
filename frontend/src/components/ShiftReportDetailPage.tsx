@@ -153,7 +153,7 @@ export default function ShiftReportDetailPage() {
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-semibold tracking-tight">
+                <h1 className="text-3xl font-bold">
                   {formatReportDate(report.date)} — {shiftTypeLabel(report.shiftType)}
                 </h1>
                 <Badge variant={shiftReportStatusBadgeVariant(report.status)}>

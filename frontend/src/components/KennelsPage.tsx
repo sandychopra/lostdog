@@ -55,9 +55,9 @@ export default function KennelsPage() {
   });
 
   return (
-    <AppLayout width="4xl">
+    <AppLayout width="5xl">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Kennels</h1>
+        <h1 className="text-3xl font-bold">Kennels</h1>
         {isAdmin && (
           <Button onClick={() => setDialog({ mode: "create" })}>
             <Plus className="mr-1 h-4 w-4" />

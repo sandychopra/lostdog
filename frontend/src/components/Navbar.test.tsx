@@ -1,15 +1,18 @@
 import { describe, expect, mock, test } from "bun:test";
-import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { screen, waitFor } from "@testing-library/react";
 import { renderWithQuery } from "../test/render";
 
 let role = "Volunteer";
+let draft: { id: number } | null = null;
 
 mock.module("../lib/auth-client", () => ({
   authClient: {
     useSession: () => ({ data: { user: { id: "1", name: "Vera Volunteer", role } } }),
     signOut: mock(async () => {}),
   },
+}));
+mock.module("../lib/api", () => ({
+  api: { get: mock(async () => ({ data: { shiftReport: draft } })) },
 }));
 
 const { default: Navbar } = await import("./Navbar");
@@ -27,16 +30,25 @@ describe("Navbar", () => {
     expect(screen.getByRole("link", { name: "Users" })).toBeInTheDocument();
   });
 
-  test("the phone menu opens a sheet of links and closes when one is tapped", async () => {
+  test("Start report opens a new report when there's no draft", async () => {
     role = "Volunteer";
-    const user = userEvent.setup();
+    draft = null;
     renderWithQuery(<Navbar />);
+    expect(await screen.findByRole("link", { name: "Start report" })).toHaveAttribute(
+      "href",
+      "/shift-reports/new",
+    );
+  });
 
-    await user.click(screen.getByRole("button", { name: "Open menu" }));
-    const sheet = within(await screen.findByRole("dialog"));
-    expect(sheet.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
-
-    await user.click(sheet.getByRole("link", { name: "Cats" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  test("Start report resumes the user's draft", async () => {
+    role = "Volunteer";
+    draft = { id: 42 };
+    renderWithQuery(<Navbar />);
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "Start report" })).toHaveAttribute(
+        "href",
+        "/shift-reports/42/edit",
+      ),
+    );
   });
 });

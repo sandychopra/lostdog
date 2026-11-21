@@ -145,6 +145,7 @@ async function seedRoster() {
 
   await findOrCreateCat({
     name: "Whiskers",
+    collarColor: "Green",
     ageYears: 3,
     ageMonths: 0,
     sex: "Female",
@@ -175,6 +176,7 @@ async function seedRoster() {
 
   await findOrCreateCat({
     name: "Sprite",
+    collarColor: "Pink",
     ageYears: 0,
     ageMonths: 8,
     sex: "Female",
@@ -186,6 +188,7 @@ async function seedRoster() {
 
   await findOrCreateCat({
     name: "Nehi",
+    collarColor: "Purple",
     ageYears: 0,
     ageMonths: 8,
     sex: "Male",
@@ -269,6 +272,7 @@ async function seedAnnouncements() {
       (await tx.cat.findFirst({ where: { name: "Biscuit" } })) ??
       (await createCatWithArrivalAnnouncement(tx, {
         name: "Biscuit",
+        collarColor: "Red",
         ageYears: 0,
         ageMonths: 4,
         sex: "Male",
@@ -288,6 +292,7 @@ async function seedAnnouncements() {
       const clementine = await tx.cat.create({
         data: {
           name: "Clementine",
+          collarColor: "Yellow",
           ageYears: 1,
           ageMonths: 2,
           sex: "Female",
@@ -333,6 +338,7 @@ async function seedAnnouncements() {
       const marble = await tx.cat.create({
         data: {
           name: "Marble",
+          collarColor: "Light blue",
           ageYears: 4,
           ageMonths: 0,
           sex: "Male",
@@ -371,6 +377,7 @@ async function seedAnnouncements() {
       const tuna = await tx.cat.create({
         data: {
           name: "Tuna",
+          collarColor: "Orange",
           ageYears: 6,
           ageMonths: 0,
           sex: "Female",
