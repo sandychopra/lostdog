@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/bun";
 import express, { type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -96,6 +97,10 @@ app.get("/api/health", async (_req, res) => {
     res.status(503).json({ status: "error", database: "unreachable" });
   }
 });
+
+// Reports unhandled route errors to Sentry (a no-op when Sentry isn't
+// initialized), then passes them on to the handler below.
+Sentry.setupExpressErrorHandler(app);
 
 // Last resort for anything a route didn't handle (e.g. Prisma rejecting a NaN
 // id): log it, but never send stack traces or Prisma messages to the client.

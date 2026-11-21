@@ -1,12 +1,13 @@
 # External Services & Tools
 
-Setup, configuration, and troubleshooting for the third-party services this app depends on: the `7cornerscats.com` domain (GoDaddy), Cloudflare R2 (photo storage), SendGrid (email), ngrok (testing from a phone), and Better Auth (sign-in and sessions). R2, SendGrid, and ngrok are optional in local development. With their settings blank, the app falls back to local disk, logs emails to the console, and runs only on `localhost`. Tools installed on your own Mac (VS Code, Claude Code, DataGrip) are in [`dev-machine-setup.md`](dev-machine-setup.md). For everyday commands, see [`cheat-sheet.md`](cheat-sheet.md). For the full list of env vars, see [`post-pull-checklist.md`](post-pull-checklist.md).
+Setup, configuration, and troubleshooting for the third-party services this app depends on: the `7cornerscats.com` domain (GoDaddy), Cloudflare R2 (photo storage), SendGrid (email), Sentry (error monitoring), ngrok (testing from a phone), and Better Auth (sign-in and sessions). R2, SendGrid, Sentry, and ngrok are optional in local development. With their settings blank, the app falls back to local disk, logs emails to the console, reports errors only to the log, and runs only on `localhost`. Tools installed on your own Mac (VS Code, Claude Code, DataGrip) are in [`dev-machine-setup.md`](dev-machine-setup.md). For everyday commands, see [`cheat-sheet.md`](cheat-sheet.md). For the full list of env vars, see [`post-pull-checklist.md`](post-pull-checklist.md).
 
 | Service | Used for | Needed in dev? | Settings (`backend/.env` unless noted) |
 |---|---|---|---|
 | [Domain & DNS](#domain--dns-7cornerscatscom-on-godaddy) | `7cornerscats.com`: email sender now, app address later | No — only for real email and production | DNS records at GoDaddy (no `.env` settings) |
 | [Cloudflare R2](#cloudflare-r2-photo-storage) | Photo storage | No — local disk by default | `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION` (optional) |
 | [SendGrid](#sendgrid-email-notifications) | Notification emails | No — printed to the log by default | `SENDGRID_API_KEY`, `EMAIL_FROM`, `NOTIFICATION_TO` |
+| [Sentry](#sentry-error-monitoring) | Errors, traces, logs, and Session Replay from the backend and the browser | No — off when the DSNs are blank | `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_RELEASE`; `PUBLIC_SENTRY_DSN`, `PUBLIC_SENTRY_ENVIRONMENT`, `PUBLIC_SENTRY_RELEASE`, and `SENTRY_AUTH_TOKEN` (build only) in `frontend/.env` |
 | [ngrok](#ngrok-phone--remote-testing) | Using the dev app from another device | No — only for phone testing | `TUNNEL_URL`, plus `PUBLIC_API_URL` and `TUNNEL_HOST` in `frontend/.env` |
 | [Better Auth](#better-auth-sign-in--sessions) | Sign-in, sessions, roles | Yes — always on (a library, no account) | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `FRONTEND_URL` |
 
@@ -244,6 +245,69 @@ The app emails every submitted shift report and these announcements — new arri
 4. Created an API key — currently a full-access key; better to replace it with a **Mail Send**–only key (create it, paste it into `backend/.env`, `bun run dev:restart`, then delete the old key in SendGrid)
 5. Set `backend/.env`: the API key, `EMAIL_FROM=team@7cornerscats.com`, `NOTIFICATION_TO=sandy.chopra@gmail.com`
 6. Restarted the backend and submitted a shift report — the email arrived in the Gmail inbox (not spam)
+
+## Sentry (error monitoring)
+
+Collects errors, performance traces, and logs from the backend and the browser, plus Session Replay (a video-like recording of what the user did) for frontend sessions. Each error is linked to the request, route, and line that caused it. There are two Sentry projects, one per side: **`lostdog-server`** (Bun SDK) and **`lostdog-frontend`** (React SDK), in the `foglight-innovations` organization. With the DSNs blank, Sentry never starts and errors only go to the log. Nothing is reported under `bun test`.
+
+> **Other developers:** the `foglight-innovations` organization is Sandy's. Either leave the Sentry settings blank, or ask Sandy for the two DSNs so your local errors show up in the shared projects (they'll be tagged `development`). DSNs only allow *sending* events, so they're safe to share. Auth tokens can read and change the account: make your own (steps below) and never share or commit one.
+
+### How it works
+
+- **Backend:** `backend/src/instrument.ts` calls `Sentry.init`. The `dev` and `start` scripts load it with `bun --preload ./src/instrument.ts` so it runs before any other module. `Sentry.setupExpressErrorHandler(app)` in `index.ts` reports unhandled route errors, then hands them to the existing last-resort handler, which still never sends stack traces to the client.
+- **Frontend:** `frontend/src/instrument.ts` is the first import in `frontend.tsx`. It sets up:
+  - Tracing named after the matched route (e.g. `/cats/:id`), via `withSentryReactRouterV7Routing` wrapping `<Routes>` in `App.tsx`
+  - Session Replay for 10% of sessions, and for 100% of sessions that hit an error
+  - React 19's `createRoot` error hooks (`onUncaughtError`, `onCaughtError`, `onRecoverableError`)
+  - Trace headers on API requests (`tracePropagationTargets: [API_BASE]`), so a frontend action and the backend request it caused show up as one trace
+- **Sampling:** every trace locally, 10% in production (`NODE_ENV=production` on the backend, a production `vite build` on the frontend). Logs are sent by default in SDK v11 (there's no `enableLogs` option).
+- **Environment** defaults to `development`/`production` (backend, from `NODE_ENV`) and Vite's mode (frontend); the `*_ENVIRONMENT` settings override it.
+- **Source maps:** production frontend code is minified, so without source maps a browser stack trace is unreadable. When `SENTRY_AUTH_TOKEN` is set at build time, `@sentry/bundler-plugins/vite` (last in `vite.config.ts`'s plugins) builds hidden source maps, uploads them to `lostdog-frontend`, and deletes the `.map` files from `dist/` so they never ship. The service worker's own maps are turned off (`workbox.sourcemap: false`), because it's written after that cleanup runs. Without the token the build emits no source maps at all. The backend needs none: Bun runs the TypeScript directly, so its stack traces already point at real `src/` lines.
+
+### Setting up (one-time)
+
+- Sign up at [sentry.io](https://sentry.io) and create an organization (the free Developer plan covers this app)
+- Create two projects: one with platform **Bun** (`lostdog-server`), one with **React** (`lostdog-frontend`). Each project's DSN is under **Settings → Projects → [project] → Client Keys (DSN)**.
+- For source map uploads, create a token at **Settings → Developer Settings → Organization Tokens → Create New Token** (for this org: [foglight-innovations.sentry.io/settings/auth-tokens](https://foglight-innovations.sentry.io/settings/auth-tokens/)). It's shown once, so copy it straight into `frontend/.env`. A personal token (**User Settings → Personal Tokens**) also works if it has **Project: Read & Write** and **Release: Admin**.
+- Optional: the Sentry CLI (`curl -fsSL https://cli.sentry.dev/install | bash`, then `sentry auth login`) lets you list and view issues from the terminal. The app doesn't need it.
+
+### `backend/.env`
+
+- `SENTRY_DSN=` — the `lostdog-server` DSN. Blank turns backend reporting off.
+- `SENTRY_ENVIRONMENT=` — optional override (e.g. `staging`)
+- `SENTRY_RELEASE=` — optional; set it at deploy time (e.g. to the git SHA) so issues link to a release
+- Restart after changing them: `bun run dev:restart` (Sentry starts once, at startup)
+
+### `frontend/.env`
+
+- `PUBLIC_SENTRY_DSN=` — the `lostdog-frontend` DSN. Built into the browser bundle, which is fine: DSNs are public by design.
+- `PUBLIC_SENTRY_ENVIRONMENT=` / `PUBLIC_SENTRY_RELEASE=` — optional, as on the backend. The release also names the source map upload; when blank, the plugin uses the current git commit SHA.
+- `SENTRY_AUTH_TOKEN=` — build-time only. It has no `PUBLIC_` prefix, so it never reaches the browser. In production, set it as a build secret on the CI/hosting platform rather than in a file.
+- `PUBLIC_*` values are baked in at build time, so restart the dev server (`bun run dev:restart`) or rebuild after changing them
+
+### Testing & troubleshooting
+
+- **Backend:** temporarily add a route that throws, e.g. `app.get("/api/sentry-test-error", () => { throw new Error("Sentry test error " + Date.now()); });` above `setupExpressErrorHandler`, call it, then check the `lostdog-server` Issues page (usually under 30 seconds). Remove the route afterwards.
+- **Frontend:** with the app open, run `setTimeout(() => { throw new Error("Sentry frontend test error") })` in the browser console, then check `lostdog-frontend`
+- **From the terminal** (Sentry CLI): `sentry issue list foglight-innovations/lostdog-server --period 1h`, then `sentry issue view <SHORT-ID>`. The table cuts long titles off, so add `--json` before grepping for a message.
+- **Source maps:** `cd frontend && bun run build` with the token set. The build output should show the Sentry plugin uploading, and `dist/` should have no `.map` files left. Uploads are listed in Sentry under **Settings → Projects → lostdog-frontend → Source Maps**. An uploaded map only affects errors from that build onward.
+- **Nothing arrives:** check the DSN is in the right `.env` (server DSN in `backend/.env`, frontend DSN in `frontend/.env`) and that you restarted. A backend started without the `--preload` scripts (e.g. plain `bun src/index.ts`) never calls `Sentry.init`.
+- **`[Sentry] No diagnostics-channel injection detected` warning:** harmless for errors. On Bun older than 1.4.6, Sentry can't record automatic Express/Prisma spans, but errors and the spans around `fetch`/HTTP still work. After upgrading Bun to 1.4.6+, adding `--preload @sentry/bun/import` to the scripts turns those spans on.
+- **`Discarded session because of missing or non-string release`:** only release-health sessions are dropped while `SENTRY_RELEASE` is blank. Errors still send.
+
+### How it was set up on this machine (Sandy, Nov 2026)
+
+1. Started from Sentry's onboarding "hand off to an agent" flow. Claude Code installed the Sentry CLI (v0.50.0, to `~/.local/bin/sentry`; the installer also added zsh completions to `~/.zshrc` and agent skills to `~/.agents/skills/`) and signed it in with the one-time handoff code.
+2. Created the projects `lostdog-server` (Bun) and `lostdog-frontend` (React) in `foglight-innovations`, and put their DSNs in `backend/.env` (`SENTRY_DSN`) and `frontend/.env` (`PUBLIC_SENTRY_DSN`)
+3. Installed `@sentry/bun` and `@sentry/react` (both 11.16.0) and `@sentry/bundler-plugins` (frontend dev dependency), and wired them in as described in "How it works" (PR #43)
+4. Verified end to end:
+   - A temporary backend route that threw reached `lostdog-server` with readable `src/index.ts` frames. The route was then removed.
+   - An uncaught error thrown in the running dev frontend reached `lostdog-frontend`
+   - The test issues were resolved in Sentry
+5. The diagnostics-channel warning showed up because this machine runs Bun 1.4.2. Errors were captured regardless.
+6. Created an organization token and added it to `frontend/.env` as `SENTRY_AUTH_TOKEN`, then ran `bun run build` in `frontend/`. The plugin logged `Successfully uploaded source maps to Sentry`, and Sentry lists the bundle for `lostdog-frontend`. With `PUBLIC_SENTRY_RELEASE` blank, the plugin named the release after the current git commit SHA.
+   - The first build left `sw.js.map` and `workbox-*.js.map` in `dist/`: the PWA plugin writes the service worker *after* the Sentry plugin has deleted the `.map` files. Fixed by setting `workbox.sourcemap: false` in `vite.config.ts`. Now no `.map` files remain after a build.
+7. Still to do in Phase 9: set the DSNs, `NODE_ENV=production`, `SENTRY_RELEASE`/`PUBLIC_SENTRY_RELEASE`, and `SENTRY_AUTH_TOKEN` in the deployed environment and build
 
 ## Better Auth (sign-in & sessions)
 
