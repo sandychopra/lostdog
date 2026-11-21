@@ -52,7 +52,7 @@ export default function UsersPage() {
   return (
     <AppLayout width="4xl">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
+        <h1 className="text-3xl font-bold">Users</h1>
         <Button onClick={() => setDialog({ mode: "create" })}>
           <Plus className="mr-1 h-4 w-4" />
           New User

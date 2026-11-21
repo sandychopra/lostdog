@@ -14,7 +14,7 @@ export default function ReloadPrompt() {
   if (!needRefresh) return null;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-[max(1rem,env(safe-area-inset-bottom))]">
       <Card
         role="status"
         className="w-full max-w-sm flex-row items-center justify-between gap-3 px-4 shadow-lg"

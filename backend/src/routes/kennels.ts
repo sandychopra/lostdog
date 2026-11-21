@@ -16,8 +16,14 @@ import {
 const router = Router();
 
 const kennelInclude = {
-  cats: { select: { id: true, name: true } },
-  groups: { select: { id: true, bonded: true, cats: { select: { id: true, name: true } } } },
+  cats: { select: { id: true, name: true, collarColor: true } },
+  groups: {
+    select: {
+      id: true,
+      bonded: true,
+      cats: { select: { id: true, name: true, collarColor: true } },
+    },
+  },
 } as const;
 
 router.get("/", requireAuth, async (_req, res: Response) => {

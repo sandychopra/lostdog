@@ -12,15 +12,6 @@ import ErrorAlert from "./ErrorAlert";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  SortableTableHead,
-} from "./ui/table";
 import { Skeleton } from "./ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Input } from "./ui/input";
@@ -39,10 +30,11 @@ import {
 } from "./ui/alert-dialog";
 import AnnouncementForm from "./AnnouncementForm";
 import AppLayout from "./AppLayout";
-import { DesktopOnly, MobileCardList } from "./ResponsiveList";
 import { Card } from "./ui/card";
+import CollarDot from "./CollarDot";
+import KennelTile from "./KennelTile";
 import { NativeSelect, NativeSelectOption } from "./ui/native-select";
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Megaphone } from "lucide-react";
 
 interface AnnouncementCat {
   id: number;
@@ -53,6 +45,7 @@ interface AnnouncementCat {
   dewormerStatus: DewormerStatus;
   dewormerDueDate: string | null;
   needsProbiotic: boolean;
+  collarColor: string | null;
   kennel: { id: number; number: number } | null;
 }
 
@@ -388,13 +381,16 @@ function ProbioticStatus({
   const overdue = isProbioticOverdue(announcement);
   return (
     <div>
-      <div className="flex items-center gap-2">
-        <Badge variant={overdue ? "destructive" : "default"} className="w-fit">
-          {overdue ? "Overdue" : "Needs Probiotic"}
-        </Badge>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <Button size="sm" variant="outline" disabled={isLoggingDose} onClick={onLogDose}>
           Log dose
         </Button>
+        <span className="text-sm text-muted-foreground">
+          {announcement.lastProbioticGivenAt
+            ? `Last dose ${new Date(announcement.lastProbioticGivenAt).toLocaleString()}`
+            : "No dose logged yet"}
+          {overdue && " (more than 24 hours ago)"}
+        </span>
       </div>
       {logDoseError !== undefined && (
         <div className="mt-1">
@@ -426,11 +422,25 @@ function ProbioticStatus({
   );
 }
 
+// Overdue dewormer or probiotic: the card's kennel tile turns gold and its
+// status reads Overdue.
+function isOverdue(announcement: Announcement): boolean {
+  if (announcement.resolved || !announcement.cat) return false;
+  if (announcement.type === AnnouncementType.DewormerDue)
+    return isDewormerOverdue(announcement.cat);
+  if (announcement.type === AnnouncementType.ProbioticNeeded)
+    return isProbioticOverdue(announcement);
+  return false;
+}
+
 function statusBadge(announcement: Announcement): {
   label: string;
-  variant: "secondary" | "warning";
+  variant: "secondary" | "warning" | "destructive";
 } {
   if (announcement.resolved) return { label: "Resolved", variant: "secondary" };
+  if (isOverdue(announcement)) return { label: "Overdue", variant: "destructive" };
+  if (announcement.type === AnnouncementType.ProbioticNeeded)
+    return { label: "Open", variant: "warning" };
   if (getSubActions(announcement).length === 0)
     return { label: "Informational", variant: "secondary" };
   return { label: "Open", variant: "warning" };
@@ -535,14 +545,6 @@ export default function AnnouncementsPage() {
     });
     return list;
   }, [announcements, sort]);
-
-  function toggleSort(column: SortColumn) {
-    setSort((prev) =>
-      prev.column === column
-        ? { column, direction: prev.direction === "asc" ? "desc" : "asc" }
-        : { column, direction: "asc" },
-    );
-  }
 
   function toggleCollapsed(id: number) {
     setCollapsedIds((prev) => {
@@ -710,10 +712,13 @@ export default function AnnouncementsPage() {
     }
   }
 
-  function announcementTitle(announcement: Announcement): string {
-    return announcement.type === AnnouncementType.Manual
-      ? (announcement.title ?? "Announcement")
-      : ANNOUNCEMENT_TYPE_LABELS[announcement.type];
+  // The card's big line: who or what it's about. The type goes above it.
+  function announcementHeadline(announcement: Announcement): string {
+    if (announcement.type === AnnouncementType.Manual) return announcement.title ?? "Announcement";
+    if (announcement.cat) return announcement.cat.name;
+    const kennelNumber = kennelNumberOf(announcement);
+    if (kennelNumber !== null) return `Kennel ${kennelNumber}`;
+    return ANNOUNCEMENT_TYPE_LABELS[announcement.type];
   }
 
   // Cell contents shared by the desktop table and the phone cards.
@@ -739,9 +744,7 @@ export default function AnnouncementsPage() {
                 : undefined
             }
           />
-        ) : subActions.length === 0 ? (
-          announcement.type !== AnnouncementType.Manual && "—"
-        ) : announcement.checklist && subActions.length > 1 ? (
+        ) : subActions.length === 0 ? null : announcement.checklist && subActions.length > 1 ? (
           (() => {
             const collapsed = collapsedIds.has(announcement.id);
             const doneCount = subActions.filter((a) => a.status === "done").length;
@@ -788,29 +791,72 @@ export default function AnnouncementsPage() {
     );
   }
 
-  function renderStatus(announcement: Announcement) {
+  function renderResolution(announcement: Announcement) {
+    if (announcement.resolvedAt) {
+      return (
+        <p className="text-xs text-muted-foreground">
+          Resolved {new Date(announcement.resolvedAt).toLocaleString()}
+          {announcement.resolvedBy && ` by ${announcement.resolvedBy.name}`}
+        </p>
+      );
+    }
+    if (announcement.type === AnnouncementType.Manual && !announcement.resolved && isAdmin) {
+      return (
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={resolveManual.isPending}
+          onClick={() => resolveManual.mutate(announcement.id)}
+        >
+          Mark resolved
+        </Button>
+      );
+    }
+    return null;
+  }
+
+  function renderCard(announcement: Announcement) {
     const status = statusBadge(announcement);
+    const typeLabel = ANNOUNCEMENT_TYPE_LABELS[announcement.type];
+    const headline = announcementHeadline(announcement);
     return (
-      <>
-        <Badge variant={status.variant}>{status.label}</Badge>
-        {announcement.resolvedAt && (
-          <div className="text-xs text-muted-foreground">
-            {new Date(announcement.resolvedAt).toLocaleString()}
-            {announcement.resolvedBy && ` — ${announcement.resolvedBy.name}`}
+      <Card className="flex-row items-start gap-3 px-3 sm:gap-4 sm:px-5">
+        {kennelNumberOf(announcement) === null ? (
+          // Not about a kennel (e.g. a general post): a plain announcement mark
+          // instead of an empty kennel tile.
+          <div className="grid h-14 w-13 shrink-0 place-content-center rounded-lg bg-secondary text-navy">
+            <Megaphone className="size-6" aria-hidden="true" />
           </div>
+        ) : (
+          <KennelTile number={kennelNumberOf(announcement)} attention={isOverdue(announcement)} />
         )}
-        {announcement.type === AnnouncementType.Manual && !announcement.resolved && isAdmin && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="-ml-2 mt-1 whitespace-nowrap"
-            disabled={resolveManual.isPending}
-            onClick={() => resolveManual.mutate(announcement.id)}
-          >
-            Mark resolved
-          </Button>
-        )}
-      </>
+        <div className="min-w-0 flex-1 space-y-3">
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-bold text-blue">{typeLabel}</p>
+              <Badge variant={status.variant} className="shrink-0">
+                {status.label}
+              </Badge>
+            </div>
+            {headline !== typeLabel && (
+              <h2 className="mt-0.5 flex items-center gap-2 text-lg leading-snug font-semibold">
+                <CollarDot color={announcement.cat?.collarColor} />
+                <span className="min-w-0 break-words">{headline}</span>
+              </h2>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Posted {new Date(announcement.createdAt).toLocaleString()}
+              {announcement.createdBy && ` by ${announcement.createdBy.name}`}
+            </p>
+          </div>
+          <div className="space-y-2 text-sm">{renderActions(announcement)}</div>
+          {renderResolution(announcement)}
+          <div className="flex items-start justify-between gap-2 border-t pt-2">
+            <div className="min-w-0 flex-1">{renderComment(announcement)}</div>
+            {isAdmin && <div className="-mr-2 shrink-0">{renderAdminActions(announcement)}</div>}
+          </div>
+        </div>
+      </Card>
     );
   }
 
@@ -862,6 +908,7 @@ export default function AnnouncementsPage() {
             <Button
               variant="ghost"
               size="sm"
+              className="-ml-3"
               onClick={() => {
                 setCommentEditingId(announcement.id);
                 setCommentDraft(announcement.comment ?? "");
@@ -919,9 +966,9 @@ export default function AnnouncementsPage() {
   const close = () => setDialog(null);
 
   return (
-    <AppLayout width="6xl">
+    <AppLayout width="3xl">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Announcements</h1>
+        <h1 className="text-3xl font-bold">Announcements</h1>
         {isAdmin && (
           <Button onClick={() => setDialog({ mode: "create" })}>
             <Plus className="mr-1 h-4 w-4" />
@@ -931,25 +978,27 @@ export default function AnnouncementsPage() {
       </div>
 
       <div className="mb-6 flex flex-wrap items-end gap-4">
-        <div className="w-full space-y-1 sm:w-auto">
-          <Label htmlFor="dateFrom">From</Label>
-          <Input
-            id="dateFrom"
-            type="date"
-            className="w-full sm:w-auto"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-          />
-        </div>
-        <div className="w-full space-y-1 sm:w-auto">
-          <Label htmlFor="dateTo">To</Label>
-          <Input
-            id="dateTo"
-            type="date"
-            className="w-full sm:w-auto"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-          />
+        <div className="grid w-full grid-cols-2 gap-3 sm:flex sm:w-auto sm:gap-4">
+          <div className="min-w-0 space-y-1">
+            <Label htmlFor="dateFrom">From</Label>
+            <Input
+              id="dateFrom"
+              type="date"
+              className="w-full sm:w-auto"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+            />
+          </div>
+          <div className="min-w-0 space-y-1">
+            <Label htmlFor="dateTo">To</Label>
+            <Input
+              id="dateTo"
+              type="date"
+              className="w-full sm:w-auto"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+            />
+          </div>
         </div>
         <label className="flex h-10 items-center gap-2 text-sm">
           <Checkbox
@@ -958,163 +1007,60 @@ export default function AnnouncementsPage() {
           />
           Active only
         </label>
+        <div className="flex w-full items-end gap-2 sm:ml-auto sm:w-auto">
+          <div className="flex-1 space-y-1">
+            <Label htmlFor="sortBy">Sort by</Label>
+            <NativeSelect
+              id="sortBy"
+              value={sort.column}
+              onChange={(e) =>
+                setSort((prev) => ({ ...prev, column: e.target.value as SortColumn }))
+              }
+            >
+              {SORT_COLUMNS.map(([column, label]) => (
+                <NativeSelectOption key={column} value={column}>
+                  {label}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() =>
+              setSort((prev) => ({
+                ...prev,
+                direction: prev.direction === "asc" ? "desc" : "asc",
+              }))
+            }
+          >
+            {sort.direction === "asc" ? "Ascending" : "Descending"}
+          </Button>
+        </div>
       </div>
 
       {error ? (
         <ErrorAlert message="Failed to fetch announcements" />
+      ) : isLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-36 w-full rounded-xl" />
+          ))}
+        </div>
+      ) : sorted.length === 0 ? (
+        <Card className="items-center px-4 py-10 text-center">
+          <p className="font-display text-lg font-semibold text-navy">Nothing to do here</p>
+          <p className="text-sm text-muted-foreground">
+            {activeOnly
+              ? "No open announcements in these dates. Clear Active only to see resolved ones."
+              : "No announcements in these dates. Widen the date range to see older ones."}
+          </p>
+        </Card>
       ) : (
-        <>
-          <MobileCardList isLoading={isLoading}>
-            <div className="flex items-end gap-2">
-              <div className="flex-1 space-y-1">
-                <Label htmlFor="sortBy">Sort by</Label>
-                <NativeSelect
-                  id="sortBy"
-                  value={sort.column}
-                  onChange={(e) =>
-                    setSort((prev) => ({ ...prev, column: e.target.value as SortColumn }))
-                  }
-                >
-                  {SORT_COLUMNS.map(([column, label]) => (
-                    <NativeSelectOption key={column} value={column}>
-                      {label}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
-              </div>
-              <Button
-                variant="outline"
-                onClick={() =>
-                  setSort((prev) => ({
-                    ...prev,
-                    direction: prev.direction === "asc" ? "desc" : "asc",
-                  }))
-                }
-              >
-                {sort.direction === "asc" ? "Ascending" : "Descending"}
-              </Button>
-            </div>
-            {sorted.map((announcement) => {
-              const kennelNumber = kennelNumberOf(announcement);
-              return (
-                <Card key={announcement.id} className="gap-3 px-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-base font-medium text-navy">
-                        {announcementTitle(announcement)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {[
-                          announcement.cat?.name,
-                          kennelNumber !== null ? `Kennel ${kennelNumber}` : null,
-                          new Date(announcement.createdAt).toLocaleString(),
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </p>
-                    </div>
-                    {isAdmin && (
-                      <div className="-mt-2 -mr-2 shrink-0">{renderAdminActions(announcement)}</div>
-                    )}
-                  </div>
-                  <div>{renderActions(announcement)}</div>
-                  <div>{renderStatus(announcement)}</div>
-                  <div className="border-t pt-2">{renderComment(announcement)}</div>
-                </Card>
-              );
-            })}
-            {sorted.length === 0 && (
-              <p className="text-center text-sm text-muted-foreground">No announcements to show.</p>
-            )}
-          </MobileCardList>
-          <DesktopOnly>
-            <Table className="min-w-[56rem] table-fixed">
-              <TableHeader>
-                <TableRow>
-                  <SortableTableHead
-                    className="w-[12%]"
-                    active={sort.column === "type"}
-                    direction={sort.direction}
-                    onSort={() => toggleSort("type")}
-                  >
-                    Type
-                  </SortableTableHead>
-                  <SortableTableHead
-                    className="w-[9%]"
-                    active={sort.column === "cat"}
-                    direction={sort.direction}
-                    onSort={() => toggleSort("cat")}
-                  >
-                    Cat
-                  </SortableTableHead>
-                  <SortableTableHead
-                    className="w-[8%]"
-                    active={sort.column === "kennel"}
-                    direction={sort.direction}
-                    onSort={() => toggleSort("kennel")}
-                  >
-                    Kennel
-                  </SortableTableHead>
-                  <TableHead className="w-[24%]">Action</TableHead>
-                  <SortableTableHead
-                    className="w-[12%]"
-                    active={sort.column === "created"}
-                    direction={sort.direction}
-                    onSort={() => toggleSort("created")}
-                  >
-                    Created
-                  </SortableTableHead>
-                  <SortableTableHead
-                    className="w-[12%]"
-                    active={sort.column === "status"}
-                    direction={sort.direction}
-                    onSort={() => toggleSort("status")}
-                  >
-                    Status
-                  </SortableTableHead>
-                  <TableHead className="w-[15%]">Comment</TableHead>
-                  {isAdmin && <TableHead className="w-[8%]">Admin</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading
-                  ? Array.from({ length: 3 }).map((_, i) => (
-                      <TableRow key={i}>
-                        {Array.from({ length: isAdmin ? 8 : 7 }).map((_, j) => (
-                          <TableCell key={j}>
-                            <Skeleton className="h-4 w-20" />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))
-                  : sorted.map((announcement) => {
-                      return (
-                        <TableRow key={announcement.id}>
-                          <TableCell>{announcementTitle(announcement)}</TableCell>
-                          <TableCell>{announcement.cat?.name ?? "—"}</TableCell>
-                          <TableCell>{kennelNumberOf(announcement) ?? "—"}</TableCell>
-                          <TableCell>{renderActions(announcement)}</TableCell>
-                          <TableCell>{new Date(announcement.createdAt).toLocaleString()}</TableCell>
-                          <TableCell>{renderStatus(announcement)}</TableCell>
-                          <TableCell>{renderComment(announcement)}</TableCell>
-                          {isAdmin && <TableCell>{renderAdminActions(announcement)}</TableCell>}
-                        </TableRow>
-                      );
-                    })}
-                {!isLoading && sorted.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={isAdmin ? 8 : 7}
-                      className="text-center text-muted-foreground"
-                    >
-                      No announcements to show.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </DesktopOnly>
-        </>
+        <ul className="space-y-3">
+          {sorted.map((announcement) => (
+            <li key={announcement.id}>{renderCard(announcement)}</li>
+          ))}
+        </ul>
       )}
 
       <Dialog

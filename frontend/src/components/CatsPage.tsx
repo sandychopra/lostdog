@@ -68,7 +68,7 @@ export default function CatsPage() {
   return (
     <AppLayout width="5xl">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Cats</h1>
+        <h1 className="text-3xl font-bold">Cats</h1>
         {isAdmin && (
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => setDialog({ mode: "group" })}>

@@ -54,37 +54,52 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="mx-auto max-w-sm px-6 py-16">
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <h1 className="text-2xl font-semibold">Sign in</h1>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" aria-invalid={!!errors.email} {...register("email")} />
-              <ErrorMessage message={errors.email?.message} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                aria-invalid={!!errors.password}
-                {...register("password")}
-              />
-              <ErrorMessage message={errors.password?.message} />
-            </div>
-            <ErrorMessage message={errors.root?.message} />
-            <Button type="submit" disabled={isSubmitting} className="w-full">
-              {isSubmitting ? "Signing in..." : "Sign in"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </main>
+    <div className="min-h-dvh bg-background">
+      <div className="border-b-4 border-gold bg-navy pt-[env(safe-area-inset-top)] text-white">
+        <div className="mx-auto flex max-w-sm flex-col items-center gap-3 px-6 pt-10 pb-20 text-center">
+          <img src="/logo.png" alt="Lost Dog & Cat Rescue Foundation" className="size-28" />
+          <p className="font-display text-xl font-semibold tracking-tight">
+            Shift reports and kennel updates
+          </p>
+        </div>
+      </div>
+      <main className="relative mx-auto -mt-12 max-w-sm px-6 pb-16">
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              <h1 className="text-3xl font-bold">Sign in</h1>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  aria-invalid={!!errors.email}
+                  {...register("email")}
+                />
+                <ErrorMessage message={errors.email?.message} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  aria-invalid={!!errors.password}
+                  {...register("password")}
+                />
+                <ErrorMessage message={errors.password?.message} />
+              </div>
+              <ErrorMessage message={errors.root?.message} />
+              <Button type="submit" disabled={isSubmitting} className="w-full">
+                {isSubmitting ? "Signing in..." : "Sign in"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </main>
+    </div>
   );
 }

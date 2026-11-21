@@ -1,3 +1,9 @@
+/* Self-hosted so they work in the installed PWA without Google Fonts. League
+   Spartan (the website's face) for headings and kennel numbers; Atkinson
+   Hyperlegible for body text, chosen for readability on phones. */
+@import "@fontsource-variable/league-spartan";
+@import "@fontsource/atkinson-hyperlegible/400.css";
+@import "@fontsource/atkinson-hyperlegible/700.css";
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -10,36 +16,42 @@
 /* Brand palette (docs/project-scope.md's Design/Branding section). Static
    values, also usable directly as utilities: text-navy, bg-cream, … */
 @theme {
-  --font-sans: "League Spartan", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Atkinson Hyperlegible", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "League Spartan Variable", "League Spartan", ui-sans-serif, system-ui, sans-serif;
 
   --color-navy: #001f70;
   --color-blue: #0c4ac5;
   --color-cream: #f6f5f4;
   --color-gray: #62646a;
   --color-gold: #f0b429;
+  /* Cool page background that white cards sit on, and a pale gold for
+     "needs attention" surfaces (e.g. an overdue kennel tile). */
+  --color-mist: #eef1f6;
+  --color-gold-wash: #fff6dc;
+  --color-ink: #273046;
 }
 
 /* Semantic theme tokens (shadcn/ui convention). Re-theme the app by changing
    these, or by pasting a theme from the shadcn theme builder over this block;
    a `.dark { … }` block overriding the same variables would add dark mode. */
 :root {
-  --background: var(--color-cream);
-  --foreground: var(--color-gray);
+  --background: var(--color-mist);
+  --foreground: var(--color-ink);
   --card: #ffffff;
-  --card-foreground: var(--color-gray);
+  --card-foreground: var(--color-ink);
   --popover: #ffffff;
-  --popover-foreground: var(--color-gray);
+  --popover-foreground: var(--color-ink);
   --primary: var(--color-blue);
   --primary-foreground: #ffffff;
-  --secondary: #e7e6e4;
+  --secondary: #e3e8f1;
   --secondary-foreground: var(--color-navy);
-  --muted: #e7e6e4;
-  --muted-foreground: var(--color-gray);
+  --muted: #e3e8f1;
+  --muted-foreground: #5b6377;
   --accent: var(--color-gold);
   --accent-foreground: var(--color-navy);
-  --destructive: #c0392b;
-  --border: #d8d6d3;
-  --input: #d8d6d3;
+  --destructive: #b8321f;
+  --border: #dde2eb;
+  --input: #cdd3df;
   --ring: var(--color-blue);
   --radius: 0.75rem;
 }
@@ -83,5 +95,8 @@
   h2,
   h3 {
     color: var(--color-navy);
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+    text-wrap: balance;
   }
 }

@@ -12,6 +12,7 @@ import {
 import { CatSex } from "shared/constants/catSex.ts";
 import { DewormerStatus } from "shared/constants/dewormerStatus.ts";
 import { CAT_COLOR_PATTERNS } from "shared/constants/catColorPattern.ts";
+import { COLLAR_COLORS, matchCollarColor } from "shared/constants/collarColor.ts";
 import { api } from "../lib/api";
 import { toDateTimeInputValue } from "../lib/utils";
 import { Button } from "./ui/button";
@@ -21,6 +22,7 @@ import { NativeSelect, NativeSelectOption } from "./ui/native-select";
 import { Checkbox } from "./ui/checkbox";
 import ErrorAlert from "./ErrorAlert";
 import ErrorMessage from "./ErrorMessage";
+import CollarDot from "./CollarDot";
 import type { Cat } from "./CatsTable";
 import type { Kennel } from "./KennelsTable";
 
@@ -44,6 +46,12 @@ export default function CatForm({ cat, onSuccess }: CatFormProps) {
     () =>
       !!cat &&
       !CAT_COLOR_PATTERNS.includes(cat.colorPattern as (typeof CAT_COLOR_PATTERNS)[number]),
+  );
+
+  // A stored collar that isn't on the picklist (typed before the picklist
+  // existed, or entered under "Other") opens in Other mode with its text kept.
+  const [isOtherCollar, setIsOtherCollar] = useState(
+    () => !!cat?.collarColor && !matchCollarColor(cat.collarColor),
   );
 
   const { data: kennels } = useQuery({
@@ -74,7 +82,7 @@ export default function CatForm({ cat, onSuccess }: CatFormProps) {
       ageMonths: cat?.ageMonths ?? undefined,
       sex: cat?.sex as CatSex | undefined,
       colorPattern: cat?.colorPattern ?? "",
-      collarColor: cat?.collarColor ?? "",
+      collarColor: matchCollarColor(cat?.collarColor) ?? cat?.collarColor ?? "",
       microchipNumber: cat?.microchipNumber ?? "",
       kennelId: cat?.kennelId ?? undefined,
       dewormerStatus: cat?.dewormerStatus ?? DewormerStatus.Due,
@@ -85,6 +93,7 @@ export default function CatForm({ cat, onSuccess }: CatFormProps) {
   });
 
   const colorPattern = useWatch({ control: form.control, name: "colorPattern" });
+  const collarColor = useWatch({ control: form.control, name: "collarColor" });
 
   const mutation = useMutation({
     mutationFn: async (payload: CreateCatInput | UpdateCatInput) => {
@@ -186,8 +195,38 @@ export default function CatForm({ cat, onSuccess }: CatFormProps) {
           <ErrorMessage message={form.formState.errors.colorPattern?.message} />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="collarColor">Collar Color</Label>
-          <Input id="collarColor" placeholder="Optional" {...form.register("collarColor")} />
+          <Label htmlFor="collarColorSelect" className="flex items-center gap-2">
+            Collar Color
+            <CollarDot color={collarColor} />
+          </Label>
+          <NativeSelect
+            id="collarColorSelect"
+            value={isOtherCollar ? OTHER_COLOR : (collarColor ?? "")}
+            onChange={(e) => {
+              if (e.target.value === OTHER_COLOR) {
+                setIsOtherCollar(true);
+                form.setValue("collarColor", "", { shouldValidate: true });
+              } else {
+                setIsOtherCollar(false);
+                form.setValue("collarColor", e.target.value, { shouldValidate: true });
+              }
+            }}
+          >
+            <NativeSelectOption value="">No collar</NativeSelectOption>
+            {COLLAR_COLORS.map((color) => (
+              <NativeSelectOption key={color} value={color}>
+                {color}
+              </NativeSelectOption>
+            ))}
+            <NativeSelectOption value={OTHER_COLOR}>Other</NativeSelectOption>
+          </NativeSelect>
+          {isOtherCollar && (
+            <Input
+              id="collarColor"
+              placeholder="Describe the collar"
+              {...form.register("collarColor")}
+            />
+          )}
           <ErrorMessage message={form.formState.errors.collarColor?.message} />
         </div>
         <div className="space-y-2">

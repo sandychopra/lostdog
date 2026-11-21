@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "../lib/utils";
+import BottomNav from "./BottomNav";
 import Navbar from "./Navbar";
 import OfflineBanner from "./OfflineBanner";
 
@@ -25,13 +26,15 @@ export default function AppLayout({ children, width = "5xl", className }: AppLay
       <OfflineBanner />
       <main
         className={cn(
-          "mx-auto w-full px-4 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:pt-8 sm:pb-8",
+          // Phones leave room at the bottom for the fixed BottomNav.
+          "mx-auto w-full px-4 pt-6 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-8 md:pb-8",
           WIDTHS[width],
           className,
         )}
       >
         {children}
       </main>
+      <BottomNav />
     </>
   );
 }

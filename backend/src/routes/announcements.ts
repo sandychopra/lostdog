@@ -30,6 +30,7 @@ const announcementInclude = {
       dewormerStatus: true,
       dewormerDueDate: true,
       needsProbiotic: true,
+      collarColor: true,
       kennel: { select: { id: true, number: true } },
     },
   },

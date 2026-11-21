@@ -8,14 +8,15 @@ import { authClient } from "../lib/auth-client";
 import ErrorAlert from "./ErrorAlert";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Skeleton } from "./ui/skeleton";
 import { Card } from "./ui/card";
-import { DesktopOnly, MobileCardList } from "./ResponsiveList";
+import CollarDot from "./CollarDot";
+import KennelTile from "./KennelTile";
 
 interface KennelCat {
   id: number;
   name: string;
+  collarColor?: string | null;
 }
 
 interface KennelGroup {
@@ -61,6 +62,28 @@ export function kennelStateBadgeVariant(
       return "secondary";
   }
 }
+
+export const KENNEL_STATE_LABELS: Record<KennelState, string> = {
+  [KennelState.Ready]: "Ready",
+  [KennelState.Occupied]: "Occupied",
+  [KennelState.NeedsReset]: "Needs reset",
+  [KennelState.Planned]: "Planned",
+};
+
+// Same order and colors as the tiles, so the legend reads as a key to the grid.
+const LEGEND: KennelState[] = [
+  KennelState.Occupied,
+  KennelState.Ready,
+  KennelState.NeedsReset,
+  KennelState.Planned,
+];
+
+const LEGEND_SWATCH: Record<KennelState, string> = {
+  [KennelState.Occupied]: "border-blue bg-blue",
+  [KennelState.Ready]: "border-navy bg-white",
+  [KennelState.NeedsReset]: "border-gold bg-gold",
+  [KennelState.Planned]: "border-dashed border-navy/45 bg-mist",
+};
 
 export function occupantLabel(kennel: Kennel): string {
   const names = [
@@ -109,74 +132,72 @@ export default function KennelsTable({
     return <ErrorAlert message="Failed to fetch kennels" />;
   }
 
+  const counts = new Map<KennelState, number>();
+  for (const kennel of kennels ?? []) counts.set(kennel.state, (counts.get(kennel.state) ?? 0) + 1);
+
   return (
-    <>
-      <MobileCardList isLoading={isLoading}>
-        {kennels?.map((kennel) => (
-          <Card key={kennel.id} className="gap-2 px-4">
-            <div className="flex items-center justify-between gap-3">
-              <Link to={`/kennels/${kennel.id}`} className="text-base font-medium text-blue">
-                Kennel {kennel.number}
-              </Link>
-              <Badge variant={kennelStateBadgeVariant(kennel.state)}>{kennel.state}</Badge>
-            </div>
-            <p>{occupantLabel(kennel)}</p>
-            {isAdmin && (
-              <KennelActions
-                kennel={kennel}
-                moveRequest={moveRequestByFromKennelId.get(kennel.id)}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                onRequestMove={onRequestMove}
-                onCancelMoveRequest={onCancelMoveRequest}
-              />
+    <div className="space-y-4">
+      <ul className="flex flex-wrap gap-x-4 gap-y-2 text-sm" aria-label="Kennel states">
+        {LEGEND.map((state) => (
+          <li key={state} className="flex items-center gap-2">
+            <span className={`size-4 rounded border-2 ${LEGEND_SWATCH[state]}`} />
+            {KENNEL_STATE_LABELS[state]}
+            {kennels && (
+              <span className="text-muted-foreground tabular-nums">{counts.get(state) ?? 0}</span>
             )}
-          </Card>
+          </li>
         ))}
-      </MobileCardList>
-      <DesktopOnly>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Number</TableHead>
-              <TableHead>State</TableHead>
-              <TableHead>Occupant</TableHead>
-              {isAdmin && <TableHead>Actions</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading
-              ? Array.from({ length: 7 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell>
-                      <Skeleton className="h-4 w-8" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-5 w-20 rounded-full" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-32" />
-                    </TableCell>
-                    {isAdmin && (
-                      <TableCell>
-                        <Skeleton className="h-8 w-8 rounded" />
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))
-              : kennels?.map((kennel) => (
-                  <TableRow key={kennel.id}>
-                    <TableCell>
-                      <Link to={`/kennels/${kennel.id}`} className="text-blue hover:underline">
-                        {kennel.number}
+      </ul>
+
+      {isLoading ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-28 w-full rounded-xl" />
+          ))}
+        </div>
+      ) : !kennels || kennels.length === 0 ? (
+        <Card className="items-center px-4 py-10 text-center">
+          <p className="font-display text-lg font-semibold text-navy">No kennels yet</p>
+          {isAdmin && (
+            <p className="text-sm text-muted-foreground">Add the kennels at your site to start.</p>
+          )}
+        </Card>
+      ) : (
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {kennels.map((kennel) => {
+            const occupants = [...kennel.cats, ...kennel.groups.flatMap((g) => g.cats)];
+            const bonded = kennel.groups.some((g) => g.bonded);
+            return (
+              <li key={kennel.id}>
+                <Card className="h-full flex-row items-start gap-3 px-3">
+                  <KennelTile number={kennel.number} state={kennel.state} size="lg" />
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <Link
+                        to={`/kennels/${kennel.id}`}
+                        className="font-display text-lg font-semibold text-navy hover:underline"
+                      >
+                        Kennel {kennel.number}
                       </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={kennelStateBadgeVariant(kennel.state)}>{kennel.state}</Badge>
-                    </TableCell>
-                    <TableCell>{occupantLabel(kennel)}</TableCell>
+                      <span className="shrink-0 text-sm text-muted-foreground">
+                        {KENNEL_STATE_LABELS[kennel.state]}
+                      </span>
+                    </div>
+                    {occupants.length > 0 ? (
+                      <ul className="space-y-1">
+                        {occupants.map((cat) => (
+                          <li key={cat.id} className="flex items-center gap-2 font-bold">
+                            <CollarDot color={cat.collarColor} />
+                            {cat.name}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Empty</p>
+                    )}
+                    {bonded && <Badge variant="secondary">Bonded pair</Badge>}
                     {isAdmin && (
-                      <TableCell>
+                      <div className="-ml-2">
                         <KennelActions
                           kennel={kennel}
                           moveRequest={moveRequestByFromKennelId.get(kennel.id)}
@@ -185,14 +206,16 @@ export default function KennelsTable({
                           onRequestMove={onRequestMove}
                           onCancelMoveRequest={onCancelMoveRequest}
                         />
-                      </TableCell>
+                      </div>
                     )}
-                  </TableRow>
-                ))}
-          </TableBody>
-        </Table>
-      </DesktopOnly>
-    </>
+                  </div>
+                </Card>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 
