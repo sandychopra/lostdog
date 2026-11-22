@@ -169,6 +169,27 @@ Status: In progress — deployed on Railway at `https://app.7cornerscats.com` (N
 - Verified database backups — scheduled Railway volume backups enabled; restore drill (`pg_dump` → local scratch DB) pending; see `docs/deployment.md#database-backups`
 - Smoke test of full user flows against production
 
+### Next steps (to finish Phase 9)
+
+Tick these off here as they're done, and record details in the Railway setup log in `docs/external-services.md`.
+
+- [ ] **Restore drill:** `pg_dump` production → restore into a local scratch database → confirm the real accounts are there (commands in `docs/deployment.md#database-backups`)
+- [ ] **Production smoke test** on `https://app.7cornerscats.com`:
+  - add a volunteer
+  - submit a shift report with a photo; the original and `.thumb.jpg` appear in the `lostdog-photos` R2 bucket, and the thumbnail shows in the app
+  - the notification email reaches the personal `NOTIFICATION_TO` address with `app.7cornerscats.com` links
+  - no new errors in Sentry (`lostdog-server`, `lostdog-frontend`)
+- [ ] **Run `bun run storage:reconcile` against the production bucket** (inside the container via `railway ssh`) to confirm it reports 0 orphans
+- [ ] **Off-site photo backups:** R2 has no versioning, so set up a scheduled copy (e.g. `rclone sync`) of `lostdog-photos` to a second bucket or provider
+- [ ] **Record in the setup log:** the Railway plan and region, and which Postgres backup schedules are on (daily/weekly/monthly)
+- [ ] **At launch** (alongside Phase 10's pilot/cutover): switch `NOTIFICATION_TO` to the Google Group, then have volunteers install the app from `app.7cornerscats.com`
+
+Nice to have, not blocking launch:
+
+- [ ] Upgrade Bun to 1.4.6+ (local and `BUN_VERSION` in the `Dockerfile`) and add `--preload @sentry/bun/import` to the `start` script and the `Dockerfile` `CMD`, so Sentry records Express/Prisma spans and the "diagnostics-channel" startup warning goes away
+- [ ] Slim the production image: the release stage installs frontend runtime deps too (~660 MB of `node_modules`) that the server never uses
+- [ ] Optional: GoDaddy forwarding of `7cornerscats.com` → `https://app.7cornerscats.com`
+
 ## Phase 10 — QA & launch
 Goal: confident handoff to real volunteers.
 Status: Not started
