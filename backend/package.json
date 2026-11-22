@@ -8,6 +8,7 @@
     "seed": "bun prisma/seed.ts",
     "migrate:deploy": "prisma migrate deploy",
     "create-admin": "bun src/scripts/createAdmin.ts",
+    "seed-kennels": "bun src/scripts/seedKennels.ts",
     "typecheck": "tsc --noEmit -p .",
     "backfill-thumbnails": "bun src/scripts/backfillThumbnails.ts",
     "storage:reconcile": "bun src/scripts/reconcileStorage.ts"
