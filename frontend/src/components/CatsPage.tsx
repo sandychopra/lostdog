@@ -149,7 +149,9 @@ export default function CatsPage() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete Cat</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Are you sure you want to delete {deletingCat?.name}? This cannot be undone.
+                  Delete {deletingCat?.name} permanently? This is for a cat added by mistake and
+                  can&apos;t be undone. A cat with shift reports, photos or other history can&apos;t
+                  be deleted; use Returned to RCC to take it off the roster instead.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               {deleteMutation.isError && (

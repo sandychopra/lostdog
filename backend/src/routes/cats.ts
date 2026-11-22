@@ -273,6 +273,32 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
     return;
   }
 
+  // Delete is for cats entered by mistake. A cat with history leaves via
+  // Returned to RCC (which deactivates it) instead: these records reference the
+  // cat with RESTRICT foreign keys, or (cat_entry) a SET NULL that the entry's
+  // type/target check constraint rejects, so the delete would fail anyway.
+  const [entries, groupDetails, photoTags, meetAndGreets, playGroups, doses] = await Promise.all([
+    prisma.catEntry.count({ where: { catId: id } }),
+    prisma.groupEntryCatDetail.count({ where: { catId: id } }),
+    prisma.photoCatTag.count({ where: { catId: id } }),
+    prisma.meetAndGreetCat.count({ where: { catId: id } }),
+    prisma.playGroupCat.count({ where: { catId: id } }),
+    prisma.probioticDose.count({ where: { catId: id } }),
+  ]);
+  const history = [
+    (entries > 0 || groupDetails > 0) && "shift reports",
+    photoTags > 0 && "photos",
+    meetAndGreets > 0 && "meet & greets",
+    playGroups > 0 && "play groups",
+    doses > 0 && "probiotic doses",
+  ].filter(Boolean);
+  if (history.length > 0) {
+    res.status(409).json({
+      error: `${existing.name} appears in ${history.join(", ")}, so deleting would erase that history. Use Returned to RCC to take ${existing.name} off the roster instead.`,
+    });
+    return;
+  }
+
   await prisma.$transaction(async (tx) => {
     // SignTask.catId is a required FK with ON DELETE RESTRICT (unlike Announcement's,
     // which is SET NULL) — a hard delete has to clear these explicitly first.
