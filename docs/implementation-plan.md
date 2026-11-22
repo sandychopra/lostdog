@@ -158,13 +158,13 @@ Status: Code complete. Real-device checks on iPhone (install, camera/HEIC upload
 
 ## Phase 9 — Deployment & hardening
 Goal: it runs in production, reliably, with backups.
-Status: In progress — Railway deployment is code complete (single-image `Dockerfile`, `railway.json`, `create-admin`; see `docs/deployment.md`) and rehearsed locally, but not yet provisioned; backups and the production smoke test not started.
+Status: In progress — Railway deployment is code complete (single-image `Dockerfile` that migrates on startup, `create-admin`; see `docs/deployment.md`) and rehearsed locally; first Railway deploy in progress; backups and the production smoke test not started.
 
 - Production Dockerfile: one image in which Express serves the built frontend same-origin with `/api` (chosen over separate frontend/backend images so session cookies are first-party on Railway's `*.up.railway.app` domains, which are cross-site to each other)
 - Provision managed Postgres, S3-compatible bucket, and container host — Railway (per `Tech-Stack.md`; steps in `docs/deployment.md`)
 - Photo storage for production: S3-compatible `S3Storage` selected by `S3_*` env vars; thumbnails generated at upload (`bun run backfill-thumbnails` for older photos); presigned thumbnail URLs; storage deletes go through the `PendingStorageDelete` outbox; `bun run storage:reconcile` reports/deletes orphaned objects (code done; not yet run against a real R2 bucket)
 - Production secrets/env vars
-- Deploy pipeline — Railway auto-deploys `main`; `prisma migrate deploy` runs as the pre-deploy command, `/api/health` gates the switch-over
+- Deploy pipeline — Railway auto-deploys `main`; the container runs `prisma migrate deploy` before starting (Railway deprecated `railway.json`, so no pre-deploy hook), `/api/health` gates the switch-over
 - Basic logging and error monitoring
 - Verified database backups
 - Smoke test of full user flows against production

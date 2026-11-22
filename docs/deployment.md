@@ -8,13 +8,13 @@ Production runs as **one Railway service** built from the root `Dockerfile`, plu
 |---|---|
 | `Dockerfile` | Multi-stage: full install → `prisma generate` + `vite build` (with `PUBLIC_API_URL` blank = same origin) → slim runtime with production deps only, running as the non-root `bun` user. |
 | `.dockerignore` | Keeps local `.env` files out of the image. Otherwise Vite would inline `frontend/.env`'s localhost values into the bundle. |
-| `railway.json` | Config as code: Dockerfile builder, `prisma migrate deploy` as the **pre-deploy command** (runs before each new deploy goes live; a failed migration stops the deploy), `/api/health` health check (it also pings the database), restart on failure. |
+| `Dockerfile` `CMD` | Runs `prisma migrate deploy` and then starts the server, so every deploy applies its own migrations before it takes traffic. A failed migration exits the container, the health check never passes, and the previous deploy keeps serving. There's no `railway.json`: Railway deprecated that "Config as Code" file, and services created after 2026-08-28 can't use it. The only Railway-side settings are the dashboard ones in step 4b. |
 | `backend/src/lib/frontendHosting.ts` | Serves `FRONTEND_DIST_DIR` (set by the Dockerfile) with an SPA fallback, `immutable` caching for fingerprinted `assets/`, `no-cache` for `index.html`/`sw.js`/manifest so installed PWAs pick up deploys, and the Content-Security-Policy. |
 | `backend/src/scripts/createAdmin.ts` | `bun run create-admin`: bootstraps the first Admin on an empty database. |
 
 ## One-time setup
 
-1. **Create the project.** In Railway: *New Project → Deploy from GitHub repo →* this repo. Railway first needs its GitHub App installed with access to the repo; see [`external-services.md`](external-services.md#railway-production-hosting) (and don't confuse it with the "Deploy to Railway" GitHub Action). Railway finds `railway.json` and builds the `Dockerfile`. The first deploy will fail until the variables below are set; that's expected.
+1. **Create the project.** In Railway: *New Project → Deploy from GitHub repo →* this repo. Railway first needs its GitHub App installed with access to the repo; see [`external-services.md`](external-services.md#railway-production-hosting) (and don't confuse it with the "Deploy to Railway" GitHub Action). Railway finds the root `Dockerfile` and builds it. The first deploy will fail until the variables below are set; that's expected.
 2. **Add Postgres.** *+ Create → Database → PostgreSQL* in the same project.
 3. **Generate a domain.** On the app service: *Settings → Networking → Generate Domain*. That gives a `*.up.railway.app` URL to get the first deploy working. The real address, `app.7cornerscats.com`, comes in step 7.
 4. **Set the service variables** (*Variables → Raw Editor*). Type these in fresh rather than pasting `backend/.env`/`frontend/.env`: the dev files hold localhost URLs, the dev auth secret, demo seed passwords, and the ngrok origin, none of which belong in production.
@@ -51,7 +51,11 @@ Production runs as **one Railway service** built from the root `Dockerfile`, plu
    | `TRUST_PROXY_HOPS` | Replaced by `CLIENT_IP_HEADER` on Railway |
 
    Reuse from dev: `SENDGRID_API_KEY`, `EMAIL_FROM`, the Sentry DSNs and `SENTRY_AUTH_TOKEN`. Create new for production: `BETTER_AUTH_SECRET`, the R2 bucket and its token (see [`external-services.md`](external-services.md#cloudflare-r2-photo-storage)). Sentry releases default to `RAILWAY_GIT_COMMIT_SHA` on both sides.
-5. **Deploy.** The build runs, then the pre-deploy step applies migrations, then the health check gates the switch-over.
+   **4b. Deploy settings** (app service → *Settings → Deploy*), set by hand because they can't live in the repo any more:
+   - **Healthcheck Path:** `/api/health`. Without it, Railway sends traffic as soon as the container starts, even if migrations or startup failed.
+   - **Restart Policy:** On Failure
+   - **Pre-deploy Command:** leave **empty**. The container runs migrations itself; a pre-deploy command would only run them twice.
+5. **Deploy.** The build runs, then the container applies migrations (`All migrations have been successfully applied.` in the deploy log) and starts, then the health check gates the switch-over.
 6. **Create the first Admin.** Install the [Railway CLI](https://docs.railway.com/guides/cli) (`brew install railway`), then `railway login` and `railway link` (pick the project and the app service), and open a shell inside the running container:
 
    ```bash
@@ -64,7 +68,7 @@ Production runs as **one Railway service** built from the root `Dockerfile`, plu
 
 ## Every deploy
 
-Push to `main`. Railway auto-deploys from the connected branch: it builds, migrates, runs the health check, sends SIGTERM to the old container, and switches traffic over. Deploys only need checking in the dashboard when one fails: build logs for the Dockerfile stages, deploy logs for the pre-deploy migration and the app's own output.
+Push to `main`. Railway auto-deploys from the connected branch: it builds, starts the new container (which migrates, then listens), runs the health check, switches traffic over, and sends SIGTERM to the old container. Deploys only need checking in the dashboard when one fails: build logs for the Dockerfile stages, deploy logs for the migration output and the app's own startup.
 
 Migrations run before the new code takes traffic while the old version is still serving, so keep them backward compatible (add a column, deploy, then drop the old one in a later deploy).
 
