@@ -34,7 +34,9 @@ router.post("/", requireAuth, requireAdmin, async (req: Request, res: Response) 
   const data = validate(createKennelMoveRequestSchema, req.body, res);
   if (!data) return;
 
-  const toKennel = await prisma.kennel.findUnique({ where: { id: data.toKennelId } });
+  const toKennel = await prisma.kennel.findUnique({
+    where: { id: data.toKennelId, deletedAt: null },
+  });
   if (!toKennel) {
     res.status(404).json({ error: "Destination kennel not found" });
     return;

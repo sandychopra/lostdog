@@ -115,8 +115,9 @@ export default function KennelsPage() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete Kennel</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Are you sure you want to delete kennel {deletingKennel?.number}? This cannot be
-                  undone.
+                  Kennel {deletingKennel?.number} will be removed from the roster. Its past shift
+                  reports and history are kept, and adding kennel {deletingKennel?.number} again
+                  restores it.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               {deleteMutation.isError && (

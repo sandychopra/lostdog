@@ -24,7 +24,7 @@ router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
     return;
   }
 
-  const kennel = await prisma.kennel.findUnique({ where: { id: data.kennelId } });
+  const kennel = await prisma.kennel.findUnique({ where: { id: data.kennelId, deletedAt: null } });
   if (!kennel) {
     res.status(404).json({ error: "Kennel not found" });
     return;
