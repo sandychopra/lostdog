@@ -16,7 +16,9 @@ Production runs as **one Railway service** built from the root `Dockerfile`, plu
 
 1. **Create the project.** In Railway: *New Project → Deploy from GitHub repo →* this repo. Railway first needs its GitHub App installed with access to the repo; see [`external-services.md`](external-services.md#railway-production-hosting) (and don't confuse it with the "Deploy to Railway" GitHub Action). Railway finds the root `Dockerfile` and builds it. The first deploy will fail until the variables below are set; that's expected.
 2. **Add Postgres.** *+ Create → Database → PostgreSQL* in the same project.
-3. **Generate a domain.** On the app service: *Settings → Networking → Generate Domain*. That gives a `*.up.railway.app` URL to get the first deploy working. The real address, `app.7cornerscats.com`, comes in step 7.
+3. **Generate a domain.** On the app service: *Settings → Networking → Generate Domain*. A box asks for the port the app listens on; the button stays greyed out until it has a value. Enter **`8080`**, the `PORT` Railway injects (the deploy log shows `Backend listening on http://localhost:8080`). That gives the `*.up.railway.app` URL (ours: `lostdog-production.up.railway.app`) for getting the first deploy working. The real address, `app.7cornerscats.com`, comes in step 7.
+
+   **Do this before the first deploy.** Until the service has a domain, `${{RAILWAY_PUBLIC_DOMAIN}}` in step 4 is empty, so `BETTER_AUTH_URL` comes out as just `https://` and Better Auth throws `Invalid base URL: https://` on every request. Railway's log only shows a bare "promise rejected" header for this; the full error is in Sentry.
 4. **Set the service variables** (*Variables → Raw Editor*). Type these in fresh rather than pasting `backend/.env`/`frontend/.env`: the dev files hold localhost URLs, the dev auth secret, demo seed passwords, and the ngrok origin, none of which belong in production.
 
    ```bash
@@ -64,7 +66,7 @@ Production runs as **one Railway service** built from the root `Dockerfile`, plu
    ```
 
    It prints a one-time random password (or uses `ADMIN_PASSWORD` if set). Sign in, change the password from the Users page, and add everyone else there. The script refuses to run once an active Admin exists. Never run `bun run seed` against production: it creates demo cats and `changeme` accounts.
-7. **Move to `app.7cornerscats.com`.** Follow [`external-services.md`](external-services.md#the-apps-address-app7cornerscatscom) to add the domain in Railway and its two records in GoDaddy. Once Railway shows the green check, change both `BETTER_AUTH_URL` and `FRONTEND_URL` to `https://app.7cornerscats.com`, written out literally. With two domains on the service, `${{RAILWAY_PUBLIC_DOMAIN}}` could still resolve to the railway.app one. Saving them redeploys. From then on, signing in only works on `app.7cornerscats.com`, which is intended. Install the app on phones only after this step: an installed PWA is tied to the address it was installed from.
+7. **Move to `app.7cornerscats.com`.** Follow [`external-services.md`](external-services.md#the-apps-address-app7cornerscatscom) to add the domain in Railway and its two records in GoDaddy. Once Railway shows the green check, change both `BETTER_AUTH_URL` and `FRONTEND_URL` to `https://app.7cornerscats.com`, written out literally. `${{RAILWAY_PUBLIC_DOMAIN}}` keeps resolving to the railway.app domain even after a custom domain is added, so leaving the reference in place makes sign-in on `app.7cornerscats.com` fail with `403 Invalid origin`, while the railway.app address still works. Saving them redeploys. From then on, signing in only works on `app.7cornerscats.com`, which is intended. Install the app on phones only after this step: an installed PWA is tied to the address it was installed from.
 
 ## Every deploy
 
@@ -91,7 +93,21 @@ NODE_ENV=production FRONTEND_DIST_DIR=../frontend/dist PORT=4100 \
 
 Then open `http://localhost:4100`. Bun also loads `backend/.env`, so this uses your dev database. With Docker installed, `docker build -t lostdog . && docker run --env-file backend/.env -e PORT=4000 -p 4000:4000 lostdog` exercises the real image. In that case, point `DATABASE_URL` at `host.docker.internal` instead of `localhost`.
 
+## Troubleshooting a deploy
+
+| Symptom | Cause / fix |
+|---|---|
+| Deploy log: `NODE_ENV=production needs all four S3_* vars` | An `S3_*` variable is missing, misnamed, on the wrong service, or not yet deployed (click **Deploy** on Railway's staged-changes banner after editing variables) |
+| Deploy log: `table public.… does not exist` | Migrations didn't run. The `Dockerfile` `CMD` runs them; check the deploy log starts with `prisma migrate deploy`. (Railway ignores `railway.json` for new services, which is what caused this on the first deploy.) |
+| Deploy log ends with `The promise rejected with the reason:` and nothing after | Railway drops the reason. Look it up in Sentry: `sentry issue list foglight-innovations/lostdog-server --period 1h`, then `sentry issue view <ID>` |
+| `healthcheck failed … connection refused`, followed by `healthcheck succeeded` | Normal: Railway probes before migrations and startup finish |
+| Sign-in fails with `403 Invalid origin` | The browser's address isn't `FRONTEND_URL`. Set it (and `BETTER_AUTH_URL`) to the address people use, written out literally, and deploy |
+| **Generate Domain** button greyed out | Enter the port (`8080`) in the box first. Otherwise: a TCP proxy on the service, a limited trial account (verify at railway.com/verify), or a workspace policy |
+
+To check the live site from a terminal: `curl -s https://app.7cornerscats.com/api/health` should print `{"status":"ok","database":"connected"}`. A sign-in probe with a made-up email should return `401 Invalid email or password` (not `403 Invalid origin`): `curl -s -H "Origin: https://app.7cornerscats.com" -H "Content-Type: application/json" -d '{"email":"nobody@example.invalid","password":"x-not-real"}' https://app.7cornerscats.com/api/auth/sign-in/email`.
+
 ## Still to do (Phase 9)
 
 - Verify Railway Postgres backups: enable them on the database service, then do a test restore into a scratch database.
-- Smoke-test the full user flows against production, including photo upload to the production R2 bucket and a real notification email.
+- Smoke-test the full user flows on `app.7cornerscats.com`: add a volunteer, submit a shift report with a photo (original plus `.thumb.jpg` in the R2 bucket), and check the notification email arrives with `app.7cornerscats.com` links.
+- At launch: switch `NOTIFICATION_TO` to the Google Group, then have volunteers install the app from `app.7cornerscats.com`.

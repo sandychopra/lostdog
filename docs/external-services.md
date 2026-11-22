@@ -81,10 +81,10 @@ Always copy the exact values from the provider's own setup page at the time you 
 
 The app lives on the **`app.`** subdomain, not the bare `7cornerscats.com`. Railway connects a custom domain with a `CNAME` record, and DNS doesn't allow a `CNAME` on the bare domain unless the DNS host supports "CNAME flattening" or `ALIAS` records. GoDaddy doesn't. The workaround would be moving the domain's DNS to Cloudflare, but a subdomain avoids that and leaves the email records alone.
 
-1. **Railway:** app service → **Settings → Networking → + Custom Domain** → `app.7cornerscats.com`. If it asks for a port, use `4000`. Railway then shows **two** records to add:
+1. **Railway:** app service → **Settings → Networking → + Custom Domain** → `app.7cornerscats.com`. If it asks for a port, use `8080` (the `PORT` Railway gives the container). Railway then shows **two** records to add:
    - a `CNAME`: `app` → `<something>.up.railway.app`
    - a `TXT` that proves you own the domain. Both are required: without the `TXT`, the domain returns `404` even once the `CNAME` works.
-2. **GoDaddy:** **My Products → Domains → `7cornerscats.com` → DNS → Add New Record**, once for each:
+2. **GoDaddy:** **My Products → Domains → `7cornerscats.com` → DNS → Add New Record**, once for each (TTL: leave GoDaddy's default of 1 hour; it only matters when a record is later changed):
    - **Type** `CNAME`, **Name** `app`, **Value** as Railway shows it
    - **Type** `TXT`, **Name** and **Value** exactly as Railway shows them. GoDaddy adds `.7cornerscats.com` to the Name itself, so leave that part off (the same trap as the SendGrid records below).
    - Leave the SendGrid `CNAME`s and `_dmarc` alone
@@ -153,7 +153,7 @@ Stores uploaded photos and their thumbnails in a bucket. R2 is S3-compatible, an
 ### How it was set up on this machine (Sandy, Nov 2026)
 
 1. Created a personal Cloudflare account and enabled R2, which meant adding a payment method. Usage stays within the free tier.
-2. Created the bucket `lostdog-photos-dev`, with public access left off and no CORS policy. The production bucket (`lostdog-photos`) hasn't been created yet; that's part of Phase 9 deployment.
+2. Created the bucket `lostdog-photos-dev`, with public access left off and no CORS policy. (Production bucket: see step 8.)
 3. Created an R2 API token with **Object Read & Write**, limited to `lostdog-photos-dev`, and put the Account ID (in `S3_ENDPOINT`), Access Key ID, and Secret Access Key into `backend/.env`
 4. First restart: every request would have failed with a signature error, because the `.env` line read `S3_SECRET_ACCESS_KEY==…`. The extra `=` became part of the key, making it 65 characters instead of 64. Fixed by removing it. If R2 rejects requests, check that the secret is exactly 64 hex characters.
 5. `bun run dev:restart` — `backend.log` shows `[storage] using S3-compatible bucket "lostdog-photos-dev"`
@@ -165,6 +165,7 @@ Stores uploaded photos and their thumbnails in a bucket. R2 is S3-compatible, an
    - A failed photo insert leaves no objects behind
    - `storage:reconcile` reports 0 orphans
 7. Photos uploaded before the switch are still in `backend/uploads` on local disk, so they show as broken images while R2 is on. They weren't copied over; it's dev data. Clearing the four `S3_*` lines in `backend/.env` and restarting switches back to local disk.
+8. Production (Nov 22, 2026): created the bucket `lostdog-photos` (public access off, no CORS) and an **Account API token** `lostdog-prod` with **Object Read & Write** limited to that bucket, TTL Forever, no IP filter (Railway's outgoing IPs aren't fixed). R2's token page is under **R2 → Overview → Account Details → API Tokens → Manage**, not **My Profile → API Tokens** (that's Cloudflare's general API, which doesn't issue S3 keys); of the values it shows, the **Token value** isn't used. The Access Key ID, Secret Access Key, and default endpoint went straight into Railway's variables. The Railway deploy log confirmed `[storage] using S3-compatible bucket "lostdog-photos"`.
 
 ## ngrok (phone & remote testing)
 
@@ -361,9 +362,16 @@ Runs the production app: one service built from the root `Dockerfile`, where Exp
 
 ### How it was set up (Sandy, Nov 2026)
 
-1. In progress: connecting GitHub to Railway. The first GitHub search for the app also surfaced the "Deploy to Railway" Action, which is the wrong one (see step 2 above).
-2. Nov 2026: created the project and the Postgres service, and started on the variables. Decided on `app.7cornerscats.com` as the address (see [The app's address](#the-apps-address-app7cornerscatscom)); notifications go to a personal address until launch, then to the Google Group.
-3. Still to do: create the production R2 bucket, fix the variables per [`deployment.md`](deployment.md#one-time-setup) step 4, deploy, run `create-admin`, and add the domain. Record the plan, region, and anything that went wrong here.
+1. Connected GitHub to Railway via the **Railway App** (`github.com/apps/railway-app`), limited to `lostdog`. A GitHub search also surfaced the "Deploy to Railway" Action, which is the wrong one (see step 2 above).
+2. Created the project from the repo plus a Postgres service. Decided on `app.7cornerscats.com` as the address; notifications go to a personal address until launch, then to the Google Group.
+3. The variables were first copied from the dev `.env` files and had to be redone per [`deployment.md`](deployment.md#one-time-setup) step 4: localhost URLs, the dev auth secret, seed passwords, and `TUNNEL_URL` don't belong in production, and the `S3_*` vars were missing.
+4. Created the production R2 bucket and token (R2 section, step 8). The first deploy then refused to start until all four `S3_*` vars were set, as designed.
+5. **`railway.json` was ignored:** Railway had deprecated Config as Code, and a service created after 2026-08-28 can't opt in, so the pre-deploy migration never ran and the app started on an empty database (`table public.pending_storage_delete does not exist`). Fixed by having the container run `prisma migrate deploy` itself on startup and deleting `railway.json` (PR #47). The health check path (`/api/health`) and restart policy (On Failure) are set in the dashboard.
+6. Next deploy: all 22 migrations applied, but every request failed with `Invalid base URL: https://`: the service had no public domain yet, so `${{RAILWAY_PUBLIC_DOMAIN}}` was empty. Railway's log only showed an empty "promise rejected" header; the actual error was found in Sentry (LOSTDOG-SERVER-4). **Generate Domain** was greyed out until the port box had `8080` in it. That produced `lostdog-production.up.railway.app`, and the deploy passed its health check.
+7. Created the first Admin with `railway ssh` → `bun run create-admin` (run from the Mac's own Terminal, so the temporary password didn't end up in any chat or log).
+8. Added `app.7cornerscats.com` as a custom domain (port 8080) with its `CNAME` (`app` → `lostdog-production.up.railway.app`) and `_railway-verify` `TXT` in GoDaddy, default TTL. Railway verified it and issued a Let's Encrypt certificate.
+9. Sign-in on `app.7cornerscats.com` then failed with `403 Invalid origin` while the railway.app address worked: `BETTER_AUTH_URL`/`FRONTEND_URL` still used `${{RAILWAY_PUBLIC_DOMAIN}}`, which keeps resolving to the railway.app domain. Setting both to the literal `https://app.7cornerscats.com` fixed it, and the railway.app address now rejects sign-ins, as intended.
+10. Still to do: the production smoke test (photo upload to R2, notification email), Postgres backups with a test restore, and switching `NOTIFICATION_TO` to the Google Group at launch. Plan and region: record here.
 
 ## Better Auth (sign-in & sessions)
 

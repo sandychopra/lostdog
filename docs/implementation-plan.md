@@ -158,7 +158,7 @@ Status: Code complete. Real-device checks on iPhone (install, camera/HEIC upload
 
 ## Phase 9 — Deployment & hardening
 Goal: it runs in production, reliably, with backups.
-Status: In progress — Railway deployment is code complete (single-image `Dockerfile` that migrates on startup, `create-admin`; see `docs/deployment.md`) and rehearsed locally; first Railway deploy in progress; backups and the production smoke test not started.
+Status: In progress — deployed on Railway at `https://app.7cornerscats.com` (Nov 22, 2026): single-image `Dockerfile` that migrates on startup, Railway Postgres, production R2 bucket, first Admin created via `create-admin`; see `docs/deployment.md`. Remaining: production smoke test, verified backups, `NOTIFICATION_TO` switch at launch.
 
 - Production Dockerfile: one image in which Express serves the built frontend same-origin with `/api` (chosen over separate frontend/backend images so session cookies are first-party on Railway's `*.up.railway.app` domains, which are cross-site to each other)
 - Provision managed Postgres, S3-compatible bucket, and container host — Railway (per `Tech-Stack.md`; steps in `docs/deployment.md`)
