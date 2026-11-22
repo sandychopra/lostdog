@@ -1,6 +1,6 @@
 # Production image: one container that runs the Express API and serves the built
 # frontend from the same origin (so session cookies are first-party and no CORS is
-# involved). Built by Railway from railway.json; see docs/deployment.md.
+# involved). Railway builds it automatically from the repo root; see docs/deployment.md.
 #
 # Stages: `deps` installs everything needed to build, `build` generates the Prisma
 # client and bundles the frontend, `release` is the slim runtime with production
@@ -61,5 +61,10 @@ COPY --from=build /app/frontend/dist frontend/dist
 USER bun
 WORKDIR /app/backend
 EXPOSE 4000
-# Railway injects PORT; index.ts falls back to 4000.
-CMD ["bun", "run", "start"]
+# Apply pending migrations, then start the server (the same command as the `start`
+# script). Doing it here rather than in a host's pre-deploy hook keeps it working on
+# any platform: if a migration fails, the container exits before listening, never
+# passes the health check, and the previous deploy keeps serving. `exec` makes the
+# server PID 1 so it receives the platform's SIGTERM directly. Railway injects PORT;
+# index.ts falls back to 4000.
+CMD ["sh", "-c", "bun run --bun migrate:deploy && exec bun --preload ./src/instrument.ts src/index.ts"]

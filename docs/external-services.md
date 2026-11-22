@@ -324,7 +324,7 @@ Collects errors, performance traces, and logs from the backend and the browser, 
 
 ## Railway (production hosting)
 
-Runs the production app: one service built from the root `Dockerfile`, where Express serves both `/api` and the built frontend, plus Railway's managed Postgres. Railway handles HTTPS, deploys, and restarts. It builds straight from GitHub: every push to `main` triggers a build, a `prisma migrate deploy` pre-deploy step, and a health-checked switch-over (all configured in `railway.json`). The step-by-step deploy, the full variable list, and the gotchas are in [`deployment.md`](deployment.md). This section covers the account and its access to GitHub.
+Runs the production app: one service built from the root `Dockerfile`, where Express serves both `/api` and the built frontend, plus Railway's managed Postgres. Railway handles HTTPS, deploys, and restarts. It builds straight from GitHub: every push to `main` triggers a build, then the new container runs `prisma migrate deploy` before starting, and a health check gates the switch-over. The step-by-step deploy, the full variable list, and the gotchas are in [`deployment.md`](deployment.md). This section covers the account and its access to GitHub.
 
 ### How it works
 
@@ -344,6 +344,8 @@ Runs the production app: one service built from the root `Dockerfile`, where Exp
 3. Create the project from the repo and finish setup per [`deployment.md`](deployment.md#one-time-setup)
 4. Optional: install the CLI (`brew install railway`, then `railway login` and `railway link` from the repo root). You need it for `railway ssh`, which is how `bun run create-admin` is run inside the container, and it's handy for `railway logs`.
 
+- **No `railway.json`:** Railway deprecated "Config as Code" (`railway.json`/`railway.toml`). Services created after 2026-08-28 can't opt in, and existing files stop being read on 2026-12-01. Its replacement, "Infrastructure as Code" (`.railway/railway.ts`, applied with `railway config plan`/`apply` from the CLI), isn't used here. Migrations run inside the container instead, and the two remaining settings (health check path, restart policy) are set in the dashboard; see [`deployment.md`](deployment.md#one-time-setup) step 4b.
+
 ### Testing & troubleshooting
 
 - **Repo missing from Railway's list:**
@@ -352,7 +354,7 @@ Runs the production app: one service built from the root `Dockerfile`, where Exp
 - **Auto-deploy won't turn on:** a project member needs a connected GitHub account with write access to the repo, and the app needs access as above. As a last resort, disconnect and reconnect the repo in the service settings, or uninstall and reinstall the app.
 - **A deploy failed:** the dashboard has separate logs for each stage:
   - **Build logs:** the `Dockerfile` stages
-  - **Deploy logs:** the pre-deploy migration, then the app's own output, e.g. the `[storage] …` startup line
+  - **Deploy logs:** the migration output, then the app's own startup, e.g. the `[storage] …` line
   - A failed health check means `/api/health` didn't return 200, usually because the database is unreachable
 - **The first deploy fails:** that's expected until the service variables are set (see [`deployment.md`](deployment.md#one-time-setup))
 - Docs: [docs.railway.com](https://docs.railway.com)
