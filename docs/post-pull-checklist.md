@@ -2,7 +2,20 @@
 
 Run through these steps after pulling changes from `main` to keep your local setup in sync — new dependencies, environment variables, and database migrations don't apply themselves. The same steps also work for first-time setup, once the tools in [`dev-machine-setup.md`](dev-machine-setup.md) are installed.
 
-**Quick reference** — on a routine pull you only need the "Every pull" rows; everything else is first-time setup or situational:
+## Quick start: `bun run sync`
+
+From the repo root, one command runs steps 1–5 for you:
+
+```bash
+bun run sync              # install, sync .env files, migrate, generate, seed if empty, restart dev servers
+bun run sync --no-start   # same, but leave the dev servers alone
+bun run sync --ngrok      # same, plus the ngrok tunnel (see step 5)
+bun run sync --env-only   # just check/update the two .env files
+```
+
+`scripts/post-pull.sh` creates a missing `.env` from its `.env.example`, generates `BETTER_AUTH_SECRET` if it's blank, and appends any variable `.env.example` has that your `.env` lacks (with the example's default value), then lists anything that needs your attention at the end. It seeds only when the database has no users yet. It does **not** create the Postgres role/database (step 4's first-time setup) and never runs `migrate reset` — if `migrate deploy` fails, it stops and points you here. The sections below explain each step and those situational cases.
+
+**Quick reference** — on a routine pull you only need the "Every pull" rows (all covered by `bun run sync`); everything else is first-time setup or situational:
 
 | Step | When |
 |---|---|

@@ -11,6 +11,7 @@
     "dev:frontend": "bun run --cwd frontend dev",
     "dev:restart": "scripts/dev-servers.sh restart",
     "dev:stop": "scripts/dev-servers.sh stop",
+    "sync": "scripts/post-pull.sh",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
