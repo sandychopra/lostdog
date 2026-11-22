@@ -3,7 +3,10 @@ import * as Sentry from "@sentry/bun";
 // Preloaded (`bun --preload`) so Sentry.init runs before any other module.
 // Only when SENTRY_DSN is set, and never under `bun test` (which sets
 // NODE_ENV=test), so tests can't report to the real project.
-const { SENTRY_DSN, NODE_ENV, SENTRY_ENVIRONMENT, SENTRY_RELEASE } = process.env;
+// RAILWAY_GIT_COMMIT_SHA is set by Railway on deploys from GitHub, matching the
+// frontend's release (see the Dockerfile).
+const { SENTRY_DSN, NODE_ENV, SENTRY_ENVIRONMENT, RAILWAY_GIT_COMMIT_SHA } = process.env;
+const SENTRY_RELEASE = process.env.SENTRY_RELEASE || RAILWAY_GIT_COMMIT_SHA;
 
 if (SENTRY_DSN && NODE_ENV !== "test") {
   Sentry.init({

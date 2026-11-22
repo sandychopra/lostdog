@@ -1,6 +1,6 @@
 # External Services & Tools
 
-Setup, configuration, and troubleshooting for the third-party services this app depends on: the `7cornerscats.com` domain (GoDaddy), Cloudflare R2 (photo storage), SendGrid (email), Sentry (error monitoring), ngrok (testing from a phone), and Better Auth (sign-in and sessions). R2, SendGrid, Sentry, and ngrok are optional in local development. With their settings blank, the app falls back to local disk, logs emails to the console, reports errors only to the log, and runs only on `localhost`. Tools installed on your own Mac (VS Code, Claude Code, DataGrip) are in [`dev-machine-setup.md`](dev-machine-setup.md). For everyday commands, see [`cheat-sheet.md`](cheat-sheet.md). For the full list of env vars, see [`post-pull-checklist.md`](post-pull-checklist.md).
+Setup, configuration, and troubleshooting for the third-party services this app depends on: the `7cornerscats.com` domain (GoDaddy), Cloudflare R2 (photo storage), SendGrid (email), Sentry (error monitoring), Railway (production hosting), ngrok (testing from a phone), and Better Auth (sign-in and sessions). R2, SendGrid, Sentry, and ngrok are optional in local development. With their settings blank, the app falls back to local disk, logs emails to the console, reports errors only to the log, and runs only on `localhost`. Tools installed on your own Mac (VS Code, Claude Code, DataGrip) are in [`dev-machine-setup.md`](dev-machine-setup.md). For everyday commands, see [`cheat-sheet.md`](cheat-sheet.md). For the full list of env vars, see [`post-pull-checklist.md`](post-pull-checklist.md).
 
 | Service | Used for | Needed in dev? | Settings (`backend/.env` unless noted) |
 |---|---|---|---|
@@ -8,6 +8,7 @@ Setup, configuration, and troubleshooting for the third-party services this app 
 | [Cloudflare R2](#cloudflare-r2-photo-storage) | Photo storage | No — local disk by default | `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION` (optional) |
 | [SendGrid](#sendgrid-email-notifications) | Notification emails | No — printed to the log by default | `SENDGRID_API_KEY`, `EMAIL_FROM`, `NOTIFICATION_TO` |
 | [Sentry](#sentry-error-monitoring) | Errors, traces, logs, and Session Replay from the backend and the browser | No — off when the DSNs are blank | `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_RELEASE`; `PUBLIC_SENTRY_DSN`, `PUBLIC_SENTRY_ENVIRONMENT`, `PUBLIC_SENTRY_RELEASE`, and `SENTRY_AUTH_TOKEN` (build only) in `frontend/.env` |
+| [Railway](#railway-production-hosting) | Hosting the production app and its Postgres | No — production only | Set in the Railway dashboard, not in `.env` files (see [`deployment.md`](deployment.md#one-time-setup)) |
 | [ngrok](#ngrok-phone--remote-testing) | Using the dev app from another device | No — only for phone testing | `TUNNEL_URL`, plus `PUBLIC_API_URL` and `TUNNEL_HOST` in `frontend/.env` |
 | [Better Auth](#better-auth-sign-in--sessions) | Sign-in, sessions, roles | Yes — always on (a library, no account) | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `FRONTEND_URL` |
 
@@ -76,16 +77,28 @@ Always copy the exact values from the provider's own setup page at the time you 
 - **It bounces with "domain not found" or "no MX":** DNS hasn't updated yet, or the record was saved as the wrong type (an `A` or `TXT` instead of `MX`).
 - **It arrives in spam:** check the forwarding provider's SPF record from step 6 is in place.
 
-### Later: the app's address (Phase 9)
+### The app's address: `app.7cornerscats.com`
 
-- Point a subdomain (e.g. `app.7cornerscats.com`) at the container host. This is usually a `CNAME` the host gives you, and the host issues the HTTPS certificate.
-- Then update `FRONTEND_URL` and `BETTER_AUTH_URL` in the production env (and the frontend's `PUBLIC_API_URL`). Links in notification emails use `FRONTEND_URL`.
-- R2 doesn't need a domain: photo links are signed `*.r2.cloudflarestorage.com` URLs.
+The app lives on the **`app.`** subdomain, not the bare `7cornerscats.com`. Railway connects a custom domain with a `CNAME` record, and DNS doesn't allow a `CNAME` on the bare domain unless the DNS host supports "CNAME flattening" or `ALIAS` records. GoDaddy doesn't. The workaround would be moving the domain's DNS to Cloudflare, but a subdomain avoids that and leaves the email records alone.
+
+1. **Railway:** app service → **Settings → Networking → + Custom Domain** → `app.7cornerscats.com`. If it asks for a port, use `4000`. Railway then shows **two** records to add:
+   - a `CNAME`: `app` → `<something>.up.railway.app`
+   - a `TXT` that proves you own the domain. Both are required: without the `TXT`, the domain returns `404` even once the `CNAME` works.
+2. **GoDaddy:** **My Products → Domains → `7cornerscats.com` → DNS → Add New Record**, once for each:
+   - **Type** `CNAME`, **Name** `app`, **Value** as Railway shows it
+   - **Type** `TXT`, **Name** and **Value** exactly as Railway shows them. GoDaddy adds `.7cornerscats.com` to the Name itself, so leave that part off (the same trap as the SendGrid records below).
+   - Leave the SendGrid `CNAME`s and `_dmarc` alone
+3. **Wait** for Railway's green check next to the domain. It usually takes minutes, but DNS can take up to 72 hours. Railway then issues the HTTPS certificate on its own.
+4. **Switch the app's URL settings** to `https://app.7cornerscats.com` (`BETTER_AUTH_URL` and `FRONTEND_URL`). That's step 7 in [`deployment.md`](deployment.md#one-time-setup). Links in notification emails use `FRONTEND_URL`. `PUBLIC_API_URL` stays blank, since the backend serves the frontend from the same origin.
+5. **Optional, the bare domain:** GoDaddy **Domain → Forwarding** can send `7cornerscats.com` to `https://app.7cornerscats.com` (permanent 301). GoDaddy's forwarding is reliable for `http://` but may not work for `https://7cornerscats.com`, so share the `app.` link itself.
+
+R2 doesn't need a domain: photo links are signed `*.r2.cloudflarestorage.com` URLs.
 
 ### Checking & troubleshooting
 
 - `dig +short CNAME s1._domainkey.7cornerscats.com` — should print a `sendgrid.net` target (same for `s2`)
 - `dig +short TXT _dmarc.7cornerscats.com` / `dig +short MX 7cornerscats.com` / `dig +short NS 7cornerscats.com`
+- `dig +short CNAME app.7cornerscats.com` — should print the `*.up.railway.app` target Railway gave you. `curl -s https://app.7cornerscats.com/api/health` should print `{"status":"ok","database":"connected"}`.
 - GoDaddy adds the domain to the **Name** field for you. Enter `s1._domainkey`, not `s1._domainkey.7cornerscats.com`, or the record ends up at `s1._domainkey.7cornerscats.com.7cornerscats.com` and SendGrid's Verify fails.
 - To see whether an email passed: in Gmail, open it → ⋮ → **Show original**. `SPF`, `DKIM`, and `DMARC` should all say `PASS`.
 
@@ -309,6 +322,47 @@ Collects errors, performance traces, and logs from the backend and the browser, 
    - The first build left `sw.js.map` and `workbox-*.js.map` in `dist/`: the PWA plugin writes the service worker *after* the Sentry plugin has deleted the `.map` files. Fixed by setting `workbox.sourcemap: false` in `vite.config.ts`. Now no `.map` files remain after a build.
 7. Still to do in Phase 9: set the DSNs, `NODE_ENV=production`, `SENTRY_RELEASE`/`PUBLIC_SENTRY_RELEASE`, and `SENTRY_AUTH_TOKEN` in the deployed environment and build
 
+## Railway (production hosting)
+
+Runs the production app: one service built from the root `Dockerfile`, where Express serves both `/api` and the built frontend, plus Railway's managed Postgres. Railway handles HTTPS, deploys, and restarts. It builds straight from GitHub: every push to `main` triggers a build, a `prisma migrate deploy` pre-deploy step, and a health-checked switch-over (all configured in `railway.json`). The step-by-step deploy, the full variable list, and the gotchas are in [`deployment.md`](deployment.md). This section covers the account and its access to GitHub.
+
+### How it works
+
+- **Code access** goes through Railway's **GitHub App**, installed on the GitHub account that owns the repo. The app is what lets Railway read the code and receive push events for auto-deploys. If the app loses access, auto-deploy can't be enabled and the repo disappears from Railway's repo picker.
+- **Settings** are Railway *service variables* set in the dashboard. Production has no `.env` files: `.dockerignore` keeps local ones out of the image. Variables can reference each other, e.g. `DATABASE_URL=${{Postgres.DATABASE_URL}}` or `https://${{RAILWAY_PUBLIC_DOMAIN}}`.
+- **Build-time vs run-time:** a Dockerfile build only sees a variable if the `Dockerfile` declares it with `ARG`. Ours declares `PUBLIC_SENTRY_DSN`, `PUBLIC_SENTRY_ENVIRONMENT`, `SENTRY_AUTH_TOKEN`, and `RAILWAY_GIT_COMMIT_SHA`. Everything else is read when the app starts.
+- **Billing** is usage-based (CPU, memory, storage, and egress) on top of the plan fee.
+
+### Setting up (one-time)
+
+1. Sign up at [railway.com](https://railway.com). Signing in with GitHub links the accounts in one step. Otherwise, connect GitHub under **Account Settings → Account Integrations → GitHub**.
+2. Install the **Railway GitHub App** on the account that owns `lostdog`:
+   - Open **[github.com/apps/railway-app/installations/new](https://github.com/apps/railway-app/installations/new)** directly. Railway's **New Project → Deploy from GitHub repo → Configure GitHub App** link goes to the same page.
+   - Choose the owning account (or the organization, if the repo moves to one; an org owner must then approve the install)
+   - Under **Repository access**, pick **Only select repositories → lostdog**, then **Install**
+   - **Pick the right app:** it's **Railway App** by **`railwayapp`**, and its URL starts with `github.com/apps/`. Searching GitHub also turns up "Deploy to Railway" and similar **GitHub Actions** (`github.com/marketplace/actions/…`). Those are CI steps that push to Railway with an API token, often from third parties. They don't give Railway repo access, so don't install them.
+3. Create the project from the repo and finish setup per [`deployment.md`](deployment.md#one-time-setup)
+4. Optional: install the CLI (`brew install railway`, then `railway login` and `railway link` from the repo root). You need it for `railway ssh`, which is how `bun run create-admin` is run inside the container, and it's handy for `railway logs`.
+
+### Testing & troubleshooting
+
+- **Repo missing from Railway's list:**
+  - Check **GitHub → Settings → Applications → Installed GitHub Apps → Railway → Configure** and confirm `lostdog` is under Repository access with no pending permission requests
+  - Then click **Refresh** in Railway's repo picker. Railway can take a few minutes to see changes.
+- **Auto-deploy won't turn on:** a project member needs a connected GitHub account with write access to the repo, and the app needs access as above. As a last resort, disconnect and reconnect the repo in the service settings, or uninstall and reinstall the app.
+- **A deploy failed:** the dashboard has separate logs for each stage:
+  - **Build logs:** the `Dockerfile` stages
+  - **Deploy logs:** the pre-deploy migration, then the app's own output, e.g. the `[storage] …` startup line
+  - A failed health check means `/api/health` didn't return 200, usually because the database is unreachable
+- **The first deploy fails:** that's expected until the service variables are set (see [`deployment.md`](deployment.md#one-time-setup))
+- Docs: [docs.railway.com](https://docs.railway.com)
+
+### How it was set up (Sandy, Nov 2026)
+
+1. In progress: connecting GitHub to Railway. The first GitHub search for the app also surfaced the "Deploy to Railway" Action, which is the wrong one (see step 2 above).
+2. Nov 2026: created the project and the Postgres service, and started on the variables. Decided on `app.7cornerscats.com` as the address (see [The app's address](#the-apps-address-app7cornerscatscom)); notifications go to a personal address until launch, then to the Google Group.
+3. Still to do: create the production R2 bucket, fix the variables per [`deployment.md`](deployment.md#one-time-setup) step 4, deploy, run `create-admin`, and add the domain. Record the plan, region, and anything that went wrong here.
+
 ## Better Auth (sign-in & sessions)
 
 Handles email/password sign-in, sessions, and the user's role. Unlike everything else in this doc, it's an npm library (`better-auth`, in both `backend` and `frontend`), not a hosted service. There's no account to create, and all its data lives in our own Postgres.
@@ -329,7 +383,7 @@ Handles email/password sign-in, sessions, and the user's role. Unlike everything
 ### `backend/.env`
 
 - `BETTER_AUTH_SECRET=` — signs session cookies. Generate one with `openssl rand -base64 32`. Use a different value per environment and never commit it. Changing it signs everyone out.
-- `BETTER_AUTH_URL=http://localhost:4000` — the backend's own public URL (the production API URL once deployed)
+- `BETTER_AUTH_URL=http://localhost:4000` — the backend's own public URL. In production it's the app's URL, since the backend serves the frontend from the same origin.
 - `FRONTEND_URL=http://localhost:3000` — sign-in requests are only accepted from this origin (plus `TUNNEL_URL`)
 - Seeded accounts: `bun run seed` creates the admin and volunteer from `SEED_ADMIN_*` / `SEED_VOLUNTEER_*`
 

@@ -63,6 +63,12 @@ describe("createStorage", () => {
     ).toBeInstanceOf(LocalDiskStorage);
   });
 
+  test("refuses the container's ephemeral disk in production", () => {
+    expect(() => createStorage({ ...s3Env, S3_BUCKET: "", NODE_ENV: "production" })).toThrow(
+      /S3_\*/,
+    );
+  });
+
   test("signs a path-style GET URL for the bucket", async () => {
     const storage = createStorage({ ...s3Env, NODE_ENV: "production" });
     const url = new URL((await storage.signedUrl("shift-reports/1/a.jpg", 900))!);

@@ -5,6 +5,7 @@ import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
+import { createUserWithPassword } from "../lib/users.ts";
 
 const router = Router();
 
@@ -24,42 +25,13 @@ router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
   const data = validate(createUserSchema, req.body, res);
   if (!data) return;
 
-  const { name, email, password, role } = data;
-
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const existing = await prisma.user.findUnique({ where: { email: data.email } });
   if (existing) {
     res.status(409).json({ error: "Email already exists" });
     return;
   }
 
-  const hashedPassword = await hashPassword(password);
-  const userId = crypto.randomUUID();
-  const now = new Date();
-
-  await prisma.$transaction([
-    prisma.user.create({
-      data: {
-        id: userId,
-        name,
-        email,
-        emailVerified: false,
-        role,
-        createdAt: now,
-        updatedAt: now,
-      },
-    }),
-    prisma.account.create({
-      data: {
-        id: crypto.randomUUID(),
-        accountId: userId,
-        providerId: "credential",
-        userId,
-        password: hashedPassword,
-        createdAt: now,
-        updatedAt: now,
-      },
-    }),
-  ]);
+  const userId = await createUserWithPassword(data);
 
   const user = await prisma.user.findUnique({ where: { id: userId }, select: userSelect });
 
