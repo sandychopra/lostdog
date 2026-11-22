@@ -106,7 +106,12 @@ Open a new terminal and check with `claude --version`. It updates itself in the 
 ### What it picks up from the repo
 
 - **`CLAUDE.md`** (committed): project rules and architecture notes, read at the start of every session. Keep it up to date when a convention changes.
-- **The Better Auth skill:** lives in `.agents/skills/better-auth-best-practices/` (tracked in `skills-lock.json`). `.claude/skills/better-auth-best-practices` is a committed symlink to it, which is where Claude Code looks for skills.
+- **Skills** (`.claude/skills/`, committed): extra instructions Claude loads by itself when a task matches the skill's description. Run `/skills` in a session to list them.
+  - **`better-auth-best-practices`:** Better Auth setup, sessions, plugins, and env vars. From [`better-auth/skills`](https://github.com/better-auth/skills).
+  - **`frontend-design`:** guidance on visual design (palette, type, layout, UI copy) when building or reworking UI. From [`anthropics/skills`](https://github.com/anthropics/skills/tree/main/skills/frontend-design). It pushes for bold, original looks, so tell Claude to stick with the brand tokens in `frontend/src/index.css` and the shadcn/ui components (see `CLAUDE.md`).
+  - Both were installed with the [`skills` CLI](https://www.npmjs.com/package/skills), which records each skill's source in `skills-lock.json`. Each skill's files live in `.agents/skills/<name>/`, and `.claude/skills/<name>` is a committed symlink to that folder.
+  - **Adding one:** `DO_NOT_TRACK=1 bunx skills add <owner>/<repo> -s <skill> -a claude-code -y`. With one agent, the CLI copies the skill straight into `.claude/skills/<name>/`. To keep the same layout as the others, move that folder to `.agents/skills/<name>/` and symlink it back: `ln -s ../../.agents/skills/<name> .claude/skills/<name>`.
+  - **Updating:** `DO_NOT_TRACK=1 bunx skills update -p -y`, then commit the changed files and `skills-lock.json`.
 - **The `security-reviewer` agent** (`.claude/agents/security-reviewer.md`): a read-only security review of the codebase or a branch. Ask Claude to "run the security reviewer" before merging a feature that touches routes, auth, uploads, email, or env handling.
 - The rest of `.claude/` (local settings, lock files) stays gitignored. Only `agents/` and `skills/` are committed.
 
