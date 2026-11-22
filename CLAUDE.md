@@ -25,6 +25,8 @@ bun run dev:frontend < /dev/null &  # start the React dev server with HMR (http:
 bun run dev:restart        # or: stop/start both in the background, logs to backend.log/frontend.log
 bun run dev:restart --ngrok  # same, plus an ngrok tunnel to :3000 (restart alone never starts or stops ngrok)
 bun run dev:stop           # stop both, plus the ngrok tunnel if running
+
+bun run sync               # after a pull: install, sync .env files, migrate, generate, seed if empty, restart (--no-start, --ngrok, --env-only)
 ```
 
 Each can also be run directly from its own directory: `cd backend && bun run dev`.
@@ -38,7 +40,7 @@ Each can also be run directly from its own directory: `cd backend && bun run dev
 
 ### After pulling changes
 
-See `docs/post-pull-checklist.md` for the full checklist (installing new dependencies, backend/frontend env vars, database migrations). First-time setup follows the same steps.
+Run `bun run sync` (`scripts/post-pull.sh`), which automates the routine steps. See `docs/post-pull-checklist.md` for the full checklist (installing new dependencies, backend/frontend env vars, database migrations). First-time setup follows the same steps.
 
 ## Architecture
 
