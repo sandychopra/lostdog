@@ -371,7 +371,8 @@ Runs the production app: one service built from the root `Dockerfile`, where Exp
 7. Created the first Admin with `railway ssh` → `bun run create-admin` (run from the Mac's own Terminal, so the temporary password didn't end up in any chat or log).
 8. Added `app.7cornerscats.com` as a custom domain (port 8080) with its `CNAME` (`app` → `lostdog-production.up.railway.app`) and `_railway-verify` `TXT` in GoDaddy, default TTL. Railway verified it and issued a Let's Encrypt certificate.
 9. Sign-in on `app.7cornerscats.com` then failed with `403 Invalid origin` while the railway.app address worked: `BETTER_AUTH_URL`/`FRONTEND_URL` still used `${{RAILWAY_PUBLIC_DOMAIN}}`, which keeps resolving to the railway.app domain. Setting both to the literal `https://app.7cornerscats.com` fixed it, and the railway.app address now rejects sign-ins, as intended.
-10. Still to do: the production smoke test (photo upload to R2, notification email), Postgres backups with a test restore, and switching `NOTIFICATION_TO` to the Google Group at launch. Plan and region: record here.
+10. Enabled scheduled Postgres backups (Postgres service → **Backups** tab); see [`deployment.md`](deployment.md#database-backups) for the schedules, what a restore does, and the restore drill.
+11. Still to do: the restore drill (dump → local scratch database), the production smoke test (photo upload to R2, notification email), off-site photo backups, and switching `NOTIFICATION_TO` to the Google Group at launch. Plan and region: record here.
 
 ## Better Auth (sign-in & sessions)
 

@@ -106,8 +106,41 @@ Then open `http://localhost:4100`. Bun also loads `backend/.env`, so this uses y
 
 To check the live site from a terminal: `curl -s https://app.7cornerscats.com/api/health` should print `{"status":"ok","database":"connected"}`. A sign-in probe with a made-up email should return `401 Invalid email or password` (not `403 Invalid origin`): `curl -s -H "Origin: https://app.7cornerscats.com" -H "Content-Type: application/json" -d '{"email":"nobody@example.invalid","password":"x-not-real"}' https://app.7cornerscats.com/api/auth/sign-in/email`.
 
+## Database backups
+
+Railway backs up Postgres as **volume snapshots**, configured on the **Postgres** service (not the app) → **Backups** tab. Scheduled backups are **enabled** (Nov 22, 2026). The schedules and how long each is kept:
+
+| Schedule | Runs | Kept for |
+|---|---|---|
+| Daily | every 24 hours | 6 days |
+| Weekly | every 7 days | about a month |
+| Monthly | every 30 days | about 3 months |
+
+Snapshots are incremental and billed at the volume storage rate. **Backup now** on the same tab takes a manual snapshot; take one before any risky migration or bulk data change.
+
+**Restoring replaces production data.** **Restore** on a snapshot mounts it in place of the current volume as a staged change, and clicking **Deploy** redeploys Postgres on it. Anything written after the snapshot is no longer live (the previous volume is kept, unmounted), and newer backups don't carry over. Use it only for real recovery.
+
+**Restore drill (a copy, not production).** To prove the data is restorable without touching production, dump it and restore the dump into a local scratch database. Run this in your own Terminal, not in a chat, because the URL contains the database password:
+
+```bash
+# DATABASE_PUBLIC_URL is on the Postgres service's Variables tab (DATABASE_URL only works inside Railway)
+pg_dump "<DATABASE_PUBLIC_URL>" --format=custom --no-owner --file=~/lostdog-prod-$(date +%F).dump
+createdb lostdog_restore_test
+pg_restore --no-owner --dbname=lostdog_restore_test ~/lostdog-prod-*.dump
+psql lostdog_restore_test -c 'select email, role from "user";'   # the real accounts should be listed
+dropdb lostdog_restore_test
+```
+
+- `pg_dump` must be at least the server's Postgres version. If it reports a version mismatch, install the matching one, e.g. `brew install postgresql@18`.
+- The `.dump` file holds users' password hashes. Delete it afterwards, or keep it encrypted as an off-site copy.
+
+**What these backups don't cover:**
+- **Photos.** They're in R2, which has no versioning, so a deleted object is gone. An off-site copy (e.g. a scheduled `rclone sync` to a second bucket) isn't set up yet.
+- **Deleting the Postgres service or its volume.** That deletes its snapshots too. A periodic `pg_dump` like the one above is the protection against that.
+
 ## Still to do (Phase 9)
 
-- Verify Railway Postgres backups: enable them on the database service, then do a test restore into a scratch database.
+- Run the restore drill above once and record the result in [`external-services.md`](external-services.md#railway-production-hosting).
+- Off-site photo backups (R2 → second bucket or provider).
 - Smoke-test the full user flows on `app.7cornerscats.com`: add a volunteer, submit a shift report with a photo (original plus `.thumb.jpg` in the R2 bucket), and check the notification email arrives with `app.7cornerscats.com` links.
 - At launch: switch `NOTIFICATION_TO` to the Google Group, then have volunteers install the app from `app.7cornerscats.com`.
