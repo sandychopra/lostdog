@@ -141,5 +141,4 @@ dropdb lostdog_restore_test
 ## Still to do (Phase 9)
 
 - Run the restore drill above once and record the result in [`external-services.md`](external-services.md#railway-production-hosting).
-- Smoke-test the full user flows on `app.7cornerscats.com`: add a volunteer, submit a shift report with a photo (original plus `.thumb.jpg` in the R2 bucket), and check the notification email arrives with `app.7cornerscats.com` links.
 - At launch: switch `NOTIFICATION_TO` to the Google Group, then have volunteers install the app from `app.7cornerscats.com`.
