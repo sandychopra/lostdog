@@ -135,12 +135,11 @@ dropdb lostdog_restore_test
 - The `.dump` file holds users' password hashes. Delete it afterwards, or keep it encrypted as an off-site copy.
 
 **What these backups don't cover:**
-- **Photos.** They're in R2, which has no versioning, so a deleted object is gone. An off-site copy (e.g. a scheduled `rclone sync` to a second bucket) isn't set up yet.
+- **Photos.** They're in R2, which has no versioning, so a deleted object is gone. An off-site copy (e.g. a scheduled `rclone sync` to a second bucket) is deliberately deferred for now (Nov 22, 2026).
 - **Deleting the Postgres service or its volume.** That deletes its snapshots too. A periodic `pg_dump` like the one above is the protection against that.
 
 ## Still to do (Phase 9)
 
 - Run the restore drill above once and record the result in [`external-services.md`](external-services.md#railway-production-hosting).
-- Off-site photo backups (R2 → second bucket or provider).
 - Smoke-test the full user flows on `app.7cornerscats.com`: add a volunteer, submit a shift report with a photo (original plus `.thumb.jpg` in the R2 bucket), and check the notification email arrives with `app.7cornerscats.com` links.
 - At launch: switch `NOTIFICATION_TO` to the Google Group, then have volunteers install the app from `app.7cornerscats.com`.

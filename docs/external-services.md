@@ -148,7 +148,7 @@ Stores uploaded photos and their thumbnails in a bucket. R2 is S3-compatible, an
   - `bun run storage:reconcile` — lists files in the bucket that no photo points to (skipping anything less than 24h old). Add `--apply` to delete them.
 - `403 SignatureDoesNotMatch` / `InvalidAccessKeyId` — wrong key pair, or a token scoped to a different bucket
 - Images go blank after a tab sits open for a long time — the signed links expired. The app re-signs once on error; a page refresh fixes anything left over.
-- R2 has no object versioning, so a deleted file is gone for good. For backups, use a scheduled `rclone sync` to a second bucket or provider (not set up yet; see Phase 9 in [`implementation-plan.md`](implementation-plan.md)).
+- R2 has no object versioning, so a deleted file is gone for good. For backups, use a scheduled `rclone sync` to a second bucket or provider (deferred for now; see the Phase 9 next steps in [`implementation-plan.md`](implementation-plan.md)).
 
 ### How it was set up on this machine (Sandy, Nov 2026)
 
@@ -372,7 +372,7 @@ Runs the production app: one service built from the root `Dockerfile`, where Exp
 8. Added `app.7cornerscats.com` as a custom domain (port 8080) with its `CNAME` (`app` → `lostdog-production.up.railway.app`) and `_railway-verify` `TXT` in GoDaddy, default TTL. Railway verified it and issued a Let's Encrypt certificate.
 9. Sign-in on `app.7cornerscats.com` then failed with `403 Invalid origin` while the railway.app address worked: `BETTER_AUTH_URL`/`FRONTEND_URL` still used `${{RAILWAY_PUBLIC_DOMAIN}}`, which keeps resolving to the railway.app domain. Setting both to the literal `https://app.7cornerscats.com` fixed it, and the railway.app address now rejects sign-ins, as intended.
 10. Enabled scheduled Postgres backups (Postgres service → **Backups** tab); see [`deployment.md`](deployment.md#database-backups) for the schedules, what a restore does, and the restore drill.
-11. Still to do: the restore drill (dump → local scratch database), the production smoke test (photo upload to R2, notification email), off-site photo backups, and switching `NOTIFICATION_TO` to the Google Group at launch. Plan and region: record here.
+11. Still to do: the restore drill (dump → local scratch database), the production smoke test (photo upload to R2, notification email), and switching `NOTIFICATION_TO` to the Google Group at launch. Plan and region: record here.
 
 ## Better Auth (sign-in & sessions)
 

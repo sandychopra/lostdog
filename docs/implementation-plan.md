@@ -158,7 +158,7 @@ Status: Code complete. Real-device checks on iPhone (install, camera/HEIC upload
 
 ## Phase 9 — Deployment & hardening
 Goal: it runs in production, reliably, with backups.
-Status: In progress — deployed on Railway at `https://app.7cornerscats.com` (Nov 22, 2026): single-image `Dockerfile` that migrates on startup, Railway Postgres, production R2 bucket, first Admin created via `create-admin`; see `docs/deployment.md`. Scheduled Postgres backups enabled. Remaining: restore drill, production smoke test, off-site photo backups, `NOTIFICATION_TO` switch at launch.
+Status: In progress — deployed on Railway at `https://app.7cornerscats.com` (Nov 22, 2026): single-image `Dockerfile` that migrates on startup, Railway Postgres, production R2 bucket, first Admin created via `create-admin`; see `docs/deployment.md`. Scheduled Postgres backups enabled. Remaining: restore drill, production smoke test, `NOTIFICATION_TO` switch at launch. Off-site photo backups deferred (Nov 22, 2026).
 
 - Production Dockerfile: one image in which Express serves the built frontend same-origin with `/api` (chosen over separate frontend/backend images so session cookies are first-party on Railway's `*.up.railway.app` domains, which are cross-site to each other)
 - Provision managed Postgres, S3-compatible bucket, and container host — Railway (per `Tech-Stack.md`; steps in `docs/deployment.md`)
@@ -180,12 +180,12 @@ Tick these off here as they're done, and record details in the Railway setup log
   - the notification email reaches the personal `NOTIFICATION_TO` address with `app.7cornerscats.com` links
   - no new errors in Sentry (`lostdog-server`, `lostdog-frontend`)
 - [ ] **Run `bun run storage:reconcile` against the production bucket** (inside the container via `railway ssh`) to confirm it reports 0 orphans
-- [ ] **Off-site photo backups:** R2 has no versioning, so set up a scheduled copy (e.g. `rclone sync`) of `lostdog-photos` to a second bucket or provider
 - [ ] **Record in the setup log:** the Railway plan and region, and which Postgres backup schedules are on (daily/weekly/monthly)
 - [ ] **At launch** (alongside Phase 10's pilot/cutover): switch `NOTIFICATION_TO` to the Google Group, then have volunteers install the app from `app.7cornerscats.com`
 
 Nice to have, not blocking launch:
 
+- [ ] **Off-site photo backups — deferred (decided Nov 22, 2026).** R2 has no versioning, so a deleted or overwritten photo can't be recovered; revisit with a scheduled copy (e.g. `rclone sync`) of `lostdog-photos` to a second bucket or provider
 - [ ] Upgrade Bun to 1.4.6+ (local and `BUN_VERSION` in the `Dockerfile`) and add `--preload @sentry/bun/import` to the `start` script and the `Dockerfile` `CMD`, so Sentry records Express/Prisma spans and the "diagnostics-channel" startup warning goes away
 - [ ] Slim the production image: the release stage installs frontend runtime deps too (~660 MB of `node_modules`) that the server never uses
 - [ ] Optional: GoDaddy forwarding of `7cornerscats.com` → `https://app.7cornerscats.com`
