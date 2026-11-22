@@ -22,6 +22,13 @@ export const auth = betterAuth({
     },
   },
   emailAndPassword: { enabled: true, disableSignUp: true },
+  // Better Auth's own rate limiter (on in production) and session IP tracking read
+  // X-Forwarded-For by default; behind a proxy that sends the client IP in its own
+  // header instead (CLIENT_IP_HEADER, see index.ts) read that, or every client
+  // would share one rate-limit bucket.
+  ...(process.env.CLIENT_IP_HEADER?.trim() && {
+    advanced: { ipAddress: { ipAddressHeaders: [process.env.CLIENT_IP_HEADER.trim()] } },
+  }),
   // TUNNEL_URL: optional public origin of a dev tunnel (e.g. ngrok) in front of the frontend.
   trustedOrigins: [
     process.env.FRONTEND_URL!,

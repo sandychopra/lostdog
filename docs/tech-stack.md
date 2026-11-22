@@ -19,7 +19,7 @@
 
 ## Deployment
 - **Docker** for containerized deployment
-- Hosted on a **managed container platform** (e.g., Fly.io, Railway, or Render) — handles scaling/SSL/deploys around the Docker containers
+- Hosted on **Railway** (managed container platform) — one service built from the root `Dockerfile` (Express serves the built frontend same-origin with `/api`) plus Railway Postgres; handles SSL/deploys. See `deployment.md`
 
 ## AI
 - Not needed for MVP — no AI feature is currently in scope (project-scope.md doesn't call for one). Revisit if/when a concrete use case comes up.

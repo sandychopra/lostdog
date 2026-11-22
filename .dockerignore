@@ -1,0 +1,16 @@
+# Keep the build context small and, above all, keep local .env files out of the
+# image: Vite would otherwise inline frontend/.env's localhost values into the bundle.
+**/node_modules
+**/.env
+**/.env.*
+!**/.env.example
+**/dist
+**/*.log
+backend/uploads
+backend/src/generated
+.git
+.claude
+.agents
+.vscode
+.tools
+docs

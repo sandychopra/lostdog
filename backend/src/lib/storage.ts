@@ -171,6 +171,13 @@ export function createStorage(env: NodeJS.ProcessEnv = process.env): PhotoStorag
       secretAccessKey: S3_SECRET_ACCESS_KEY,
     });
   }
+  // A container's own disk is wiped on every deploy, so production must name its
+  // storage explicitly: a bucket, or UPLOADS_DIR on a persistent volume.
+  if (NODE_ENV === "production" && !env.UPLOADS_DIR) {
+    throw new Error(
+      "[storage] NODE_ENV=production needs all four S3_* vars (or UPLOADS_DIR on a persistent volume); refusing to store photos on the container's ephemeral disk",
+    );
+  }
   const rootDir = env.UPLOADS_DIR || join(process.cwd(), "uploads");
   if (NODE_ENV !== "test") console.log(`[storage] using local disk at ${rootDir}`);
   return new LocalDiskStorage(rootDir);
