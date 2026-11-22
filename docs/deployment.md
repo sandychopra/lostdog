@@ -11,6 +11,7 @@ Production runs as **one Railway service** built from the root `Dockerfile`, plu
 | `Dockerfile` `CMD` | Runs `prisma migrate deploy` and then starts the server, so every deploy applies its own migrations before it takes traffic. A failed migration exits the container, the health check never passes, and the previous deploy keeps serving. There's no `railway.json`: Railway deprecated that "Config as Code" file, and services created after 2026-08-28 can't use it. The only Railway-side settings are the dashboard ones in step 4b. |
 | `backend/src/lib/frontendHosting.ts` | Serves `FRONTEND_DIST_DIR` (set by the Dockerfile) with an SPA fallback, `immutable` caching for fingerprinted `assets/`, `no-cache` for `index.html`/`sw.js`/manifest so installed PWAs pick up deploys, and the Content-Security-Policy. |
 | `backend/src/scripts/createAdmin.ts` | `bun run create-admin`: bootstraps the first Admin on an empty database. |
+| `backend/src/scripts/seedKennels.ts` | `bun run seed-kennels`: creates empty, Ready kennels 1–8; skips any that already exist. |
 
 ## One-time setup
 
@@ -63,9 +64,10 @@ Production runs as **one Railway service** built from the root `Dockerfile`, plu
    ```bash
    railway ssh
    bun run create-admin --email you@example.org --name "Your Name"
+   bun run seed-kennels
    ```
 
-   It prints a one-time random password (or uses `ADMIN_PASSWORD` if set). Sign in, change the password from the Users page, and add everyone else there. The script refuses to run once an active Admin exists. Never run `bun run seed` against production: it creates demo cats and `changeme` accounts.
+   It prints a one-time random password (or uses `ADMIN_PASSWORD` if set). Sign in, change the password from the Users page, and add everyone else there. The script refuses to run once an active Admin exists. `seed-kennels` only creates empty kennels 1–8 and leaves existing ones alone, so it is safe to re-run. Never run `bun run seed` against production: it creates demo cats and `changeme` accounts.
 7. **Move to `app.7cornerscats.com`.** Follow [`external-services.md`](external-services.md#the-apps-address-app7cornerscatscom) to add the domain in Railway and its two records in GoDaddy. Once Railway shows the green check, change both `BETTER_AUTH_URL` and `FRONTEND_URL` to `https://app.7cornerscats.com`, written out literally. `${{RAILWAY_PUBLIC_DOMAIN}}` keeps resolving to the railway.app domain even after a custom domain is added, so leaving the reference in place makes sign-in on `app.7cornerscats.com` fail with `403 Invalid origin`, while the railway.app address still works. Saving them redeploys. From then on, signing in only works on `app.7cornerscats.com`, which is intended. Install the app on phones only after this step: an installed PWA is tied to the address it was installed from.
 
 ## Every deploy
