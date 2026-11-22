@@ -20,9 +20,12 @@ export default function ShiftReportsPage() {
 
   const { data: cats } = useCatOptions();
   const { data: kennels } = useQuery({
-    queryKey: ["kennels"],
+    // Archived kennels included: their old reports should stay searchable.
+    queryKey: ["kennels", "includeArchived"],
     queryFn: async () => {
-      const { data } = await api.get<{ kennels: { id: number; number: number }[] }>("/api/kennels");
+      const { data } = await api.get<{
+        kennels: { id: number; number: number; deletedAt: string | null }[];
+      }>("/api/kennels?includeArchived=true");
       return data.kennels;
     },
   });
@@ -81,6 +84,7 @@ export default function ShiftReportsPage() {
             {kennels?.map((kennel) => (
               <NativeSelectOption key={kennel.id} value={kennel.id}>
                 Kennel {kennel.number}
+                {kennel.deletedAt && " (archived)"}
               </NativeSelectOption>
             ))}
           </NativeSelect>

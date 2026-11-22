@@ -29,6 +29,8 @@ export interface Kennel {
   id: number;
   number: number;
   state: KennelState;
+  /** Set when an Admin archived ("deleted") the kennel; only returned with ?includeArchived=true. */
+  deletedAt: string | null;
   cats: KennelCat[];
   groups: KennelGroup[];
 }

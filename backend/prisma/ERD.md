@@ -98,6 +98,7 @@ erDiagram
     Int id "🗝️"
     Int number 
     KennelState state 
+    DateTime deleted_at "❓"
     }
   
 

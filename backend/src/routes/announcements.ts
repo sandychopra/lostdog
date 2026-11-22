@@ -143,7 +143,9 @@ router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
   ];
 
   const [kennels, cats, groups] = await Promise.all([
-    kennelIds.length > 0 ? prisma.kennel.findMany({ where: { id: { in: kennelIds } } }) : [],
+    kennelIds.length > 0
+      ? prisma.kennel.findMany({ where: { id: { in: kennelIds }, deletedAt: null } })
+      : [],
     catIds.length > 0 ? prisma.cat.findMany({ where: { id: { in: catIds }, active: true } }) : [],
     groupIds.length > 0 ? prisma.group.findMany({ where: { id: { in: groupIds } } }) : [],
   ]);

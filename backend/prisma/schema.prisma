@@ -273,10 +273,14 @@ model Litter {
 
 // No occupant column: occupancy is derived from the Cat.kennelId / Group.kennelId
 // reverse relations below, rather than a polymorphic "occupant" column.
+// Kennels are archived (deletedAt set), never hard-deleted: shift reports,
+// sign tasks, and move requests keep pointing at them as history. An archived
+// kennel keeps its number, so re-adding that number restores it.
 model Kennel {
-  id     Int         @id @default(autoincrement())
-  number Int         @unique
-  state  KennelState @default(Ready)
+  id        Int         @id @default(autoincrement())
+  number    Int         @unique
+  state     KennelState @default(Ready)
+  deletedAt DateTime?   @map("deleted_at")
 
   cats                   Cat[]
   groups                 Group[]

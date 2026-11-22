@@ -15,7 +15,7 @@ export default function KennelDetailPage() {
   const { data: kennel, error } = useQuery({
     queryKey: ["kennels", "detail", id],
     queryFn: async () => {
-      const { data } = await api.get<{ kennels: Kennel[] }>("/api/kennels");
+      const { data } = await api.get<{ kennels: Kennel[] }>("/api/kennels?includeArchived=true");
       const found = data.kennels.find((k) => k.id === id);
       if (!found) throw new Error("Kennel not found");
       return found;
@@ -32,7 +32,11 @@ export default function KennelDetailPage() {
         <section className="space-y-2">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-3xl font-bold">Kennel {kennel.number}</h1>
-            <Badge variant={kennelStateBadgeVariant(kennel.state)}>{kennel.state}</Badge>
+            {kennel.deletedAt ? (
+              <Badge variant="outline">Archived</Badge>
+            ) : (
+              <Badge variant={kennelStateBadgeVariant(kennel.state)}>{kennel.state}</Badge>
+            )}
           </div>
           <p className="text-sm">
             <span className="text-muted-foreground">Occupant: </span>
