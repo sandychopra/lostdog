@@ -158,7 +158,7 @@ Status: Code complete. Real-device checks on iPhone (install, camera/HEIC upload
 
 ## Phase 9 — Deployment & hardening
 Goal: it runs in production, reliably, with backups.
-Status: In progress — deployed on Railway at `https://app.7cornerscats.com` (Nov 22, 2026): single-image `Dockerfile` that migrates on startup, Railway Postgres, production R2 bucket, first Admin created via `create-admin`; see `docs/deployment.md`. Remaining: production smoke test, verified backups, `NOTIFICATION_TO` switch at launch.
+Status: In progress — deployed on Railway at `https://app.7cornerscats.com` (Nov 22, 2026): single-image `Dockerfile` that migrates on startup, Railway Postgres, production R2 bucket, first Admin created via `create-admin`; see `docs/deployment.md`. Scheduled Postgres backups enabled. Remaining: restore drill, production smoke test, off-site photo backups, `NOTIFICATION_TO` switch at launch.
 
 - Production Dockerfile: one image in which Express serves the built frontend same-origin with `/api` (chosen over separate frontend/backend images so session cookies are first-party on Railway's `*.up.railway.app` domains, which are cross-site to each other)
 - Provision managed Postgres, S3-compatible bucket, and container host — Railway (per `Tech-Stack.md`; steps in `docs/deployment.md`)
@@ -166,7 +166,7 @@ Status: In progress — deployed on Railway at `https://app.7cornerscats.com` (N
 - Production secrets/env vars
 - Deploy pipeline — Railway auto-deploys `main`; the container runs `prisma migrate deploy` before starting (Railway deprecated `railway.json`, so no pre-deploy hook), `/api/health` gates the switch-over
 - Basic logging and error monitoring
-- Verified database backups
+- Verified database backups — scheduled Railway volume backups enabled; restore drill (`pg_dump` → local scratch DB) pending; see `docs/deployment.md#database-backups`
 - Smoke test of full user flows against production
 
 ## Phase 10 — QA & launch
