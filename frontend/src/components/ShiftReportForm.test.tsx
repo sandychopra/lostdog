@@ -231,63 +231,51 @@ describe("ShiftReportForm", () => {
     expect(within(picker).queryByRole("option", { name: "Pepsi" })).not.toBeInTheDocument();
   });
 
-  test("a blank play group doesn't block Collapse or saving a draft", async () => {
+  test("Add Play Group opens an editor; closing it with no cats leaves no card", async () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
     await user.click(await screen.findByRole("button", { name: "Add Play Group" }));
-    const section = document.getElementById("section-playGroups")!;
-    const trigger = within(section).getByRole("button", { name: "New entry" });
+    expect(await screen.findByRole("dialog", { name: "New play group" })).toBeInTheDocument();
 
-    await user.click(within(section).getByRole("button", { name: "Collapse" }));
-    await waitFor(() => expect(trigger.getAttribute("aria-expanded")).toBe("false"));
-
-    hidePage();
-    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
-    expect(post).toHaveBeenCalledWith(
-      "/api/shift-reports",
-      expect.objectContaining({ status: "Draft" }),
-    );
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.queryByTestId("playGroups-card")).toBeNull();
   });
 
-  test("submitting a blank play group reopens it and shows why", async () => {
+  test("Done with no cats tagged says why and keeps the editor open", async () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
-    await user.click(await screen.findByRole("button", { name: "Add Play Group" }));
-    const section = document.getElementById("section-playGroups")!;
-    const trigger = within(section).getByRole("button", { name: "New entry" });
-    await user.click(within(section).getByRole("button", { name: "Collapse" }));
-    await waitFor(() => expect(trigger.getAttribute("aria-expanded")).toBe("false"));
+    await user.click(await screen.findByRole("button", { name: "Add Meet & Greet" }));
+    const dialog = await screen.findByRole("dialog", { name: "New meet & greet" });
+    await user.click(within(dialog).getByRole("button", { name: "Done" }));
 
-    await user.click(screen.getByRole("button", { name: "Submit Report" }));
-
-    expect(
-      await screen.findByText("Please complete the highlighted fields before submitting."),
-    ).toBeInTheDocument();
-    await waitFor(() => expect(trigger.getAttribute("aria-expanded")).toBe("true"));
-    expect(within(section).queryByText("Note is required")).toBeNull();
-    expect(within(section).getByText("Tag at least one cat")).toBeInTheDocument();
-    expect(post).not.toHaveBeenCalled();
+    expect(within(dialog).getByText("Tag at least one cat")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
-  test("play group cats are picked by search and shown as removable chips", async () => {
+  test("a play group's cats and note are set in the editor and shown on its card", async () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
     await user.click(await screen.findByRole("button", { name: "Add Play Group" }));
-    const section = document.getElementById("section-playGroups")!;
-
-    await user.click(within(section).getByRole("button", { name: "Add cat" }));
+    const dialog = await screen.findByRole("dialog", { name: "New play group" });
+    await user.click(within(dialog).getByRole("button", { name: "Add cat" }));
     await user.type(await screen.findByPlaceholderText("Search cats…"), "pep");
-    // Scoped to the popover's list: the add-entry <select> has cat <option>s too.
-    const list = screen.getByRole("listbox");
-    expect(within(list).queryByRole("option", { name: "Sprite" })).toBeNull();
-    await user.click(within(list).getByRole("option", { name: "Pepsi" }));
+    await user.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Pepsi" }));
+    await user.type(within(dialog).getByLabelText("General note (optional)"), "Zoomies");
+    await user.click(within(dialog).getByRole("button", { name: "Done" }));
 
-    const remove = await within(section).findByRole("button", { name: "Remove Pepsi" });
-    await user.click(remove);
-    expect(within(section).queryByRole("button", { name: "Remove Pepsi" })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    const card = screen.getByTestId("playGroups-card");
+    expect(card).toHaveTextContent("Pepsi");
+    expect(card).toHaveTextContent("Zoomies");
+
+    // Editing again comes from the card's ⋮ menu.
+    await user.click(within(card).getByRole("button", { name: /^Actions for play group/ }));
+    await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
+    expect(await screen.findByRole("dialog", { name: "Edit play group" })).toBeInTheDocument();
   });
 
   test("a play group can select every cat on the report at once", async () => {
@@ -297,13 +285,12 @@ describe("ShiftReportForm", () => {
     await waitFor(() => expect(screen.getAllByTestId("cat-entry-card")).toHaveLength(2));
 
     await user.click(screen.getByRole("button", { name: "Add Play Group" }));
-    const section = document.getElementById("section-playGroups")!;
-    await user.click(within(section).getByRole("button", { name: "Select all cats" }));
+    const dialog = await screen.findByRole("dialog", { name: "New play group" });
+    await user.click(within(dialog).getByRole("button", { name: "Select all cats" }));
 
     for (const name of ["Pepsi", "Sprite", "Nehi"]) {
-      expect(within(section).getByRole("button", { name: `Remove ${name}` })).toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: `Remove ${name}` })).toBeInTheDocument();
     }
-    expect(within(section).getByLabelText("General note (optional)")).toBeInTheDocument();
   });
 
   test("has a Kennel Notes field after Kennel Status", () => {

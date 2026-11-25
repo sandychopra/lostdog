@@ -26,14 +26,14 @@ import { Checkbox } from "./ui/checkbox";
 import ErrorAlert from "./ErrorAlert";
 import ErrorMessage from "./ErrorMessage";
 import CatEntryCard from "./CatEntryCard";
-import CatNoteGroupList, { type CatNoteGroupListHandle } from "./CatNoteGroupList";
+import CatNoteGroupList from "./CatNoteGroupList";
 import KennelStatusList from "./KennelStatusList";
 import PhotoUploadSection, {
   type QueuedPhoto,
   type UploadedPhotoSummary,
 } from "./PhotoUploadSection";
-import CollapsibleSection from "./CollapsibleSection";
-import ShiftReportFormOutline, { type SectionKey } from "./ShiftReportFormOutline";
+import FormSection from "./FormSection";
+import ShiftReportFormOutline from "./ShiftReportFormOutline";
 import type { Cat } from "./CatsTable";
 import type { Kennel } from "./KennelsTable";
 import type { ShiftReport } from "./ShiftReportsTable";
@@ -216,90 +216,6 @@ export default function ShiftReportForm({
 
   const catEntries = useFieldArray({ control, name: "catEntries" });
 
-  // Computed once at mount: editing an existing report starts every section collapsed, so a volunteer sees an
-  // overview first; a brand-new report starts each section expanded as it's
-  // filled in, since there's nothing to collapse yet.
-  const [collapsedSections, setCollapsedSections] = useState<Record<SectionKey, boolean>>(() => ({
-    // Kennel Status is never meaningfully "empty" (every kennel is always
-    // auto-populated), so it always starts collapsed regardless of report.
-    kennelStatus: true,
-    catEntries: !!report,
-    playGroups: !!report,
-    meetAndGreets: !!report,
-    photos: !!report,
-    notes: !!report,
-  }));
-
-  function toggleSection(key: SectionKey) {
-    setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }));
-  }
-
-  const playGroupsRef = useRef<CatNoteGroupListHandle>(null);
-  const meetAndGreetsRef = useRef<CatNoteGroupListHandle>(null);
-
-  function collapseAllSections() {
-    setCollapsedSections({
-      kennelStatus: true,
-      catEntries: true,
-      playGroups: true,
-      meetAndGreets: true,
-      photos: true,
-      notes: true,
-    });
-    playGroupsRef.current?.collapseAll();
-    meetAndGreetsRef.current?.collapseAll();
-  }
-
-  function expandAllSections() {
-    setCollapsedSections({
-      kennelStatus: false,
-      catEntries: false,
-      playGroups: false,
-      meetAndGreets: false,
-      photos: false,
-      notes: false,
-    });
-    playGroupsRef.current?.expandAll();
-    meetAndGreetsRef.current?.expandAll();
-  }
-
-  // Validation errors often land in a collapsed section or entry, where
-  // they'd be invisible and the Save/Submit click would look like it did
-  // nothing — so expand everything that contains an error.
-  function revealErrorPaths(paths: (string | number)[][]) {
-    const sectionByField: Partial<Record<string, SectionKey>> = {
-      kennelsStatus: "kennelStatus",
-      kennelNotes: "kennelStatus",
-      catEntries: "catEntries",
-      playGroups: "playGroups",
-      meetAndGreets: "meetAndGreets",
-      cleaningNotes: "notes",
-      suppliesNotes: "notes",
-      otherNotes: "notes",
-    };
-    const sections = new Set<SectionKey>();
-    const entryIndices: Record<"playGroups" | "meetAndGreets", number[]> = {
-      playGroups: [],
-      meetAndGreets: [],
-    };
-    for (const [field, index] of paths) {
-      const section = sectionByField[String(field)];
-      if (section) sections.add(section);
-      if (typeof index === "number" && (field === "playGroups" || field === "meetAndGreets")) {
-        entryIndices[field].push(index);
-      }
-    }
-    if (sections.size > 0) {
-      setCollapsedSections((prev) => {
-        const next = { ...prev };
-        for (const key of sections) next[key] = false;
-        return next;
-      });
-    }
-    playGroupsRef.current?.expandEntries(entryIndices.playGroups);
-    meetAndGreetsRef.current?.expandEntries(entryIndices.meetAndGreets);
-  }
-
   function handleInvalid(errors: FieldErrors<DraftShiftReportInput>) {
     const paths: (string | number)[][] = [];
     for (const [field, value] of Object.entries(errors)) {
@@ -307,7 +223,6 @@ export default function ShiftReportForm({
       if (indices.length === 0) paths.push([field]);
       else for (const i of indices) paths.push([field, i]);
     }
-    revealErrorPaths(paths);
     setSubmitAttemptError("Please fix the highlighted fields.");
   }
 
@@ -522,11 +437,6 @@ export default function ShiftReportForm({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           form.setError(issue.path.join(".") as any, { message: issue.message });
         }
-        revealErrorPaths(
-          result.error.issues.map((issue) =>
-            issue.path.filter((p): p is string | number => typeof p !== "symbol"),
-          ),
-        );
         const untouched = result.error.issues.filter(
           (issue) => issue.message === UNTOUCHED_ENTRY_MESSAGE,
         ).length;
@@ -650,19 +560,10 @@ export default function ShiftReportForm({
     const id = Number(idStr);
     catEntries.append(kind === "cat" ? individualEntry(id) : groupEntry(id));
     setPickerValue("");
-    if (collapsedSections.catEntries) toggleSection("catEntries");
   }
 
   return (
     <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="secondary" size="sm" onClick={expandAllSections}>
-          Expand all
-        </Button>
-        <Button type="button" variant="secondary" size="sm" onClick={collapseAllSections}>
-          Collapse all
-        </Button>
-      </div>
       <ShiftReportFormOutline
         items={[
           {
@@ -702,7 +603,6 @@ export default function ShiftReportForm({
             anchorId: "section-photos",
           },
         ]}
-        onBeforeNavigate={(key) => setCollapsedSections((prev) => ({ ...prev, [key]: false }))}
         status={
           isAlreadySubmitted ? null : autosaveStatus === "saving" ? (
             <span className="text-muted-foreground">Saving…</span>
@@ -773,15 +673,11 @@ export default function ShiftReportForm({
         form={form}
         withoutMarkingDirty={withoutMarkingDirty}
         kennelOptions={kennels ?? []}
-        collapsed={collapsedSections.kennelStatus}
-        onToggleCollapsed={() => toggleSection("kennelStatus")}
       />
 
-      <CollapsibleSection
+      <FormSection
         title="Food & Medical"
         count={catEntries.fields.length}
-        collapsed={collapsedSections.catEntries}
-        onToggleCollapsed={() => toggleSection("catEntries")}
         anchorId="section-cat-entries"
         headerExtra={
           <div className="flex w-full flex-wrap gap-2 sm:w-auto">
@@ -817,41 +713,31 @@ export default function ShiftReportForm({
             onEditDone={() => void autosaveRef.current()}
           />
         ))}
-      </CollapsibleSection>
+      </FormSection>
 
       <CatNoteGroupList
-        ref={playGroupsRef}
         form={form}
         name="playGroups"
         title="Play Groups"
+        itemLabel="Play Group"
         addLabel="Add Play Group"
-        catOptions={catOptions}
+        cats={cats ?? []}
         selectAllCatIds={reportCatIds}
         noteLabel="General note (optional)"
-        collapsed={collapsedSections.playGroups}
-        onToggleCollapsed={() => toggleSection("playGroups")}
-        isEdit={isEdit}
+        onEditDone={() => void autosaveRef.current()}
       />
 
       <CatNoteGroupList
-        ref={meetAndGreetsRef}
         form={form}
         name="meetAndGreets"
         title="Meet & Greets"
+        itemLabel="Meet & Greet"
         addLabel="Add Meet & Greet"
-        catOptions={catOptions}
-        collapsed={collapsedSections.meetAndGreets}
-        onToggleCollapsed={() => toggleSection("meetAndGreets")}
-        isEdit={isEdit}
+        cats={cats ?? []}
+        onEditDone={() => void autosaveRef.current()}
       />
 
-      <CollapsibleSection
-        title="Overall Notes"
-        count={notesCount}
-        collapsed={collapsedSections.notes}
-        onToggleCollapsed={() => toggleSection("notes")}
-        anchorId="section-notes"
-      >
+      <FormSection title="Overall Notes" count={notesCount} anchorId="section-notes">
         <div className="space-y-2">
           <Label htmlFor="cleaningNotes">Cleaning Notes</Label>
           <Textarea id="cleaningNotes" className="min-h-16" {...register("cleaningNotes")} />
@@ -864,13 +750,11 @@ export default function ShiftReportForm({
           <Label htmlFor="otherNotes">Other Notes</Label>
           <Textarea id="otherNotes" className="min-h-16" {...register("otherNotes")} />
         </div>
-      </CollapsibleSection>
+      </FormSection>
 
-      <CollapsibleSection
+      <FormSection
         title="Photos"
         count={uploadedPhotos.length + photoQueue.length}
-        collapsed={collapsedSections.photos}
-        onToggleCollapsed={() => toggleSection("photos")}
         anchorId="section-photos"
       >
         <PhotoUploadSection
@@ -886,7 +770,7 @@ export default function ShiftReportForm({
           catOptions={catOptions}
           showTagPicker
         />
-      </CollapsibleSection>
+      </FormSection>
 
       {submitAttemptError && <ErrorAlert message={submitAttemptError} />}
       {submitError !== null && (

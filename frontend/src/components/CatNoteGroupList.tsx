@@ -1,251 +1,308 @@
-import { forwardRef, useImperativeHandle, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFieldArray, useWatch } from "react-hook-form";
+import { MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
 import ErrorMessage from "./ErrorMessage";
-import CatMultiSelect, { type CatOption } from "./CatMultiSelect";
-import CollapsibleSection from "./CollapsibleSection";
-import CollapsibleEntryCard from "./CollapsibleEntryCard";
+import CatMultiSelect from "./CatMultiSelect";
+import CollarDot from "./CollarDot";
+import FormSection from "./FormSection";
+import type { Cat } from "./CatsTable";
 import type { ShiftReportFormApi } from "../lib/shiftReportForm";
+import { cn } from "../lib/utils";
 
 type GroupFieldName = "meetAndGreets" | "playGroups";
+
+const NO_CATS_MESSAGE = "Tag at least one cat";
 
 interface CatNoteGroupListProps {
   form: ShiftReportFormApi;
   name: GroupFieldName;
   title: string;
+  /** Singular noun for the dialog title and menus, e.g. "Play Group". */
+  itemLabel: string;
   addLabel: string;
-  catOptions: CatOption[];
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
-  isEdit: boolean;
+  cats: Cat[];
   /**
-   * When set, each entry gets a "Select all cats" button that tags these cats
-   * (every cat on the report) at once — for play groups where everyone played
-   * together. The volunteer can then remove any who didn't.
+   * When set, the editor gets a "Select all cats" button that tags these cats
+   * at once — for play groups where everyone played together. The volunteer
+   * can then remove any who didn't.
    */
   selectAllCatIds?: number[];
   noteLabel?: string;
-}
-
-export interface CatNoteGroupListHandle {
-  collapseAll: () => void;
-  expandAll: () => void;
-  expandEntries: (indices: number[]) => void;
+  /** Called when an editor closes — a natural moment to autosave. */
+  onEditDone: () => void;
 }
 
 // Meet & Greets and Play Groups are the exact same shape ({ id?, note, catIds
-// }[], >=1 cat required) and UI pattern, so this one component drives both.
-function GroupCatIds({
+// }[], >=1 cat required), so this one component drives both. Each entry is a
+// summary card edited in a dialog from its ⋮ menu, like the Food & Medical
+// cards (CatEntryCard).
+function GroupEntryCard({
   form,
   name,
   index,
-  catOptions,
-}: {
-  form: ShiftReportFormApi;
-  name: GroupFieldName;
-  index: number;
-  catOptions: CatOption[];
-}) {
-  const catIds =
-    useWatch({ control: form.control, name: `${name}.${index}.catIds` as const }) ?? [];
-  return (
-    <CatMultiSelect
-      cats={catOptions}
-      selectedIds={catIds}
-      onChange={(ids) =>
-        form.setValue(`${name}.${index}.catIds` as const, ids, { shouldValidate: true })
-      }
-    />
-  );
-}
-
-function GroupEntry({
-  form,
-  name,
-  index,
-  catOptions,
-  collapsed,
-  onToggleCollapsed,
+  itemLabel,
+  cats,
+  isNew,
+  editing,
+  onOpenEditor,
+  onCloseEditor,
   onRemove,
   selectAllCatIds,
-  noteLabel = "Note (optional)",
+  noteLabel,
 }: {
   form: ShiftReportFormApi;
   name: GroupFieldName;
   index: number;
-  catOptions: CatOption[];
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
+  itemLabel: string;
+  cats: Cat[];
+  isNew: boolean;
+  editing: boolean;
+  onOpenEditor: () => void;
+  onCloseEditor: (removeIfEmpty: boolean) => void;
   onRemove: () => void;
   selectAllCatIds?: number[];
-  noteLabel?: string;
+  noteLabel: string;
 }) {
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
   const { register, formState } = form;
-  const errors = formState.errors[name]?.[index];
   const catIds =
     useWatch({ control: form.control, name: `${name}.${index}.catIds` as const }) ?? [];
-  const title =
-    catOptions
-      .filter((cat) => catIds.includes(cat.id))
-      .map((cat) => cat.name)
-      .join(" / ") || "New entry";
+  const note = useWatch({ control: form.control, name: `${name}.${index}.note` as const });
+  const errors = formState.errors[name]?.[index];
+  const catError = errors?.catIds?.message ?? errors?.catIds?.root?.message;
 
-  async function handleSave() {
-    const valid = await form.trigger(`${name}.${index}` as const);
-    if (valid) onToggleCollapsed();
+  const tagged = catIds
+    .map((id) => cats.find((c) => c.id === Number(id)))
+    .filter((c): c is Cat => c !== undefined);
+  const title = tagged.map((c) => c.name).join(", ") || `New ${itemLabel.toLowerCase()}`;
+  const catOptions = cats.map((c) => ({ id: c.id, name: c.name }));
+
+  function setCatIds(ids: number[]) {
+    form.setValue(`${name}.${index}.catIds` as const, ids, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+  }
+
+  function handleDone() {
+    if (catIds.length === 0) {
+      form.setError(`${name}.${index}.catIds` as const, { message: NO_CATS_MESSAGE });
+      return;
+    }
+    onCloseEditor(false);
   }
 
   return (
-    <CollapsibleEntryCard
-      title={title}
-      collapsed={collapsed}
-      onToggleCollapsed={onToggleCollapsed}
-      onRemove={onRemove}
-      onSave={handleSave}
-    >
-      <GroupCatIds form={form} name={name} index={index} catOptions={catOptions} />
-      {selectAllCatIds && selectAllCatIds.length > 0 && (
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          disabled={selectAllCatIds.every((id) => catIds.includes(id))}
-          onClick={() =>
-            form.setValue(
-              `${name}.${index}.catIds` as const,
-              [...new Set([...catIds, ...selectAllCatIds])],
-              { shouldValidate: true, shouldDirty: true },
-            )
-          }
-        >
-          Select all cats
-        </Button>
+    <div
+      data-testid={`${name}-card`}
+      className={cn(
+        "flex gap-3 rounded-md border bg-white p-3",
+        catError ? "border-destructive" : "border-input",
       )}
-      <ErrorMessage message={errors?.catIds?.message ?? errors?.catIds?.root?.message} />
-      <Label htmlFor={`${name}.${index}.note`}>{noteLabel}</Label>
-      <Textarea
-        id={`${name}.${index}.note`}
-        className="min-h-16"
-        {...register(`${name}.${index}.note` as const)}
-      />
-    </CollapsibleEntryCard>
+    >
+      <button type="button" className="min-w-0 flex-1 space-y-1 text-left" onClick={onOpenEditor}>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="font-semibold">{title}</span>
+          {tagged.map((c) => (
+            <CollarDot key={c.id} color={c.collarColor} />
+          ))}
+        </div>
+        {note?.trim() && (
+          <p className="line-clamp-2 text-sm text-muted-foreground">{note.trim()}</p>
+        )}
+        <ErrorMessage message={catError} />
+      </button>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="shrink-0"
+            aria-label={`Actions for ${itemLabel.toLowerCase()} ${title}`}
+          >
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={onOpenEditor}>
+            <Pencil className="h-4 w-4" />
+            Edit
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onClick={() => setConfirmingRemove(true)}>
+            <Trash2 className="h-4 w-4" />
+            Remove
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog
+        open={editing}
+        onOpenChange={(open) => (open ? onOpenEditor() : onCloseEditor(isNew))}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="pr-6">
+              {isNew ? `New ${itemLabel.toLowerCase()}` : `Edit ${itemLabel.toLowerCase()}`}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="-mx-6 min-h-0 flex-1 space-y-3 overflow-y-auto px-6 pb-1">
+            <div className="space-y-2">
+              <Label>Cats</Label>
+              <CatMultiSelect cats={catOptions} selectedIds={catIds} onChange={setCatIds} />
+              {selectAllCatIds && selectAllCatIds.length > 0 && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={selectAllCatIds.every((id) => catIds.includes(id))}
+                  onClick={() => setCatIds([...new Set([...catIds, ...selectAllCatIds])])}
+                >
+                  Select all cats
+                </Button>
+              )}
+              <ErrorMessage message={catError} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${name}.${index}.note`}>{noteLabel}</Label>
+              <Textarea
+                id={`${name}.${index}.note`}
+                className="min-h-16"
+                {...register(`${name}.${index}.note` as const)}
+              />
+            </div>
+          </div>
+          <div className="mt-4 flex shrink-0 justify-end">
+            <Button type="button" onClick={handleDone}>
+              Done
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={confirmingRemove} onOpenChange={setConfirmingRemove}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this {itemLabel.toLowerCase()}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes {title} and its note from this report.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={onRemove}>Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }
 
-const CatNoteGroupList = forwardRef<CatNoteGroupListHandle, CatNoteGroupListProps>(
-  function CatNoteGroupList(
-    {
-      form,
-      name,
-      title,
-      addLabel,
-      catOptions,
-      collapsed,
-      onToggleCollapsed,
-      isEdit,
-      selectAllCatIds,
-      noteLabel,
-    },
-    ref,
-  ) {
-    const { control } = form;
-    const fieldArray = useFieldArray({ control, name });
+export default function CatNoteGroupList({
+  form,
+  name,
+  title,
+  itemLabel,
+  addLabel,
+  cats,
+  selectAllCatIds,
+  noteLabel = "Note (optional)",
+  onEditDone,
+}: CatNoteGroupListProps) {
+  const fieldArray = useFieldArray({ control: form.control, name });
+  // Keyed by useFieldArray's stable field.id (indices shift on remove).
+  const [editingId, setEditingId] = useState<string | null>(null);
+  // Entries added in this editor session and not yet confirmed with Done —
+  // closing one of these with no cats tagged discards it.
+  const [newIds, setNewIds] = useState<Set<string>>(new Set());
+  const openNewRef = useRef(false);
 
-    // Keyed by useFieldArray's stable field.id (not array index, which shifts
-    // on add/remove), mirroring collapsedEntryIds in ShiftReportForm.tsx.
-    // Entries default collapsed when editing an existing report, so a volunteer
-    // sees an overview first; a freshly-added entry is never added to this set,
-    // so it always opens expanded.
-    const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() =>
-      isEdit ? new Set(fieldArray.fields.map((field) => field.id)) : new Set(),
-    );
+  // append() doesn't hand back the new field's id; pick it up on the next
+  // render and open its editor.
+  const lastId = fieldArray.fields.at(-1)?.id;
+  useEffect(() => {
+    if (!openNewRef.current || !lastId) return;
+    openNewRef.current = false;
+    setEditingId(lastId);
+    setNewIds((prev) => new Set(prev).add(lastId));
+  }, [lastId]);
 
-    function toggleEntryCollapsed(id: string) {
-      setCollapsedIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-        return next;
-      });
+  function closeEditor(id: string, index: number, removeIfEmpty: boolean) {
+    const catIds = form.getValues(`${name}.${index}.catIds` as const) ?? [];
+    setEditingId(null);
+    setNewIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    if (removeIfEmpty && catIds.length === 0) {
+      fieldArray.remove(index);
+      return;
     }
+    onEditDone();
+  }
 
-    useImperativeHandle(ref, () => ({
-      collapseAll: () => setCollapsedIds(new Set(fieldArray.fields.map((field) => field.id))),
-      expandAll: () => setCollapsedIds(new Set()),
-      expandEntries: (indices) =>
-        setCollapsedIds((prev) => {
-          const next = new Set(prev);
-          for (const i of indices) {
-            const id = fieldArray.fields[i]?.id;
-            if (id) next.delete(id);
-          }
-          return next;
-        }),
-    }));
-
-    return (
-      <CollapsibleSection
-        title={title}
-        count={fieldArray.fields.length}
-        collapsed={collapsed}
-        onToggleCollapsed={onToggleCollapsed}
-        anchorId={`section-${name}`}
-        headerExtra={
-          <div className="flex gap-2">
-            {fieldArray.fields.length > 1 && (
-              <>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setCollapsedIds(new Set())}
-                >
-                  Expand all
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() =>
-                    setCollapsedIds(new Set(fieldArray.fields.map((field) => field.id)))
-                  }
-                >
-                  Collapse all
-                </Button>
-              </>
-            )}
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                fieldArray.append({ note: "", catIds: [] });
-                if (collapsed) onToggleCollapsed();
-              }}
-            >
-              {addLabel}
-            </Button>
-          </div>
-        }
-      >
-        {fieldArray.fields.map((field, index) => (
-          <GroupEntry
-            key={field.id}
-            form={form}
-            name={name}
-            index={index}
-            catOptions={catOptions}
-            collapsed={collapsedIds.has(field.id)}
-            onToggleCollapsed={() => toggleEntryCollapsed(field.id)}
-            onRemove={() => fieldArray.remove(index)}
-            selectAllCatIds={selectAllCatIds}
-            noteLabel={noteLabel}
-          />
-        ))}
-      </CollapsibleSection>
-    );
-  },
-);
-
-export default CatNoteGroupList;
+  return (
+    <FormSection
+      title={title}
+      count={fieldArray.fields.length}
+      anchorId={`section-${name}`}
+      headerExtra={
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            openNewRef.current = true;
+            fieldArray.append({ note: "", catIds: [] });
+          }}
+        >
+          {addLabel}
+        </Button>
+      }
+    >
+      {fieldArray.fields.map((field, index) => (
+        <GroupEntryCard
+          key={field.id}
+          form={form}
+          name={name}
+          index={index}
+          itemLabel={itemLabel}
+          cats={cats}
+          isNew={newIds.has(field.id)}
+          editing={editingId === field.id}
+          onOpenEditor={() => setEditingId(field.id)}
+          onCloseEditor={(removeIfEmpty) => closeEditor(field.id, index, removeIfEmpty)}
+          onRemove={() => {
+            fieldArray.remove(index);
+            onEditDone();
+          }}
+          selectAllCatIds={selectAllCatIds}
+          noteLabel={noteLabel}
+        />
+      ))}
+    </FormSection>
+  );
+}
