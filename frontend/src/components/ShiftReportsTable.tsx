@@ -44,7 +44,8 @@ export interface CatEntry {
   groupId: number | null;
   cat: { id: number; name: string } | null;
   group: { id: number; bonded: boolean; cats: { id: number; name: string }[] } | null;
-  fecalScore: number | null;
+  fecalScores: number[];
+  fecalEmpty: boolean;
   pee: boolean;
   peePoopNotes: string | null;
   dryFoodAmount: FoodAmount | null;

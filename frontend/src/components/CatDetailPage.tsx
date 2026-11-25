@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { shiftTypeLabel } from "shared/constants/shiftType.ts";
+import { formatFecalScore } from "shared/constants/fecalScore.ts";
 import { Link, useParams } from "react-router";
 import { ActivityEntityType } from "shared/constants/activityLog.ts";
 import { api } from "../lib/api";
@@ -22,7 +23,8 @@ interface NamedCat {
 interface HistoryEntry {
   id: number;
   entryType: "Individual" | "Group";
-  fecalScore: number | null;
+  fecalScores: number[];
+  fecalEmpty: boolean;
   pee: boolean;
   peePoopNotes: string | null;
   dryFoodAmount: string | null;
@@ -74,7 +76,7 @@ function EntryDetails({ entry }: { entry: HistoryEntry }) {
           Group entry with {entry.group.cats.map((c) => c.name).join(", ")}
         </p>
       )}
-      <Detail label="Fecal score" value={entry.fecalScore?.toString()} />
+      <Detail label="Fecal score" value={formatFecalScore(entry) ?? undefined} />
       <Detail label="Pee" value={entry.pee ? "Yes" : null} />
       <Detail label="Pee/poop notes" value={entry.peePoopNotes} />
       <Detail label="Dry food" value={entry.dryFoodAmount} />

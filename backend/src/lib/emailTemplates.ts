@@ -1,3 +1,4 @@
+import { formatFecalScore } from "shared/constants/fecalScore.ts";
 import { AnnouncementType } from "shared/constants/announcementType.ts";
 import { ChecklistActionType } from "shared/constants/checklistActionType.ts";
 import { CatEntryType } from "shared/constants/catEntryType.ts";
@@ -208,7 +209,7 @@ export function renderShiftReportEmail(report: ShiftReportForEmail): EmailMessag
   if (report.catEntries.length > 0) lines.push("", "Cats:");
   for (const entry of report.catEntries) {
     const shared = [
-      field("Fecal score", entry.fecalScore),
+      field("Fecal score", formatFecalScore(entry)),
       field("Pee", entry.pee),
       field("Pee/poop notes", entry.peePoopNotes),
       field("Dry food", entry.dryFoodAmount),

@@ -136,7 +136,8 @@ erDiagram
     CatEntryType entry_type 
     Int cat_id "❓"
     Int group_id "❓"
-    Int fecal_score "❓"
+    Int fecal_scores 
+    Boolean fecal_empty 
     Boolean pee 
     String pee_poop_notes "❓"
     FoodAmount dry_food_amount "❓"

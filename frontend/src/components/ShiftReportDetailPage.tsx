@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { shiftTypeLabel } from "shared/constants/shiftType.ts";
+import { formatFecalScore } from "shared/constants/fecalScore.ts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router";
 import { Pencil, Trash2 } from "lucide-react";
@@ -47,7 +48,7 @@ function CatEntrySummary({ entry }: { entry: CatEntry }) {
       </div>
       <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
         <dt className="text-muted-foreground">Fecal score</dt>
-        <dd>{entry.fecalScore ?? "None"}</dd>
+        <dd>{formatFecalScore(entry) ?? "Not recorded"}</dd>
         <dt className="text-muted-foreground">Pee</dt>
         <dd>{entry.pee ? "Yes" : "No"}</dd>
         {entry.peePoopNotes && (

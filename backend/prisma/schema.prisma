@@ -362,7 +362,11 @@ model CatEntry {
   group         Group?       @relation(fields: [groupId], references: [id])
 
   // Shared by both variants
-  fecalScore    Int?        @map("fecal_score")
+  // Several scores can be recorded in one shift. fecalEmpty means the box was
+  // checked and empty, which differs from "not recorded" (no scores, not
+  // empty). It's never set alongside scores (enforced by the zod schema).
+  fecalScores   Int[]       @default([]) @map("fecal_scores")
+  fecalEmpty    Boolean     @default(false) @map("fecal_empty")
   pee           Boolean     @default(false)
   peePoopNotes  String?     @map("pee_poop_notes")
   dryFoodAmount FoodAmount? @map("dry_food_amount")

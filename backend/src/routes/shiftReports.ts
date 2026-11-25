@@ -84,7 +84,8 @@ function buildCatEntryCreate(
     return {
       entryType: entry.entryType,
       catId: entry.catId,
-      fecalScore: entry.fecalScore ?? null,
+      fecalScores: entry.fecalScores,
+      fecalEmpty: entry.fecalEmpty,
       pee: entry.pee,
       peePoopNotes: entry.peePoopNotes ?? null,
       dryFoodAmount: entry.dryFoodAmount ?? null,
@@ -97,7 +98,8 @@ function buildCatEntryCreate(
   return {
     entryType: entry.entryType,
     groupId: entry.groupId,
-    fecalScore: entry.fecalScore ?? null,
+    fecalScores: entry.fecalScores,
+    fecalEmpty: entry.fecalEmpty,
     pee: entry.pee,
     peePoopNotes: entry.peePoopNotes ?? null,
     dryFoodAmount: entry.dryFoodAmount ?? null,
@@ -377,7 +379,8 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
             where: { id: entry.id },
             data: {
               catId: entry.catId,
-              fecalScore: entry.fecalScore ?? null,
+              fecalScores: entry.fecalScores,
+              fecalEmpty: entry.fecalEmpty,
               pee: entry.pee,
               peePoopNotes: entry.peePoopNotes ?? null,
               dryFoodAmount: entry.dryFoodAmount ?? null,
@@ -393,7 +396,8 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
           where: { id: entry.id },
           data: {
             groupId: entry.groupId,
-            fecalScore: entry.fecalScore ?? null,
+            fecalScores: entry.fecalScores,
+            fecalEmpty: entry.fecalEmpty,
             pee: entry.pee,
             peePoopNotes: entry.peePoopNotes ?? null,
             dryFoodAmount: entry.dryFoodAmount ?? null,

@@ -11,15 +11,19 @@ const distinctCatIds = (message: string) =>
     .array(z.coerce.number().int().positive())
     .refine((ids) => new Set(ids).size === ids.length, message);
 
-const fecalScoreField = z.preprocess(
-  emptyToUndefined,
-  z.coerce
-    .number("Fecal score must be a number")
-    .int("Fecal score must be a whole number")
-    .min(1, "Fecal score must be 1–7")
-    .max(7, "Fecal score must be 1–7")
-    .optional(),
-);
+// Several scores can be picked. "Empty" (fecalEmpty) is its own answer and
+// can't be combined with scores — see the refine in buildCatEntrySchema.
+const fecalScoresField = z
+  .array(
+    z.coerce
+      .number("Fecal score must be a number")
+      .int("Fecal score must be a whole number")
+      .min(1, "Fecal score must be 1–7")
+      .max(7, "Fecal score must be 1–7"),
+  )
+  .refine((scores) => new Set(scores).size === scores.length, "Fecal scores must be distinct")
+  .default([]);
+const fecalEmptyField = z.boolean().default(false);
 
 // Native <select> elements always submit a string, so an unselected/"None"
 // option submits "" rather than omitting the field — z.enum(...).optional()
@@ -41,7 +45,8 @@ const individualCatEntrySchema = z.object({
   id: z.coerce.number().int().positive().optional(),
   entryType: z.literal(CatEntryType.Individual),
   catId: z.coerce.number("Cat is required").int().positive("Cat is required"),
-  fecalScore: fecalScoreField,
+  fecalScores: fecalScoresField,
+  fecalEmpty: fecalEmptyField,
   pee: z.boolean().default(false),
   peePoopNotes: z.string().trim().optional().transform(emptyToUndefined),
   dryFoodAmount: foodAmountField,
@@ -55,7 +60,8 @@ function buildGroupCatEntrySchema(strict: boolean) {
     id: z.coerce.number().int().positive().optional(),
     entryType: z.literal(CatEntryType.Group),
     groupId: z.coerce.number("Group is required").int().positive("Group is required"),
-    fecalScore: fecalScoreField,
+    fecalScores: fecalScoresField,
+    fecalEmpty: fecalEmptyField,
     pee: z.boolean().default(false),
     peePoopNotes: z.string().trim().optional().transform(emptyToUndefined),
     dryFoodAmount: foodAmountField,
@@ -75,7 +81,11 @@ function buildCatEntrySchema(strict: boolean) {
         entry.entryType !== CatEntryType.Group ||
         new Set(entry.catDetails.map((c) => c.catId)).size === entry.catDetails.length,
       { error: "Cats must be distinct within a group entry", path: ["catDetails"] },
-    );
+    )
+    .refine((entry) => !entry.fecalEmpty || entry.fecalScores.length === 0, {
+      error: "Empty can't be combined with fecal scores",
+      path: ["fecalScores"],
+    });
 }
 
 function buildMeetAndGreetSchema(strict: boolean) {

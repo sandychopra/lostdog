@@ -6,6 +6,7 @@ import { Badge } from "./ui/badge";
 import { Textarea } from "./ui/textarea";
 import { Checkbox } from "./ui/checkbox";
 import FoodAmountPicker from "./FoodAmountPicker";
+import { formatFecalScore } from "shared/constants/fecalScore.ts";
 import FecalScorePicker from "./FecalScorePicker";
 import CollapsibleEntryCard from "./CollapsibleEntryCard";
 import ErrorMessage from "./ErrorMessage";
@@ -106,7 +107,9 @@ export default function GroupCatEntryFields({
 
   const groups = kennels.flatMap((k) => k.groups);
   const groupId = useWatch({ control, name: `${base}.groupId` as const });
-  const fecalScore = useWatch({ control, name: `${base}.fecalScore` as const });
+  const fecalScores = useWatch({ control, name: `${base}.fecalScores` as const }) ?? [];
+  const fecalEmpty = useWatch({ control, name: `${base}.fecalEmpty` as const }) ?? false;
+  const fecalSummary = formatFecalScore({ fecalScores, fecalEmpty });
   const dryFoodAmount = useWatch({ control, name: `${base}.dryFoodAmount` as const });
   const pee = useWatch({ control, name: `${base}.pee` as const });
   const catDetails = useWatch({ control, name: `${base}.catDetails` as const });
@@ -140,7 +143,7 @@ export default function GroupCatEntryFields({
 
   const summary = (
     <>
-      {fecalScore !== undefined && <Badge variant="outline">Fecal Score: {fecalScore}</Badge>}
+      {fecalSummary && <Badge variant="outline">Fecal Score: {fecalSummary}</Badge>}
       {dryFoodAmount && <Badge variant="outline">Dry: {dryFoodAmount}</Badge>}
       {pee && <Badge variant="outline">Pee</Badge>}
       {(catDetails ?? []).map((detail, i) =>
@@ -184,10 +187,13 @@ export default function GroupCatEntryFields({
       <div className="space-y-2">
         <Label>Fecal Score (shared)</Label>
         <FecalScorePicker
-          value={fecalScore}
-          onChange={(v) => setValue(`${base}.fecalScore` as const, v, { shouldValidate: true })}
+          value={{ scores: fecalScores, empty: fecalEmpty }}
+          onChange={(v) => {
+            setValue(`${base}.fecalEmpty` as const, v.empty, { shouldDirty: true });
+            setValue(`${base}.fecalScores` as const, v.scores, { shouldValidate: true });
+          }}
         />
-        <ErrorMessage message={errors?.fecalScore?.message} />
+        <ErrorMessage message={errors?.fecalScores?.message} />
       </div>
 
       <div className="flex items-center gap-2">
