@@ -103,7 +103,6 @@ describe("renderShiftReportEmail", () => {
       author: { name: "Sam" },
       cleaningNotes: "Mopped",
       suppliesNotes: null,
-      kennelNotes: null,
       otherNotes: null,
       kennelsStatus: [{ reportedState: "Ready", kennel: { id: 1, number: 1 } }],
       catEntries: [

@@ -194,7 +194,6 @@ export function renderShiftReportEmail(report: ShiftReportForEmail): EmailMessag
   const sections: [string, string | null][] = [
     ["Cleaning", report.cleaningNotes],
     ["Supplies", report.suppliesNotes],
-    ["Kennels", report.kennelNotes],
     ["Other", report.otherNotes],
   ];
   for (const [label, notes] of sections) {

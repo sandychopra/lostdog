@@ -3,7 +3,6 @@ import { useFieldArray, useWatch } from "react-hook-form";
 import { KennelState, toReportableKennelState } from "shared/constants/kennelState.ts";
 import { Label } from "./ui/label";
 import { NativeSelect, NativeSelectOption } from "./ui/native-select";
-import { Textarea } from "./ui/textarea";
 import ErrorMessage from "./ErrorMessage";
 import FormSection from "./FormSection";
 import type { ShiftReportFormApi } from "../lib/shiftReportForm";
@@ -19,8 +18,8 @@ interface KennelStatusListProps {
 // defaulted to its current recorded state, so confirming "yes, still what the
 // system shows" takes no action. A reported state that disagrees with the
 // kennel's current state is just logged as-is, same as any other value — no
-// note required; anything worth explaining goes in the report's general
-// Kennel Notes field instead. This is purely observational — submitting
+// note required; anything worth explaining goes in the report's Other Notes
+// instead. This is purely observational — submitting
 // never changes Kennel.state or announcements.
 export default function KennelStatusList({
   form,
@@ -96,10 +95,6 @@ export default function KennelStatusList({
           formState.errors.kennelsStatus?.root?.message ?? formState.errors.kennelsStatus?.message
         }
       />
-      <div className="space-y-2">
-        <Label htmlFor="kennelNotes">Kennel Notes</Label>
-        <Textarea id="kennelNotes" className="min-h-16" {...register("kennelNotes")} />
-      </div>
     </FormSection>
   );
 }

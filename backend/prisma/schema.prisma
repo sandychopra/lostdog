@@ -309,7 +309,6 @@ model ShiftReport {
   submittedAt        DateTime?           @map("submitted_at")
   cleaningNotes      String?             @map("cleaning_notes")
   suppliesNotes      String?             @map("supplies_notes")
-  kennelNotes        String?             @map("kennel_notes")
   otherNotes         String?             @map("other_notes")
   emailSentAt        DateTime?           @map("email_sent_at")
   emailAttempts      Int                 @default(0) @map("email_attempts")
@@ -335,8 +334,8 @@ model ShiftReport {
 // state here never touches Kennel.state or creates/resolves an Announcement,
 // unlike every other place in the app that sets a kennel's state. No note
 // field — a reportedState that conflicts with the kennel's actual state is
-// just logged as-is; anything worth explaining goes in the report's general
-// kennelNotes field instead.
+// just logged as-is; anything worth explaining goes in the report's Other
+// Notes instead.
 model ShiftReportKennelStatus {
   shiftReportId Int         @map("shift_report_id")
   shiftReport   ShiftReport @relation(fields: [shiftReportId], references: [id], onDelete: Cascade)

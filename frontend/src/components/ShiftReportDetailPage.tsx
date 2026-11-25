@@ -122,13 +122,6 @@ export default function ShiftReportDetailPage() {
             </section>
           )}
 
-          {report.kennelNotes && (
-            <section className="mt-6 space-y-2">
-              <h2 className="text-lg font-semibold">Kennel Notes</h2>
-              <p className="text-sm">{report.kennelNotes}</p>
-            </section>
-          )}
-
           <section className="mt-6 space-y-3">
             <h2 className="text-lg font-semibold">Food &amp; Fecal Score</h2>
             {report.catEntries.length === 0 && (
