@@ -586,7 +586,7 @@ export default function ShiftReportForm({
           },
           {
             key: "catEntries",
-            label: "Food",
+            label: "Food & Fecal Score",
             count: catEntries.fields.length,
             anchorId: "section-cat-entries",
           },
@@ -681,7 +681,7 @@ export default function ShiftReportForm({
       />
 
       <FormSection
-        title="Food"
+        title="Food & Fecal Score"
         count={catEntries.fields.length}
         anchorId="section-cat-entries"
         headerExtra={

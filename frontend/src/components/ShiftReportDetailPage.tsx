@@ -130,7 +130,7 @@ export default function ShiftReportDetailPage() {
           )}
 
           <section className="mt-6 space-y-3">
-            <h2 className="text-lg font-semibold">Food</h2>
+            <h2 className="text-lg font-semibold">Food &amp; Fecal Score</h2>
             {report.catEntries.length === 0 && (
               <p className="text-sm text-muted-foreground">No cat entries logged.</p>
             )}
