@@ -1,37 +1,15 @@
-import { useState } from "react";
-import { shiftTypeLabel } from "shared/constants/shiftType.ts";
 import { formatFecalScore } from "shared/constants/fecalScore.ts";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "react-router";
-import { Pencil, Trash2 } from "lucide-react";
-import { Role } from "shared/constants/role.ts";
+import { useQuery } from "@tanstack/react-query";
+import { Link, useParams } from "react-router";
 import { CatEntryType } from "shared/constants/catEntryType.ts";
 import { api } from "../lib/api";
-import { authClient } from "../lib/auth-client";
 import ErrorAlert from "./ErrorAlert";
 import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
 import { Skeleton } from "./ui/skeleton";
 import { Card } from "./ui/card";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "./ui/alert-dialog";
 import AuthenticatedImage from "./AuthenticatedImage";
-import {
-  formatReportDate,
-  splitShiftPositionLabel,
-  SHIFT_REPORT_STATUS_LABELS,
-  shiftReportStatusBadgeVariant,
-  type CatEntry,
-  type ShiftReport,
-} from "./ShiftReportsTable";
+import ShiftReportHeader from "./ShiftReportHeader";
+import type { CatEntry, ShiftReport } from "./ShiftReportsTable";
 import AppLayout from "./AppLayout";
 
 function CatEntrySummary({ entry }: { entry: CatEntry }) {
@@ -104,10 +82,6 @@ function CatEntrySummary({ entry }: { entry: CatEntry }) {
 
 export default function ShiftReportDetailPage() {
   const { id } = useParams();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { data: session } = authClient.useSession();
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const {
     data: report,
@@ -120,17 +94,6 @@ export default function ShiftReportDetailPage() {
       return data.shiftReport;
     },
   });
-
-  const deleteMutation = useMutation({
-    mutationFn: () => api.delete(`/api/shift-reports/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["shiftReports"] });
-      navigate("/shift-reports");
-    },
-  });
-
-  const isAdmin = session?.user.role === Role.Admin;
-  const canEdit = report && (report.authorId === session?.user.id || isAdmin);
 
   return (
     <AppLayout width="3xl">
@@ -148,44 +111,8 @@ export default function ShiftReportDetailPage() {
 
       {report && (
         <>
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-3xl font-bold">
-                  {formatReportDate(report.date)} — {shiftTypeLabel(report.shiftType)}
-                </h1>
-                <Badge variant={shiftReportStatusBadgeVariant(report.status)}>
-                  {SHIFT_REPORT_STATUS_LABELS[report.status]}
-                </Badge>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                By {report.author.name}
-                {report.isSplitShift &&
-                  ` · Split shift${report.splitShiftPosition ? ` (${splitShiftPositionLabel(report.splitShiftPosition)} shift)` : ""}`}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              {canEdit && (
-                <Button
-                  variant="secondary"
-                  type="button"
-                  onClick={() => navigate(`/shift-reports/${report.id}/edit`)}
-                >
-                  <Pencil className="mr-1 h-4 w-4" />
-                  Edit
-                </Button>
-              )}
-              {isAdmin && (
-                <Button
-                  variant="destructive"
-                  type="button"
-                  onClick={() => setConfirmingDelete(true)}
-                >
-                  <Trash2 className="mr-1 h-4 w-4" />
-                  Delete
-                </Button>
-              )}
-            </div>
+          <div className="mt-4">
+            <ShiftReportHeader report={report} mode="view" />
           </div>
 
           {report.kennelsStatus.length > 0 && (
@@ -291,32 +218,6 @@ export default function ShiftReportDetailPage() {
           )}
         </>
       )}
-
-      <AlertDialog
-        open={confirmingDelete}
-        onOpenChange={(open) => {
-          if (!open) {
-            setConfirmingDelete(false);
-            deleteMutation.reset();
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Shift Report</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this shift report? This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteMutation.isError && (
-            <ErrorAlert error={deleteMutation.error} fallback="Failed to delete shift report" />
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteMutation.mutate()}>Confirm</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </AppLayout>
   );
 }

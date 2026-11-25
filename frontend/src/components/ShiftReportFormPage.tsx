@@ -6,6 +6,7 @@ import { Skeleton } from "./ui/skeleton";
 import ShiftReportForm from "./ShiftReportForm";
 import type { ShiftReport } from "./ShiftReportsTable";
 import AppLayout from "./AppLayout";
+import ShiftReportHeader from "./ShiftReportHeader";
 
 export default function ShiftReportFormPage() {
   const { id } = useParams();
@@ -27,12 +28,14 @@ export default function ShiftReportFormPage() {
 
   return (
     <AppLayout width="3xl">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold">{isEdit ? "Edit Shift Report" : "New Shift Report"}</h1>
-        {isEdit && report && (
-          <Link to={`/shift-reports/${id}`} className="text-sm text-blue hover:underline">
-            View full report →
-          </Link>
+      <Link to="/shift-reports" className="text-sm text-blue hover:underline">
+        ← Back to Shift Reports
+      </Link>
+      <div className="mt-4 mb-6">
+        {isEdit ? (
+          report && <ShiftReportHeader report={report} mode="edit" />
+        ) : (
+          <h1 className="text-3xl font-bold">New Shift Report</h1>
         )}
       </div>
       {isEdit && isLoading && (

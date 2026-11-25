@@ -1,10 +1,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router";
-import { Plus } from "lucide-react";
 import { api } from "../lib/api";
 import { catOptionLabel, useCatOptions } from "../lib/useCatOptions";
-import { Button, buttonVariants } from "./ui/button";
+import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { NativeSelect, NativeSelectOption } from "./ui/native-select";
 import { Input } from "./ui/input";
@@ -47,13 +45,7 @@ export default function ShiftReportsPage() {
 
   return (
     <AppLayout width="5xl">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold">Shift Reports</h1>
-        <Link to="/shift-reports/new" className={buttonVariants({ variant: "default" })}>
-          <Plus className="mr-1 h-4 w-4" />
-          New Report
-        </Link>
-      </div>
+      <h1 className="mb-6 text-3xl font-bold">Shift Reports</h1>
 
       <div className="mb-6 flex flex-wrap items-end gap-3">
         <div className="w-full space-y-1 sm:w-auto">
