@@ -270,6 +270,10 @@ describe("ShiftReportForm", () => {
     await openEditor(user, "Sprite / Nehi");
 
     expect(screen.getByText("Fecal Score (shared)")).toBeInTheDocument();
+    // Each cat's food notes is a growing text box, not a one-line input.
+    expect(
+      screen.getByLabelText("Food Notes", { selector: '[id$=".catDetails.0.foodNotes"]' }).tagName,
+    ).toBe("TEXTAREA");
     expect(screen.queryByText("Water noted (shared)")).not.toBeInTheDocument();
   });
 
@@ -371,6 +375,13 @@ describe("ShiftReportForm", () => {
     await user.click(within(dialog).getByRole("button", { name: "Select all cats" }));
     expect(within(dialog).getByRole("button", { name: "Remove Biscuit" })).toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Remove Clementine" })).toBeNull();
+
+    // Chips are alphabetical.
+    const chipNames = within(dialog)
+      .getAllByRole("button", { name: /^Remove / })
+      .map((b) => b.getAttribute("aria-label")!.replace("Remove ", ""));
+    expect(chipNames).toEqual([...chipNames].sort((a, b) => a.localeCompare(b)));
+    expect(chipNames[0]).toBe("Biscuit");
   });
 
   test("has a Kennel Notes field after Kennel Status", () => {

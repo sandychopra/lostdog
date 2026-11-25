@@ -41,7 +41,8 @@ export default function CatMultiSelect({
   const catsById = new Map(cats.map((cat) => [cat.id, cat]));
   const selectedCats = selectedIds
     .map((id) => catsById.get(id))
-    .filter((cat): cat is CatOption => cat !== undefined);
+    .filter((cat): cat is CatOption => cat !== undefined)
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="flex flex-wrap items-center gap-2">

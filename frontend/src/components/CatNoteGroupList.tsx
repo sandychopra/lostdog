@@ -99,7 +99,8 @@ function GroupEntryCard({
 
   const tagged = catIds
     .map((id) => cats.find((c) => c.id === Number(id)))
-    .filter((c): c is Cat => c !== undefined);
+    .filter((c): c is Cat => c !== undefined)
+    .sort((a, b) => a.name.localeCompare(b.name));
   const title = tagged.map((c) => c.name).join(", ") || `New ${itemLabel.toLowerCase()}`;
   // Cats already tagged stay listed even if no longer pickable (e.g. since
   // picked up), so they show as chips and can still be removed.

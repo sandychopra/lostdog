@@ -1,6 +1,5 @@
 import { Controller, useFieldArray, useWatch } from "react-hook-form";
 import { Label } from "./ui/label";
-import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Checkbox } from "./ui/checkbox";
 import FoodAmountPicker from "./FoodAmountPicker";
@@ -47,7 +46,11 @@ function GroupCatDetailFields({
       </div>
       <div className="space-y-1">
         <Label htmlFor={`${base}.foodNotes`}>Food Notes</Label>
-        <Input id={`${base}.foodNotes`} {...register(`${base}.foodNotes` as const)} />
+        <Textarea
+          id={`${base}.foodNotes`}
+          className="min-h-16"
+          {...register(`${base}.foodNotes` as const)}
+        />
       </div>
       <div className="space-y-1">
         <Label htmlFor={`${base}.medicalNotes`}>Medical Notes</Label>
