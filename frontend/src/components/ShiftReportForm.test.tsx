@@ -99,6 +99,17 @@ describe("ShiftReportForm", () => {
     await waitFor(() => expect(onSuccess).toHaveBeenCalledWith(1));
   });
 
+  test("shift type has no default and is required to submit", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+
+    expect(screen.getByLabelText("Shift Type")).toHaveValue("");
+    await user.click(screen.getByRole("button", { name: "Submit Report" }));
+
+    expect(await screen.findByText("Select a shift type")).toBeInTheDocument();
+    expect(post).not.toHaveBeenCalled();
+  });
+
   test("split shift is disabled and cleared for a Mid-day shift", async () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
@@ -112,6 +123,7 @@ describe("ShiftReportForm", () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
+    await user.selectOptions(screen.getByLabelText("Shift Type"), "Morning");
     await user.click(screen.getByLabelText("Split shift (Morning/Evening only)"));
     expect(screen.getByLabelText("Which half of the shift?")).toBeInTheDocument();
 
@@ -125,6 +137,7 @@ describe("ShiftReportForm", () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
+    await user.selectOptions(screen.getByLabelText("Shift Type"), "Morning");
     await user.click(screen.getByLabelText("Split shift (Morning/Evening only)"));
     await user.selectOptions(screen.getByLabelText("Which half of the shift?"), "Second");
     await user.click(screen.getByRole("button", { name: "Submit Report" }));
@@ -247,6 +260,7 @@ describe("ShiftReportForm", () => {
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
     await user.selectOptions(await screen.findByLabelText("Kennel 5"), "Occupied");
+    await user.selectOptions(screen.getByLabelText("Shift Type"), "Morning");
     await user.click(screen.getByRole("button", { name: "Submit Report" }));
 
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
@@ -259,6 +273,7 @@ describe("ShiftReportForm", () => {
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
     await screen.findByLabelText("Kennel 5");
+    await user.selectOptions(screen.getByLabelText("Shift Type"), "Morning");
     await user.click(screen.getByRole("button", { name: "Submit Report" }));
 
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));

@@ -180,7 +180,7 @@ function compact(lines: (string | null)[], indent = "  "): string[] {
 }
 
 export function renderShiftReportEmail(report: ShiftReportForEmail): EmailMessage {
-  const shift = SHIFT_LABELS[report.shiftType] ?? report.shiftType;
+  const shift = report.shiftType ? (SHIFT_LABELS[report.shiftType] ?? report.shiftType) : "Shift";
   const split = report.isSplitShift ? ` (split shift, ${report.splitShiftPosition})` : "";
   const subject = `Shift report: ${formatDate(report.date)} ${shift}${split} — ${report.author.name}`;
 

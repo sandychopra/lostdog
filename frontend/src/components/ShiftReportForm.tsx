@@ -43,13 +43,18 @@ import type { ShiftReport } from "./ShiftReportsTable";
 const AUTOSAVE_IDLE_MS = 10_000;
 const AUTOSAVE_MAX_INTERVAL_MS = 60_000;
 
+// Native <select> value for "no shift type picked yet" — there's deliberately
+// no default, so a volunteer can't submit a report under the wrong shift.
+const NO_SHIFT_TYPE = "";
+
 function toDateInputValue(value: string | null | undefined): string {
   return value ? value.slice(0, 10) : "";
 }
 
 function mapReportToDefaultValues(report: ShiftReport): DraftShiftReportInput {
   return {
-    shiftType: report.shiftType,
+    // "" selects the "Select shift…" placeholder; the schema maps it to undefined.
+    shiftType: report.shiftType ?? (NO_SHIFT_TYPE as unknown as undefined),
     date: toDateInputValue(report.date) as unknown as Date,
     isSplitShift: report.isSplitShift,
     splitShiftPosition: report.splitShiftPosition ?? undefined,
@@ -159,7 +164,7 @@ export default function ShiftReportForm({
     defaultValues: report
       ? mapReportToDefaultValues(report)
       : {
-          shiftType: ShiftType.Morning,
+          shiftType: NO_SHIFT_TYPE as unknown as undefined,
           date: toDateInputValue(new Date().toISOString()) as unknown as Date,
           isSplitShift: false,
           catEntries: [],
@@ -630,11 +635,17 @@ export default function ShiftReportForm({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="shiftType">Shift Type</Label>
-          <NativeSelect id="shiftType" {...register("shiftType")}>
+          <NativeSelect
+            id="shiftType"
+            aria-invalid={formState.errors.shiftType ? true : undefined}
+            {...register("shiftType")}
+          >
+            <NativeSelectOption value={NO_SHIFT_TYPE}>Select shift…</NativeSelectOption>
             <NativeSelectOption value={ShiftType.Morning}>Morning</NativeSelectOption>
             <NativeSelectOption value={ShiftType.MidDay}>Mid-day</NativeSelectOption>
             <NativeSelectOption value={ShiftType.Evening}>Evening</NativeSelectOption>
           </NativeSelect>
+          <ErrorMessage message={formState.errors.shiftType?.message} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="date">Date</Label>

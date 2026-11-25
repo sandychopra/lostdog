@@ -106,9 +106,16 @@ function buildPlayGroupSchema(strict: boolean) {
   });
 }
 
+// No default shift type: the volunteer must pick one. A draft can be saved
+// before they have (the form starts blank), but submitting requires it.
+function buildShiftTypeField(strict: boolean) {
+  const shiftType = z.enum(ShiftType, { error: "Select a shift type" });
+  return z.preprocess(emptyToUndefined, strict ? shiftType : shiftType.optional());
+}
+
 function buildShiftReportFields(strict: boolean) {
   return {
-    shiftType: z.enum(ShiftType),
+    shiftType: buildShiftTypeField(strict),
     date: z.coerce.date("Invalid date"),
     isSplitShift: z.boolean().default(false),
     splitShiftPosition: splitShiftPositionField,

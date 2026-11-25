@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { shiftTypeLabel } from "shared/constants/shiftType.ts";
 import { Link, useParams } from "react-router";
 import { ActivityEntityType } from "shared/constants/activityLog.ts";
 import { api } from "../lib/api";
@@ -45,7 +46,7 @@ interface NoteGroup {
 interface HistoryReport {
   id: number;
   date: string;
-  shiftType: string;
+  shiftType: string | null;
   author: { id: string; name: string };
   catEntries: HistoryEntry[];
   meetAndGreets: NoteGroup[];
@@ -176,7 +177,7 @@ export default function CatDetailPage() {
                   to={`/shift-reports/${report.id}`}
                   className="font-medium text-blue hover:underline"
                 >
-                  {formatReportDate(report.date)} · {report.shiftType}
+                  {formatReportDate(report.date)} · {shiftTypeLabel(report.shiftType)}
                 </Link>
                 <span className="text-muted-foreground">by {report.author.name}</span>
               </header>

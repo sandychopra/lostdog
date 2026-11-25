@@ -259,7 +259,7 @@ router.post("/", requireAuth, async (req, res: Response) => {
     const created = await tx.shiftReport.create({
       data: {
         authorId,
-        shiftType: data.shiftType,
+        shiftType: data.shiftType ?? null,
         date: data.date,
         isSplitShift: data.isSplitShift,
         splitShiftPosition: data.splitShiftPosition ?? null,
@@ -461,7 +461,7 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
       await tx.shiftReport.update({
         where: { id },
         data: {
-          shiftType: data.shiftType,
+          shiftType: data.shiftType ?? null,
           date: data.date,
           isSplitShift: data.isSplitShift,
           splitShiftPosition: data.splitShiftPosition ?? null,

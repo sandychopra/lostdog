@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { shiftTypeLabel } from "shared/constants/shiftType.ts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router";
 import { Pencil, Trash2 } from "lucide-react";
@@ -31,10 +32,6 @@ import {
   type ShiftReport,
 } from "./ShiftReportsTable";
 import AppLayout from "./AppLayout";
-
-function shiftTypeLabel(shiftType: string): string {
-  return shiftType === "MidDay" ? "Mid-day" : shiftType;
-}
 
 function CatEntrySummary({ entry }: { entry: CatEntry }) {
   const title =

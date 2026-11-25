@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
-import { ShiftType } from "shared/constants/shiftType.ts";
+import { shiftTypeLabel, type ShiftType } from "shared/constants/shiftType.ts";
 import { CatEntryType } from "shared/constants/catEntryType.ts";
 import { FoodAmount } from "shared/constants/foodAmount.ts";
 import { SplitShiftPosition } from "shared/constants/splitShiftPosition.ts";
@@ -71,7 +71,7 @@ export interface ShiftReport {
   id: number;
   authorId: string;
   author: { id: string; name: string };
-  shiftType: ShiftType;
+  shiftType: ShiftType | null;
   date: string;
   isSplitShift: boolean;
   splitShiftPosition: SplitShiftPosition | null;
@@ -241,11 +241,6 @@ function SplitBadge({ report }: { report: ShiftReport }) {
       {report.splitShiftPosition ? ` (${splitShiftPositionLabel(report.splitShiftPosition)})` : ""}
     </Badge>
   );
-}
-
-function shiftTypeLabel(shiftType: ShiftType): string {
-  if (shiftType === ShiftType.MidDay) return "Mid-day";
-  return shiftType;
 }
 
 export function splitShiftPositionLabel(position: SplitShiftPosition): string {

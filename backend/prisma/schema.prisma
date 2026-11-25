@@ -300,7 +300,7 @@ model ShiftReport {
   id                 Int                 @id @default(autoincrement())
   authorId           String              @map("author_id")
   author             User                @relation(fields: [authorId], references: [id])
-  shiftType          ShiftType           @map("shift_type")
+  shiftType          ShiftType?          @map("shift_type")
   date               DateTime            @db.Date
   isSplitShift       Boolean             @default(false) @map("is_split_shift")
   splitShiftPosition SplitShiftPosition? @map("split_shift_position")

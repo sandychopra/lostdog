@@ -105,7 +105,7 @@ erDiagram
   "shift_report" {
     Int id "🗝️"
     String author_id 
-    ShiftType shift_type 
+    ShiftType shift_type "❓"
     DateTime date 
     Boolean is_split_shift 
     SplitShiftPosition split_shift_position "❓"
