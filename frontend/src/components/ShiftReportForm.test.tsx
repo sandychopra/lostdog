@@ -411,6 +411,23 @@ describe("ShiftReportForm", () => {
     expect(post).toHaveBeenCalledTimes(1);
   });
 
+  test("an untouched new report isn't saved; the first real edit saves a draft", async () => {
+    catsInCare = true;
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+    await waitFor(() => expect(screen.getAllByTestId("cat-entry-card")).toHaveLength(2));
+    await screen.findByLabelText("Kennel 5");
+
+    hidePage();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(post).not.toHaveBeenCalled();
+
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+    await user.selectOptions(screen.getByLabelText("Shift Type"), "Evening");
+    hidePage();
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+  });
+
   test("there's no Save Draft button; drafts autosave", () => {
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
     expect(screen.queryByRole("button", { name: "Save Draft" })).toBeNull();

@@ -18,13 +18,16 @@ mock.module("../lib/api", () => ({
 const { default: BottomNav } = await import("./BottomNav");
 
 describe("BottomNav", () => {
-  test("has the main tabs and a Report button", () => {
+  test("has the main tabs and a New report button", () => {
     role = "Volunteer";
     renderWithQuery(<BottomNav />);
     const nav = within(screen.getByRole("navigation", { name: "Main" }));
     expect(nav.getByRole("link", { name: "Updates" })).toHaveAttribute("href", "/announcements");
     expect(nav.getByRole("link", { name: "Cats" })).toBeInTheDocument();
-    expect(nav.getByRole("link", { name: "Report" })).toHaveAttribute("href", "/shift-reports/new");
+    expect(nav.getByRole("link", { name: "New report" })).toHaveAttribute(
+      "href",
+      "/shift-reports/new",
+    );
     expect(nav.getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/shift-reports");
   });
 

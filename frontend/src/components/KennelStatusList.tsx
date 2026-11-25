@@ -13,6 +13,8 @@ interface KennelStatusListProps {
   kennelOptions: { id: number; number: number; state: KennelState }[];
   collapsed: boolean;
   onToggleCollapsed: () => void;
+  /** Wraps the automatic fill-in so it isn't treated as an edit (see ShiftReportForm). */
+  withoutMarkingDirty?: (fill: () => void) => void;
 }
 
 // Every kennel gets a reported state each shift (Ready/Occupied/NeedsReset) —
@@ -27,6 +29,7 @@ export default function KennelStatusList({
   kennelOptions,
   collapsed,
   onToggleCollapsed,
+  withoutMarkingDirty,
 }: KennelStatusListProps) {
   const { control, register, formState } = form;
   const fieldArray = useFieldArray({ control, name: "kennelsStatus" });
@@ -42,12 +45,15 @@ export default function KennelStatusList({
       .filter((k) => !presentIds.has(k.id))
       .sort((a, b) => a.number - b.number);
     if (missing.length > 0) {
-      fieldArray.append(
-        missing.map((k) => ({
-          kennelId: k.id,
-          reportedState: toReportableKennelState(k.state),
-        })),
-      );
+      const fill = () =>
+        fieldArray.append(
+          missing.map((k) => ({
+            kennelId: k.id,
+            reportedState: toReportableKennelState(k.state),
+          })),
+        );
+      if (withoutMarkingDirty) withoutMarkingDirty(fill);
+      else fill();
     }
     // Only re-run when the kennel list itself changes, not on every keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps

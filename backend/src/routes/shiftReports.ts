@@ -223,18 +223,6 @@ router.get("/", requireAuth, async (req, res: Response) => {
   res.json({ shiftReports, total });
 });
 
-// The signed-in user's most recently updated Draft, if any — the bottom bar's
-// "+ Report" button resumes it instead of starting a second report.
-router.get("/my-draft", requireAuth, async (req, res: Response) => {
-  const authorId = (req as AuthedRequest).session.user.id;
-  const draft = await prisma.shiftReport.findFirst({
-    where: { authorId, status: ShiftReportStatus.Draft },
-    select: { id: true },
-    orderBy: { updatedAt: "desc" },
-  });
-  res.json({ shiftReport: draft });
-});
-
 router.get("/:id", requireAuth, async (req, res: Response) => {
   const id = Number(req.params.id);
 

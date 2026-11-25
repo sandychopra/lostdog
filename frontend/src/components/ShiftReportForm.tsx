@@ -197,6 +197,21 @@ export default function ShiftReportForm({
   // Unsaved changes exist. A ref (not RHF's isDirty) so edits made while a
   // save is in flight aren't wiped by a post-save reset.
   const dirtyRef = useRef(false);
+  // A new report fills itself in (cat cards, kennel statuses); that alone
+  // isn't work worth saving, so a report opened and left untouched never
+  // becomes a draft. This snapshot is the form as the volunteer first saw
+  // it — autosave skips an unsaved report whose values still match it. It
+  // only moves forward with a fill-in while nothing else has changed, so a
+  // late fill-in can't swallow a real edit.
+  const pristineValuesRef = useRef<string | null>(null);
+  useEffect(() => {
+    pristineValuesRef.current = JSON.stringify(form.getValues());
+  }, [form]);
+  function withoutMarkingDirty(fill: () => void) {
+    const untouched = JSON.stringify(form.getValues()) === pristineValuesRef.current;
+    fill();
+    if (untouched) pristineValuesRef.current = JSON.stringify(form.getValues());
+  }
   const autosaveRef = useRef<() => Promise<void>>(async () => {});
 
   const catEntries = useFieldArray({ control, name: "catEntries" });
@@ -412,6 +427,11 @@ export default function ShiftReportForm({
       autosaveAgainRef.current = true;
       return;
     }
+    const isPristineNewReport =
+      reportIdRef.current === undefined &&
+      photoQueueRef.current.length === 0 &&
+      JSON.stringify(form.getValues()) === pristineValuesRef.current;
+    if (isPristineNewReport) return;
     const parsed = draftShiftReportSchema.safeParse(form.getValues());
     if (!parsed.success) return;
     setAutosaveStatus("saving");
@@ -576,7 +596,7 @@ export default function ShiftReportForm({
         if (group.cats.some((c) => inCareIds.has(c.id))) entries.push(groupEntry(group.id));
       }
     }
-    if (entries.length > 0) catEntries.append(entries);
+    if (entries.length > 0) withoutMarkingDirty(() => catEntries.append(entries));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot pre-fill once both lists load
   }, [cats, kennels]);
 
@@ -751,6 +771,7 @@ export default function ShiftReportForm({
 
       <KennelStatusList
         form={form}
+        withoutMarkingDirty={withoutMarkingDirty}
         kennelOptions={kennels ?? []}
         collapsed={collapsedSections.kennelStatus}
         onToggleCollapsed={() => toggleSection("kennelStatus")}

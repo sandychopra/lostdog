@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import { Role } from "shared/constants/role.ts";
 import { authClient } from "../lib/auth-client";
-import { useStartReportPath } from "../lib/useStartReportPath";
 import { cn } from "../lib/utils";
 import { useSignOut } from "./Navbar";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "./ui/sheet";
@@ -37,11 +36,10 @@ function isReportFormPath(pathname: string) {
   return pathname === "/shift-reports/new" || /^\/shift-reports\/\d+\/edit$/.test(pathname);
 }
 
-/** Phone navigation: four tabs plus a raised gold "Report" button in the middle. */
+/** Phone navigation: four tabs plus a raised gold "New report" button in the middle. */
 export default function BottomNav() {
   const { data: session } = authClient.useSession();
   const { pathname } = useLocation();
-  const startReportPath = useStartReportPath();
   const signOut = useSignOut();
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -73,14 +71,14 @@ export default function BottomNav() {
             Cats
           </NavLink>
           <Link
-            to={startReportPath}
+            to="/shift-reports/new"
             aria-current={onReportForm ? "page" : undefined}
             className={cn(tabClass, "font-bold text-navy")}
           >
             <span className="-mt-7 grid size-14 place-content-center rounded-full border-4 border-white bg-gold text-navy shadow-[0_6px_14px_-6px_rgb(0_31_112/0.6)]">
               <Plus className="size-7" strokeWidth={2.5} />
             </span>
-            Report
+            New report
           </Link>
           <NavLink
             to="/shift-reports"
