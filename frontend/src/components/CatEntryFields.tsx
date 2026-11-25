@@ -95,15 +95,6 @@ export default function CatEntryFields({ form, index }: CatEntryFieldsProps) {
           {...register(`${base}.foodNotes` as const)}
         />
       </div>
-
-      <div className="space-y-2">
-        <Label htmlFor={`${base}.medicalNotes`}>Medical Notes</Label>
-        <Textarea
-          id={`${base}.medicalNotes`}
-          className="min-h-16"
-          {...register(`${base}.medicalNotes` as const)}
-        />
-      </div>
     </div>
   );
 }

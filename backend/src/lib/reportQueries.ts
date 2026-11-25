@@ -10,6 +10,7 @@ export function reportsInvolvingCat(catId: number): Prisma.ShiftReportWhereInput
       { catEntries: { some: { group: { cats: { some: { id: catId } } } } } },
       { meetAndGreets: { some: { cats: { some: { catId } } } } },
       { playGroups: { some: { cats: { some: { catId } } } } },
+      { medicalNotes: { some: { catId } } },
     ],
   };
 }

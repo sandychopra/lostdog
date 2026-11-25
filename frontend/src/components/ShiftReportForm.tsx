@@ -27,6 +27,7 @@ import ErrorAlert from "./ErrorAlert";
 import ErrorMessage from "./ErrorMessage";
 import CatEntryCard from "./CatEntryCard";
 import CatNoteGroupList from "./CatNoteGroupList";
+import MedicalNotesList from "./MedicalNotesList";
 import KennelStatusList from "./KennelStatusList";
 import PhotoUploadSection, {
   type QueuedPhoto,
@@ -86,7 +87,6 @@ function mapReportToDefaultValues(report: ShiftReport): DraftShiftReportInput {
             dryFoodAmount: entry.dryFoodAmount ?? undefined,
             wetFoodAmount: entry.wetFoodAmount ?? undefined,
             foodNotes: entry.foodNotes ?? "",
-            medicalNotes: entry.medicalNotes ?? "",
           }
         : {
             id: entry.id,
@@ -102,7 +102,6 @@ function mapReportToDefaultValues(report: ShiftReport): DraftShiftReportInput {
               catId: detail.catId,
               wetFoodAmount: detail.wetFoodAmount ?? undefined,
               foodNotes: detail.foodNotes ?? "",
-              medicalNotes: detail.medicalNotes ?? "",
             })),
           },
     ),
@@ -116,6 +115,7 @@ function mapReportToDefaultValues(report: ShiftReport): DraftShiftReportInput {
       note: playGroup.note ?? "",
       catIds: playGroup.cats.map((c) => c.catId),
     })),
+    medicalNotes: report.medicalNotes.map((m) => ({ id: m.id, catId: m.catId, note: m.note })),
     kennelsStatus: report.kennelsStatus.map((k) => ({
       kennelId: k.kennelId,
       reportedState: k.reportedState,
@@ -189,6 +189,7 @@ export default function ShiftReportForm({
           catEntries: [],
           meetAndGreets: [],
           playGroups: [],
+          medicalNotes: [],
           kennelsStatus: [],
         },
   });
@@ -471,7 +472,6 @@ export default function ShiftReportForm({
       pee: false,
       peePoopNotes: "",
       foodNotes: "",
-      medicalNotes: "",
     };
   }
 
@@ -488,7 +488,6 @@ export default function ShiftReportForm({
       catDetails: (group?.cats ?? []).map((c) => ({
         catId: c.id,
         foodNotes: "",
-        medicalNotes: "",
       })),
     };
   }
@@ -526,6 +525,7 @@ export default function ShiftReportForm({
 
   const catEntryValues = useWatch({ control, name: "catEntries" }) ?? [];
   const playGroupValues = useWatch({ control, name: "playGroups" }) ?? [];
+  const medicalNoteValues = useWatch({ control, name: "medicalNotes" }) ?? [];
   const meetAndGreetValues = useWatch({ control, name: "meetAndGreets" }) ?? [];
   const kennelsStatusValues = useWatch({ control, name: "kennelsStatus" }) ?? [];
   // "Select all cats" in a play group: every cat in care, whether or not it
@@ -586,9 +586,15 @@ export default function ShiftReportForm({
           },
           {
             key: "catEntries",
-            label: "Food & Medical",
+            label: "Food",
             count: catEntries.fields.length,
             anchorId: "section-cat-entries",
+          },
+          {
+            key: "medicalNotes",
+            label: "Medical Notes",
+            count: medicalNoteValues.length,
+            anchorId: "section-medical-notes",
           },
           {
             key: "playGroups",
@@ -675,7 +681,7 @@ export default function ShiftReportForm({
       />
 
       <FormSection
-        title="Food & Medical"
+        title="Food"
         count={catEntries.fields.length}
         anchorId="section-cat-entries"
         headerExtra={
@@ -713,6 +719,13 @@ export default function ShiftReportForm({
           />
         ))}
       </FormSection>
+
+      <MedicalNotesList
+        form={form}
+        cats={cats ?? []}
+        pickableCats={inCareCats}
+        onEditDone={() => void autosaveRef.current()}
+      />
 
       <CatNoteGroupList
         form={form}

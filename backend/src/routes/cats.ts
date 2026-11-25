@@ -144,6 +144,7 @@ router.get("/:id/history", requireAuth, async (req, res: Response) => {
         where: { cats: { some: { catId: id } } },
         include: { cats: { include: { cat: { select: { id: true, name: true } } } } },
       },
+      medicalNotes: { where: { catId: id }, select: { id: true, note: true } },
       photos: { where: { tags: { some: { catId: id } } }, select: { id: true } },
     },
   });

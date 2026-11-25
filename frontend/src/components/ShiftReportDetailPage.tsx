@@ -47,12 +47,6 @@ function CatEntrySummary({ entry }: { entry: CatEntry }) {
             <dd>{entry.foodNotes}</dd>
           </>
         )}
-        {entry.medicalNotes && (
-          <>
-            <dt className="text-muted-foreground">Medical notes</dt>
-            <dd>{entry.medicalNotes}</dd>
-          </>
-        )}
       </dl>
       {entry.entryType === CatEntryType.Group && entry.groupDetails.length > 0 && (
         <div className="space-y-2">
@@ -136,7 +130,7 @@ export default function ShiftReportDetailPage() {
           )}
 
           <section className="mt-6 space-y-3">
-            <h2 className="text-lg font-semibold">Food &amp; Medical</h2>
+            <h2 className="text-lg font-semibold">Food</h2>
             {report.catEntries.length === 0 && (
               <p className="text-sm text-muted-foreground">No cat entries logged.</p>
             )}
@@ -144,6 +138,18 @@ export default function ShiftReportDetailPage() {
               <CatEntrySummary key={entry.id} entry={entry} />
             ))}
           </section>
+
+          {report.medicalNotes.length > 0 && (
+            <section className="mt-6 space-y-2">
+              <h2 className="text-lg font-semibold">Medical Notes</h2>
+              {report.medicalNotes.map((m) => (
+                <Card key={m.id} size="sm" className="gap-0 p-3">
+                  <p className="font-medium">{m.cat.name}</p>
+                  <p className="whitespace-pre-line">{m.note}</p>
+                </Card>
+              ))}
+            </section>
+          )}
 
           {report.playGroups.length > 0 && (
             <section className="mt-6 space-y-2">

@@ -48,6 +48,10 @@ const shiftReportInclude = {
     orderBy: { id: "asc" },
     include: { cats: { include: { cat: { select: { id: true, name: true } } } } },
   },
+  medicalNotes: {
+    orderBy: { cat: { name: "asc" } },
+    include: { cat: { select: { id: true, name: true } } },
+  },
   kennelsStatus: { include: { kennel: { select: { id: true, number: true } } } },
   // Report-level photos only — cat-entry-scoped photos are nested under
   // catEntries above instead, so a photo never appears in both places.
@@ -73,7 +77,6 @@ function detailFields(detail: GroupEntryCatDetailInput) {
   return {
     wetFoodAmount: detail.wetFoodAmount ?? null,
     foodNotes: detail.foodNotes ?? null,
-    medicalNotes: detail.medicalNotes ?? null,
   };
 }
 
@@ -91,7 +94,6 @@ function buildCatEntryCreate(
       dryFoodAmount: entry.dryFoodAmount ?? null,
       wetFoodAmount: entry.wetFoodAmount ?? null,
       foodNotes: entry.foodNotes ?? null,
-      medicalNotes: entry.medicalNotes ?? null,
     };
   }
 
@@ -128,6 +130,7 @@ function collectReferencedCatIds(data: CreateShiftReportInput): number[] {
   for (const playGroup of data.playGroups) {
     for (const id of playGroup.catIds) ids.add(id);
   }
+  for (const medicalNote of data.medicalNotes) ids.add(medicalNote.catId);
   return [...ids];
 }
 
@@ -277,6 +280,9 @@ router.post("/", requireAuth, async (req, res: Response) => {
             cats: { create: playGroup.catIds.map((catId) => ({ catId })) },
           })),
         },
+        medicalNotes: {
+          create: data.medicalNotes.map((m) => ({ catId: m.catId, note: m.note })),
+        },
         kennelsStatus: {
           create: data.kennelsStatus.map((k) => ({
             kennelId: k.kennelId,
@@ -379,7 +385,6 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
               dryFoodAmount: entry.dryFoodAmount ?? null,
               wetFoodAmount: entry.wetFoodAmount ?? null,
               foodNotes: entry.foodNotes ?? null,
-              medicalNotes: entry.medicalNotes ?? null,
             },
           });
           continue;
@@ -441,6 +446,13 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
             note: playGroup.note,
             cats: { create: playGroup.catIds.map((catId) => ({ catId })) },
           },
+        });
+      }
+
+      await tx.medicalNote.deleteMany({ where: { shiftReportId: id } });
+      if (data.medicalNotes.length > 0) {
+        await tx.medicalNote.createMany({
+          data: data.medicalNotes.map((m) => ({ shiftReportId: id, catId: m.catId, note: m.note })),
         });
       }
 

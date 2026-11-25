@@ -52,14 +52,6 @@ function GroupCatDetailFields({
           {...register(`${base}.foodNotes` as const)}
         />
       </div>
-      <div className="space-y-1">
-        <Label htmlFor={`${base}.medicalNotes`}>Medical Notes</Label>
-        <Textarea
-          id={`${base}.medicalNotes`}
-          className="min-h-16"
-          {...register(`${base}.medicalNotes` as const)}
-        />
-      </div>
     </fieldset>
   );
 }

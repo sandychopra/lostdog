@@ -143,7 +143,6 @@ erDiagram
     FoodAmount dry_food_amount "❓"
     String food_notes "❓"
     FoodAmount wet_food_amount "❓"
-    String medical_notes "❓"
     DateTime created_at 
     DateTime updated_at 
     }
@@ -155,7 +154,6 @@ erDiagram
     Int cat_id 
     FoodAmount wet_food_amount "❓"
     String food_notes "❓"
-    String medical_notes "❓"
     }
   
 
@@ -304,6 +302,15 @@ erDiagram
     DateTime created_at 
     }
   
+
+  "medical_note" {
+    Int id "🗝️"
+    Int shift_report_id 
+    Int cat_id 
+    String note 
+    DateTime created_at 
+    }
+  
     "session" }o--|| "user" : "user"
     "account" }o--|| "user" : "user"
     "cat" }o--|o "kennel" : "kennel"
@@ -356,4 +363,6 @@ erDiagram
     "kennel_move_request" }o--|o "user" : "completedBy"
     "kennel_move_request" }o--|o "announcement" : "announcement"
     "activity_log" }o--|o "user" : "actor"
+    "medical_note" }o--|| "shift_report" : "shiftReport"
+    "medical_note" }o--|| "cat" : "cat"
 ```

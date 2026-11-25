@@ -1,7 +1,13 @@
 import type { ReactNode } from "react";
 
 export type SectionKey =
-  "kennelStatus" | "catEntries" | "playGroups" | "meetAndGreets" | "photos" | "notes";
+  | "kennelStatus"
+  | "catEntries"
+  | "medicalNotes"
+  | "playGroups"
+  | "meetAndGreets"
+  | "photos"
+  | "notes";
 
 interface OutlineItem {
   key: SectionKey;

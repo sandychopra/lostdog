@@ -30,12 +30,10 @@ interface HistoryEntry {
   dryFoodAmount: string | null;
   wetFoodAmount: string | null;
   foodNotes: string | null;
-  medicalNotes: string | null;
   group: { id: number; cats: NamedCat[] } | null;
   groupDetails: {
     wetFoodAmount: string | null;
     foodNotes: string | null;
-    medicalNotes: string | null;
   }[];
 }
 
@@ -53,6 +51,7 @@ interface HistoryReport {
   catEntries: HistoryEntry[];
   meetAndGreets: NoteGroup[];
   playGroups: NoteGroup[];
+  medicalNotes: { id: number; note: string }[];
   photos: { id: number }[];
 }
 
@@ -82,7 +81,6 @@ function EntryDetails({ entry }: { entry: HistoryEntry }) {
       <Detail label="Dry food" value={entry.dryFoodAmount} />
       <Detail label="Wet food" value={own?.wetFoodAmount} />
       <Detail label="Food notes" value={own?.foodNotes ?? entry.foodNotes} />
-      <Detail label="Medical" value={own?.medicalNotes} />
     </div>
   );
 }
@@ -185,6 +183,12 @@ export default function CatDetailPage() {
               </header>
               {report.catEntries.map((entry) => (
                 <EntryDetails key={entry.id} entry={entry} />
+              ))}
+              {report.medicalNotes.map((m) => (
+                <p key={`med${m.id}`} className="text-sm">
+                  <span className="text-muted-foreground">Medical: </span>
+                  {m.note}
+                </p>
               ))}
               {report.meetAndGreets.map((m) => (
                 <p key={`m${m.id}`} className="text-sm">

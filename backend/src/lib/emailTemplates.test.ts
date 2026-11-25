@@ -119,9 +119,9 @@ describe("renderShiftReportEmail", () => {
           dryFoodAmount: "All",
           wetFoodAmount: "Some",
           foodNotes: null,
-          medicalNotes: "Sneezing",
         },
       ],
+      medicalNotes: [{ note: "Sneezing", cat: { id: 1, name: "Pepsi" } }],
       meetAndGreets: [{ note: "Went well", cats: [{ cat: { id: 1, name: "Pepsi" } }] }],
       playGroups: [{ note: null, cats: [{ cat: { id: 1, name: "Pepsi" } }] }],
     } as unknown as ShiftReportForEmail;
@@ -130,7 +130,7 @@ describe("renderShiftReportEmail", () => {
     expect(subject).toContain("2026-10-15 Mid-day");
     expect(text).toContain("Cleaning notes:");
     expect(text).toContain("- Pepsi");
-    expect(text).toContain("Medical notes: Sneezing");
+    expect(text).toMatch(/Medical notes:\n- Pepsi: Sneezing$/m);
     expect(text).toContain("Pepsi: Went well");
     // A blank play group note leaves no dangling colon.
     expect(text).toMatch(/Play groups:\n- Pepsi$/m);

@@ -232,6 +232,7 @@ model Cat {
   photoTags          PhotoCatTag[]
   meetAndGreetTags   MeetAndGreetCat[]
   playGroupTags      PlayGroupCat[]
+  medicalNotes       MedicalNote[]
   announcements      Announcement[]
   signTasks          SignTask[]
   checklistActions   ChecklistAction[]
@@ -320,6 +321,7 @@ model ShiftReport {
   photos        Photo[]
   meetAndGreets MeetAndGreet[]
   playGroups    PlayGroup[]
+  medicalNotes  MedicalNote[]
   kennelsStatus ShiftReportKennelStatus[]
 
   @@index([authorId])
@@ -374,7 +376,6 @@ model CatEntry {
 
   // Individual-only
   wetFoodAmount FoodAmount? @map("wet_food_amount")
-  medicalNotes  String?     @map("medical_notes")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -399,7 +400,6 @@ model GroupEntryCatDetail {
 
   wetFoodAmount FoodAmount? @map("wet_food_amount")
   foodNotes     String?     @map("food_notes")
-  medicalNotes  String?     @map("medical_notes")
 
   @@unique([catEntryId, catId])
   @@map("group_entry_cat_detail")
@@ -661,4 +661,22 @@ model ActivityLog {
 
   @@index([entityType, entityId, createdAt])
   @@map("activity_log")
+}
+
+// A shift's medical note about one cat — at most one per cat per report. Its
+// own record rather than a field on the cat's CatEntry, so a volunteer can
+// note something about any cat in care, including one with no Food card on
+// the report.
+model MedicalNote {
+  id            Int         @id @default(autoincrement())
+  shiftReportId Int         @map("shift_report_id")
+  shiftReport   ShiftReport @relation(fields: [shiftReportId], references: [id], onDelete: Cascade)
+  catId         Int         @map("cat_id")
+  cat           Cat         @relation(fields: [catId], references: [id])
+  note          String
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  @@unique([shiftReportId, catId])
+  @@index([catId])
+  @@map("medical_note")
 }

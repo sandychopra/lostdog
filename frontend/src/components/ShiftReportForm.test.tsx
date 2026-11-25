@@ -384,6 +384,69 @@ describe("ShiftReportForm", () => {
     expect(chipNames[0]).toBe("Biscuit");
   });
 
+  test("medical notes start empty; a note can be written about a cat with no Food card", async () => {
+    catsInCare = true;
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+    await waitFor(() => expect(screen.getAllByTestId("cat-entry-card")).toHaveLength(2));
+    expect(screen.queryByTestId("medical-note-card")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Add medical note" }));
+    const dialog = await screen.findByRole("dialog", { name: "New medical note" });
+
+    // Done needs a cat and a note.
+    await user.click(within(dialog).getByRole("button", { name: "Done" }));
+    expect(within(dialog).getByText("Pick a cat")).toBeInTheDocument();
+    expect(within(dialog).getByText("Write the note")).toBeInTheDocument();
+
+    // Fanta is in care but in no kennel, so has no Food card.
+    await user.selectOptions(within(dialog).getByLabelText("Cat"), "Fanta");
+    await user.type(within(dialog).getByLabelText("Note"), "Eye drops given");
+    await user.click(within(dialog).getByRole("button", { name: "Done" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    const card = screen.getByTestId("medical-note-card");
+    expect(card).toHaveTextContent("Fanta");
+    expect(card).toHaveTextContent("Eye drops given");
+
+    // A cat with a note isn't offered for a second one.
+    await user.click(screen.getByRole("button", { name: "Add medical note" }));
+    const second = await screen.findByRole("dialog", { name: "New medical note" });
+    expect(
+      within(within(second).getByLabelText("Cat")).queryByRole("option", { name: "Fanta" }),
+    ).toBeNull();
+    // Closing a new note without a cat discards it.
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getAllByTestId("medical-note-card")).toHaveLength(1);
+  });
+
+  test("medical notes are sent with the report, not on cat cards", async () => {
+    catsInCare = true;
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+    await waitFor(() => expect(screen.getAllByTestId("cat-entry-card")).toHaveLength(2));
+
+    await openEditor(user, "Pepsi");
+    expect(screen.queryByLabelText("Medical Notes")).toBeNull();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    await user.click(screen.getByRole("button", { name: "Add medical note" }));
+    const dialog = await screen.findByRole("dialog", { name: "New medical note" });
+    await user.selectOptions(within(dialog).getByLabelText("Cat"), "Pepsi");
+    await user.type(within(dialog).getByLabelText("Note"), "Sneezing");
+    await user.click(within(dialog).getByRole("button", { name: "Done" }));
+
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    const payload = post.mock.calls.at(-1)?.[1] as {
+      medicalNotes: unknown[];
+      catEntries: Record<string, unknown>[];
+    };
+    expect(payload.medicalNotes).toEqual([expect.objectContaining({ catId: 1, note: "Sneezing" })]);
+    expect(payload.catEntries.every((e) => !("medicalNotes" in e))).toBe(true);
+  });
+
   test("has a Kennel Notes field after Kennel Status", () => {
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 

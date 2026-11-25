@@ -37,7 +37,6 @@ export interface GroupEntryCatDetail {
   cat: { id: number; name: string };
   wetFoodAmount: FoodAmount | null;
   foodNotes: string | null;
-  medicalNotes: string | null;
 }
 
 export interface CatEntry {
@@ -54,7 +53,6 @@ export interface CatEntry {
   dryFoodAmount: FoodAmount | null;
   foodNotes: string | null;
   wetFoodAmount: FoodAmount | null;
-  medicalNotes: string | null;
   groupDetails: GroupEntryCatDetail[];
   photos: ShiftReportPhoto[];
 }
@@ -69,6 +67,13 @@ export interface PlayGroup {
   id: number;
   note: string | null;
   cats: { catId: number; cat: { id: number; name: string } }[];
+}
+
+export interface MedicalNote {
+  id: number;
+  catId: number;
+  note: string;
+  cat: { id: number; name: string };
 }
 
 export interface ShiftReport {
@@ -90,6 +95,7 @@ export interface ShiftReport {
   catEntries: CatEntry[];
   meetAndGreets: MeetAndGreet[];
   playGroups: PlayGroup[];
+  medicalNotes: MedicalNote[];
   kennelsStatus: {
     kennelId: number;
     reportedState: ReportableKennelState;

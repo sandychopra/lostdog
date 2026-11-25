@@ -93,11 +93,9 @@ export default function CatEntryCard({
 
   const untouched = isCatEntryUntouched(entry);
   const fecal = formatFecalScore(entry);
-  const notes = [
-    preview(entry.peePoopNotes),
-    preview(entry.foodNotes),
-    !isGroup ? preview(entry.medicalNotes) : null,
-  ].filter((n): n is string => n !== null);
+  const notes = [preview(entry.peePoopNotes), preview(entry.foodNotes)].filter(
+    (n): n is string => n !== null,
+  );
 
   function closeEditor() {
     setEditing(false);

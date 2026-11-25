@@ -47,6 +47,7 @@ export const shiftReportEmailInclude = {
   },
   meetAndGreets: { orderBy: { id: "asc" }, include: { cats: { include: { cat: catSelect } } } },
   playGroups: { orderBy: { id: "asc" }, include: { cats: { include: { cat: catSelect } } } },
+  medicalNotes: { orderBy: { cat: { name: "asc" } }, include: { cat: catSelect } },
   kennelsStatus: { include: { kennel: kennelSelect } },
 } satisfies Prisma.ShiftReportInclude;
 
@@ -221,11 +222,7 @@ export function renderShiftReportEmail(report: ShiftReportForEmail): EmailMessag
         lines.push(
           `  ${detail.cat.name}:`,
           ...compact(
-            [
-              field("Wet food", detail.wetFoodAmount),
-              field("Food notes", detail.foodNotes),
-              field("Medical notes", detail.medicalNotes),
-            ],
+            [field("Wet food", detail.wetFoodAmount), field("Food notes", detail.foodNotes)],
             "    ",
           ),
         );
@@ -237,10 +234,14 @@ export function renderShiftReportEmail(report: ShiftReportForEmail): EmailMessag
           ...shared,
           field("Wet food", entry.wetFoodAmount),
           field("Food notes", entry.foodNotes),
-          field("Medical notes", entry.medicalNotes),
         ]),
       );
     }
+  }
+
+  if (report.medicalNotes.length > 0) {
+    lines.push("", "Medical notes:");
+    for (const m of report.medicalNotes) lines.push(`- ${m.cat.name}: ${m.note}`);
   }
 
   if (report.meetAndGreets.length > 0) {

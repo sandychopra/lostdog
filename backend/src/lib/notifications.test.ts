@@ -98,6 +98,7 @@ function addShiftReport(overrides: Partial<Row> = {}): Row {
     catEntries: [],
     meetAndGreets: [],
     playGroups: [],
+    medicalNotes: [],
     kennelsStatus: [],
     emailSentAt: null,
     emailAttempts: 0,

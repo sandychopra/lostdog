@@ -38,7 +38,6 @@ const groupEntryCatDetailSchema = z.object({
   catId: z.coerce.number("Cat is required").int().positive("Cat is required"),
   wetFoodAmount: foodAmountField,
   foodNotes: z.string().trim().optional().transform(emptyToUndefined),
-  medicalNotes: z.string().trim().optional().transform(emptyToUndefined),
 });
 
 const individualCatEntrySchema = z.object({
@@ -52,7 +51,6 @@ const individualCatEntrySchema = z.object({
   dryFoodAmount: foodAmountField,
   wetFoodAmount: foodAmountField,
   foodNotes: z.string().trim().optional().transform(emptyToUndefined),
-  medicalNotes: z.string().trim().optional().transform(emptyToUndefined),
 });
 
 function buildGroupCatEntrySchema(strict: boolean) {
@@ -78,11 +76,9 @@ type EntryContent = {
   dryFoodAmount?: string | null;
   wetFoodAmount?: string | null;
   foodNotes?: string | null;
-  medicalNotes?: string | null;
   catDetails?: readonly {
     wetFoodAmount?: string | null;
     foodNotes?: string | null;
-    medicalNotes?: string | null;
   }[];
 };
 
@@ -103,10 +99,7 @@ export function isCatEntryUntouched(entry: EntryContent): boolean {
     filled(entry.dryFoodAmount) ||
     filled(entry.wetFoodAmount) ||
     filled(entry.foodNotes) ||
-    filled(entry.medicalNotes) ||
-    (entry.catDetails ?? []).some(
-      (d) => filled(d.wetFoodAmount) || filled(d.foodNotes) || filled(d.medicalNotes),
-    );
+    (entry.catDetails ?? []).some((d) => filled(d.wetFoodAmount) || filled(d.foodNotes));
   return !recorded;
 }
 
@@ -168,6 +161,17 @@ function buildShiftTypeField(strict: boolean) {
   return z.preprocess(emptyToUndefined, strict ? shiftType : shiftType.optional());
 }
 
+// One note about one cat (at most one per cat per report). A draft can hold
+// a half-written one; submitting needs the text.
+function buildMedicalNoteSchema(strict: boolean) {
+  const note = z.string().trim();
+  return z.object({
+    id: z.coerce.number().int().positive().optional(),
+    catId: z.coerce.number("Pick a cat").int().positive("Pick a cat"),
+    note: strict ? note.min(1, "Write the note") : note.default(""),
+  });
+}
+
 function buildShiftReportFields(strict: boolean) {
   return {
     shiftType: buildShiftTypeField(strict),
@@ -181,6 +185,13 @@ function buildShiftReportFields(strict: boolean) {
     catEntries: z.array(buildCatEntrySchema(strict)).default([]),
     meetAndGreets: z.array(buildMeetAndGreetSchema(strict)).default([]),
     playGroups: z.array(buildPlayGroupSchema(strict)).default([]),
+    medicalNotes: z
+      .array(buildMedicalNoteSchema(strict))
+      .refine(
+        (notes) => new Set(notes.map((n) => n.catId)).size === notes.length,
+        "Only one medical note per cat",
+      )
+      .default([]),
     kennelsStatus: z
       .array(kennelStatusSchema)
       .refine(
@@ -197,6 +208,7 @@ export type GroupCatEntryInput = z.infer<ReturnType<typeof buildGroupCatEntrySch
 export type CatEntryInput = z.infer<ReturnType<typeof buildCatEntrySchema>>;
 export type MeetAndGreetInput = z.infer<ReturnType<typeof buildMeetAndGreetSchema>>;
 export type PlayGroupInput = z.infer<ReturnType<typeof buildPlayGroupSchema>>;
+export type MedicalNoteInput = z.infer<ReturnType<typeof buildMedicalNoteSchema>>;
 export type KennelStatusInput = z.infer<typeof kennelStatusSchema>;
 
 export const createShiftReportSchema = z
