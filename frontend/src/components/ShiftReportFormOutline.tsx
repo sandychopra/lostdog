@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 export type SectionKey =
   "kennelStatus" | "catEntries" | "playGroups" | "meetAndGreets" | "photos" | "notes";
 
@@ -11,6 +13,8 @@ interface OutlineItem {
 interface ShiftReportFormOutlineProps {
   items: OutlineItem[];
   onBeforeNavigate: (key: SectionKey) => void;
+  /** Save status, pinned to the end of the bar so it's always in view. */
+  status?: ReactNode;
 }
 
 // Sticky mini-nav of section pills with live counts, so a volunteer resuming
@@ -18,9 +22,10 @@ interface ShiftReportFormOutlineProps {
 export default function ShiftReportFormOutline({
   items,
   onBeforeNavigate,
+  status,
 }: ShiftReportFormOutlineProps) {
   return (
-    <div className="sticky top-0 z-10 -mx-1 flex flex-wrap gap-2 border-b border-input bg-white/95 px-1 py-2 backdrop-blur">
+    <div className="sticky top-0 z-10 -mx-1 flex flex-wrap items-center gap-2 border-b border-input bg-white/95 px-1 py-2 backdrop-blur">
       {items.map((item) => (
         <a
           key={item.key}
@@ -31,6 +36,7 @@ export default function ShiftReportFormOutline({
           {item.label} ({item.count})
         </a>
       ))}
+      {status && <div className="ml-auto text-xs">{status}</div>}
     </div>
   );
 }

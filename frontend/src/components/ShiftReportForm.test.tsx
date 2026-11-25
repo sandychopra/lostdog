@@ -79,9 +79,13 @@ const get = mock(async (url: string) => {
   }
   throw new Error(`Unexpected GET ${url}`);
 });
-const post = mock(async (_url: string, _payload: unknown) => ({
-  data: { shiftReport: { id: 1, catEntries: [] } },
-}));
+// Lets a test hold the report save open to line up a race.
+let reportSaveGate: Promise<void> | null = null;
+const post = mock(async (url: string, _payload: unknown) => {
+  if (url === "/api/photos") return { data: { photo: { id: 99, tags: [] } } };
+  if (reportSaveGate) await reportSaveGate;
+  return { data: { shiftReport: { id: 1, catEntries: [] } } };
+});
 
 const put = mock(async (_url: string, _payload: unknown) => ({
   data: { shiftReport: { id: 1, catEntries: [] } },
@@ -93,6 +97,11 @@ mock.module("../lib/api", () => ({
 
 const { default: ShiftReportForm } = await import("./ShiftReportForm");
 
+function hidePage() {
+  Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+  document.dispatchEvent(new Event("visibilitychange"));
+}
+
 async function openEditor(user: ReturnType<typeof userEvent.setup>, title: string) {
   await user.click(await screen.findByRole("button", { name: `Actions for ${title}` }));
   await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
@@ -102,12 +111,14 @@ async function openEditor(user: ReturnType<typeof userEvent.setup>, title: strin
 describe("ShiftReportForm", () => {
   beforeEach(() => {
     catsInCare = false;
+    reportSaveGate = null;
     get.mockClear();
     post.mockClear();
     put.mockClear();
   });
 
   afterEach(() => {
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
     mock.restore();
   });
 
@@ -220,7 +231,7 @@ describe("ShiftReportForm", () => {
     expect(within(picker).queryByRole("option", { name: "Pepsi" })).not.toBeInTheDocument();
   });
 
-  test("a blank play group doesn't block Collapse or Save Draft", async () => {
+  test("a blank play group doesn't block Collapse or saving a draft", async () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
@@ -231,7 +242,7 @@ describe("ShiftReportForm", () => {
     await user.click(within(section).getByRole("button", { name: "Collapse" }));
     await waitFor(() => expect(trigger.getAttribute("aria-expanded")).toBe("false"));
 
-    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    hidePage();
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
     expect(post).toHaveBeenCalledWith(
       "/api/shift-reports",
@@ -370,10 +381,7 @@ describe("ShiftReportForm", () => {
 
     await user.selectOptions(screen.getByLabelText("Shift Type"), "Evening");
 
-    const hide = () => {
-      Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
-      document.dispatchEvent(new Event("visibilitychange"));
-    };
+    const hide = hidePage;
     hide();
 
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
@@ -385,7 +393,38 @@ describe("ShiftReportForm", () => {
     hide();
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(post).toHaveBeenCalledTimes(1);
+  });
 
-    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+  test("there's no Save Draft button; drafts autosave", () => {
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+    expect(screen.queryByRole("button", { name: "Save Draft" })).toBeNull();
+    expect(screen.getByText("Autosaves as you go")).toBeInTheDocument();
+  });
+
+  test("submitting while an autosave is running uploads a queued photo only once", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+    await user.selectOptions(screen.getByLabelText("Shift Type"), "Morning");
+
+    const input = document.querySelector<HTMLInputElement>('input[type="file"][multiple]')!;
+    await user.upload(
+      input, // GIFs skip client-side resizing, which needs a real canvas.
+      new File(["x"], "cat.gif", { type: "image/gif" }),
+    );
+
+    let release!: () => void;
+    reportSaveGate = new Promise((resolve) => (release = resolve));
+    hidePage(); // autosave starts and stalls on the report save
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+
+    await user.click(screen.getByRole("button", { name: "Submit Report" }));
+    release();
+
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const photoPosts = post.mock.calls.filter(([url]) => url === "/api/photos");
+    expect(photoPosts).toHaveLength(1);
+    const body = photoPosts[0]![1] as FormData;
+    expect(body.get("clientUploadId")).toBeTruthy();
   });
 });

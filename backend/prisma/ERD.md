@@ -175,6 +175,7 @@ erDiagram
     String thumbnail_key "❓"
     DateTime uploaded_at 
     Int cat_entry_id "❓"
+    String client_upload_id "❓"
     }
   
 

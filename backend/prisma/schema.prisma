@@ -421,18 +421,21 @@ model ProbioticDose {
 }
 
 model Photo {
-  id            Int         @id @default(autoincrement())
-  shiftReportId Int         @map("shift_report_id")
-  shiftReport   ShiftReport @relation(fields: [shiftReportId], references: [id], onDelete: Cascade)
-  uploadedById  String      @map("uploaded_by_id")
-  uploadedBy    User        @relation(fields: [uploadedById], references: [id])
-  storageKey    String      @map("storage_key")
+  id             Int         @id @default(autoincrement())
+  shiftReportId  Int         @map("shift_report_id")
+  shiftReport    ShiftReport @relation(fields: [shiftReportId], references: [id], onDelete: Cascade)
+  uploadedById   String      @map("uploaded_by_id")
+  uploadedBy     User        @relation(fields: [uploadedById], references: [id])
+  storageKey     String      @map("storage_key")
   // Null when the thumbnail couldn't be generated (e.g. a HEIC sharp can't
   // decode); views then fall back to the original.
-  thumbnailKey  String?     @map("thumbnail_key")
-  uploadedAt    DateTime    @default(now()) @map("uploaded_at")
-  catEntryId    Int?        @map("cat_entry_id")
-  catEntry      CatEntry?   @relation(fields: [catEntryId], references: [id])
+  thumbnailKey   String?     @map("thumbnail_key")
+  uploadedAt     DateTime    @default(now()) @map("uploaded_at")
+  catEntryId     Int?        @map("cat_entry_id")
+  catEntry       CatEntry?   @relation(fields: [catEntryId], references: [id])
+  // Random id the client generates once per queued photo, so a retried or
+  // duplicated upload returns the existing row instead of a second copy.
+  clientUploadId String?     @unique @map("client_upload_id")
 
   tags PhotoCatTag[]
 

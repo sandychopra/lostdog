@@ -9,9 +9,20 @@ import { Role } from "shared/constants/role.ts";
 import { authClient } from "../lib/auth-client";
 import { cn } from "../lib/utils";
 
+// crypto.randomUUID only exists in secure contexts; getRandomValues works on a
+// plain-http LAN address too (e.g. testing on a phone).
+function newClientUploadId(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
 export interface QueuedPhoto {
   file: File;
   catIds: number[];
+  /** Sent with the upload so a retried/duplicated send can't store it twice. */
+  clientUploadId: string;
 }
 
 export interface UploadedPhotoSummary {
@@ -161,7 +172,11 @@ export default function PhotoUploadSection({
     if (!files || files.length === 0) return;
     onQueuedChange([
       ...queued,
-      ...Array.from(files).map((file) => ({ file, catIds: [] as number[] })),
+      ...Array.from(files).map((file) => ({
+        file,
+        catIds: [] as number[],
+        clientUploadId: newClientUploadId(),
+      })),
     ]);
   }
 

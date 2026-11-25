@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Controller, useFieldArray, useForm, useWatch, type FieldErrors } from "react-hook-form";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createShiftReportSchema,
   updateShiftReportSchema,
@@ -113,8 +113,14 @@ function mapReportToDefaultValues(report: ShiftReport): DraftShiftReportInput {
   };
 }
 
-async function uploadPhoto(args: { file: File; shiftReportId: number; catIds: number[] }) {
+async function uploadPhoto(args: {
+  file: File;
+  shiftReportId: number;
+  catIds: number[];
+  clientUploadId: string;
+}) {
   const formData = new FormData();
+  formData.append("clientUploadId", args.clientUploadId);
   formData.append("photo", await prepareImageForUpload(args.file));
   formData.append("shiftReportId", String(args.shiftReportId));
   if (args.catIds.length > 0) formData.append("catIds", JSON.stringify(args.catIds));
@@ -183,13 +189,14 @@ export default function ShiftReportForm({
   // the `report` prop (which won't update after the parent's background
   // re-fetch without a full remount — see handleSaveDraft/onDraftCreated).
   const [createdReport, setCreatedReport] = useState<ShiftReport | undefined>(report);
-  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(() =>
+    report ? new Date(report.updatedAt) : null,
+  );
   const [submitAttemptError, setSubmitAttemptError] = useState<string | null>(null);
   const [autosaveStatus, setAutosaveStatus] = useState<"idle" | "saving" | "error">("idle");
   // Unsaved changes exist. A ref (not RHF's isDirty) so edits made while a
   // save is in flight aren't wiped by a post-save reset.
   const dirtyRef = useRef(false);
-  const autosavingRef = useRef(false);
   const autosaveRef = useRef<() => Promise<void>>(async () => {});
 
   const catEntries = useFieldArray({ control, name: "catEntries" });
@@ -300,36 +307,49 @@ export default function ShiftReportForm({
 
   const catOptions = (cats ?? []).map((c) => ({ id: c.id, name: c.name }));
 
+  // The saved report's id, as a ref so a save that starts right after the
+  // first draft was created PUTs to it instead of POSTing a second report.
+  const reportIdRef = useRef<number | undefined>(report?.id);
+
   async function sendReport(payload: CreateShiftReportInput & { status: ShiftReportStatus }) {
-    const existingId = createdReport?.id ?? report?.id;
+    const existingId = reportIdRef.current;
     const { data } = existingId
       ? await api.put(`/api/shift-reports/${existingId}`, payload)
       : await api.post("/api/shift-reports", payload);
-    return data.shiftReport as ShiftReport;
+    const saved = data.shiftReport as ShiftReport;
+    reportIdRef.current = saved.id;
+    return saved;
   }
 
-  const mutation = useMutation({ mutationFn: sendReport });
+  // Latest queue, read at upload time rather than captured by a render's
+  // closure, so a save never re-sends a photo an earlier save just uploaded.
+  const photoQueueRef = useRef(photoQueue);
+  useEffect(() => {
+    photoQueueRef.current = photoQueue;
+  }, [photoQueue]);
 
-  // Uploads the queued photos, then drops the ones that succeeded from the
-  // queue — otherwise every later save (autosave included) would upload them
-  // again. Failed uploads stay queued to retry on the next save.
+  // Uploads the queued photos, dropping each from the queue as soon as it's
+  // stored. Failed uploads stay queued to retry on the next save; the
+  // clientUploadId makes a retry of one that actually reached the server
+  // return the stored photo rather than a duplicate.
+  // Uploaded ids are tracked here too: the queue state (and its ref) only
+  // catches up on the next render, which may come after the next save starts.
+  const uploadedClientIdsRef = useRef(new Set<string>());
   async function syncQueuedPhotos(saved: ShiftReport) {
-    const batch = photoQueue;
-    if (batch.length === 0) return;
-    const results = await Promise.allSettled(
-      batch.map((photo) =>
-        uploadPhoto({ file: photo.file, shiftReportId: saved.id, catIds: photo.catIds }),
-      ),
+    const batch = photoQueueRef.current.filter(
+      (photo) => !uploadedClientIdsRef.current.has(photo.clientUploadId),
     );
-    const done = new Set<QueuedPhoto>();
-    const added: UploadedPhotoSummary[] = [];
-    results.forEach((result, i) => {
-      if (result.status !== "fulfilled") return;
-      done.add(batch[i]!);
-      added.push(result.value.data.photo as UploadedPhotoSummary);
-    });
-    setPhotoQueue((prev) => prev.filter((photo) => !done.has(photo)));
-    setUploadedPhotos((prev) => [...prev, ...added]);
+    await Promise.allSettled(
+      batch.map(async (photo) => {
+        const { data } = await uploadPhoto({ ...photo, shiftReportId: saved.id });
+        const uploaded = data.photo as UploadedPhotoSummary;
+        uploadedClientIdsRef.current.add(photo.clientUploadId);
+        setPhotoQueue((prev) => prev.filter((p) => p.clientUploadId !== photo.clientUploadId));
+        setUploadedPhotos((prev) =>
+          prev.some((p) => p.id === uploaded.id) ? prev : [...prev, uploaded],
+        );
+      }),
+    );
   }
 
   function invalidateShiftReportQueries() {
@@ -338,36 +358,43 @@ export default function ShiftReportForm({
     queryClient.invalidateQueries({ queryKey: ["kennels"] });
   }
 
-  async function handleSaveDraft(data: CreateShiftReportInput) {
-    const wasNew = createdReport === undefined && report === undefined;
-    dirtyRef.current = false;
-    let saved: ShiftReport;
-    try {
-      saved = await mutation.mutateAsync({ ...data, status: ShiftReportStatus.Draft });
-    } catch (error) {
-      dirtyRef.current = true;
-      throw error;
-    }
-    await syncQueuedPhotos(saved);
-    setAutosaveStatus("idle");
-    setCreatedReport(saved);
-    setLastSavedAt(new Date());
-    setSubmitAttemptError(null);
-    invalidateShiftReportQueries();
-    if (wasNew) {
-      // Seed the cache for the edit-page query the URL swap below is about
-      // to trigger, so it resolves from cache instead of showing a loading
-      // skeleton for a report the volunteer is already looking at.
-      queryClient.setQueryData(["shiftReports", String(saved.id)], saved);
-      onDraftCreated?.(saved.id);
-    }
+  // Every save (autosave or submit) — the report and then its queued photos
+  // — runs one at a time through here. Overlapping saves were how a photo
+  // could be uploaded twice.
+  const inFlightRef = useRef<Promise<void> | null>(null);
+  function runExclusive(task: () => Promise<void>): Promise<void> {
+    const run = task().finally(() => {
+      if (inFlightRef.current === run) inFlightRef.current = null;
+    });
+    inFlightRef.current = run;
+    return run;
   }
 
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const [submitError, setSubmitError] = useState<unknown>(null);
+
   async function handleSubmitReport(data: CreateShiftReportInput) {
-    const saved = await mutation.mutateAsync({ ...data, status: ShiftReportStatus.Submitted });
-    await syncQueuedPhotos(saved);
-    invalidateShiftReportQueries();
-    onSuccess(saved.id);
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      // Let a running autosave finish first, so the two can't race.
+      await inFlightRef.current?.catch(() => {});
+      await runExclusive(async () => {
+        const saved = await sendReport({ ...data, status: ShiftReportStatus.Submitted });
+        dirtyRef.current = false;
+        await syncQueuedPhotos(saved);
+        invalidateShiftReportQueries();
+        onSuccess(saved.id);
+      });
+    } catch (error) {
+      setSubmitError(error);
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
   }
 
   const isAlreadySubmitted =
@@ -375,32 +402,44 @@ export default function ShiftReportForm({
 
   // Silent background draft save: no error banner (a failure just shows a
   // quiet status and retries on the next trigger), and no-op when there is
-  // nothing new, another save is running, or the report is already submitted.
+  // nothing new or the report is already submitted. If another save is
+  // running, it tries again once that one finishes.
+  const autosaveAgainRef = useRef(false);
   async function autosave() {
-    if (autosavingRef.current || mutation.isPending || isAlreadySubmitted) return;
+    if (isAlreadySubmitted || submittingRef.current) return;
     if (!dirtyRef.current) return;
+    if (inFlightRef.current) {
+      autosaveAgainRef.current = true;
+      return;
+    }
     const parsed = draftShiftReportSchema.safeParse(form.getValues());
     if (!parsed.success) return;
-    autosavingRef.current = true;
     setAutosaveStatus("saving");
     dirtyRef.current = false;
-    try {
-      const wasNew = createdReport === undefined && report === undefined;
-      const saved = await sendReport({ ...parsed.data, status: ShiftReportStatus.Draft });
-      await syncQueuedPhotos(saved);
-      setCreatedReport(saved);
-      setLastSavedAt(new Date());
-      setAutosaveStatus("idle");
-      invalidateShiftReportQueries();
-      if (wasNew) {
-        queryClient.setQueryData(["shiftReports", String(saved.id)], saved);
-        onDraftCreated?.(saved.id);
+    await runExclusive(async () => {
+      try {
+        const wasNew = reportIdRef.current === undefined;
+        const saved = await sendReport({ ...parsed.data, status: ShiftReportStatus.Draft });
+        await syncQueuedPhotos(saved);
+        setCreatedReport(saved);
+        setLastSavedAt(new Date());
+        setAutosaveStatus("idle");
+        invalidateShiftReportQueries();
+        if (wasNew) {
+          // Seed the cache for the edit-page query the URL swap below is
+          // about to trigger, so it resolves from cache instead of showing a
+          // loading skeleton for a report the volunteer is already looking at.
+          queryClient.setQueryData(["shiftReports", String(saved.id)], saved);
+          onDraftCreated?.(saved.id);
+        }
+      } catch {
+        dirtyRef.current = true;
+        setAutosaveStatus("error");
       }
-    } catch {
-      dirtyRef.current = true;
-      setAutosaveStatus("error");
-    } finally {
-      autosavingRef.current = false;
+    });
+    if (autosaveAgainRef.current) {
+      autosaveAgainRef.current = false;
+      void autosaveRef.current();
     }
   }
 
@@ -481,11 +520,6 @@ export default function ShiftReportForm({
       setSubmitAttemptError(null);
       void handleSubmitReport(result.data);
     }, handleInvalid)();
-  }
-
-  function handleSaveDraftClick() {
-    if (autosavingRef.current) return;
-    form.handleSubmit((data) => handleSaveDraft(data), handleInvalid)();
   }
 
   function individualEntry(catId: number): DraftShiftReportInput["catEntries"][number] {
@@ -639,6 +673,20 @@ export default function ShiftReportForm({
           },
         ]}
         onBeforeNavigate={(key) => setCollapsedSections((prev) => ({ ...prev, [key]: false }))}
+        status={
+          isAlreadySubmitted ? null : autosaveStatus === "saving" ? (
+            <span className="text-muted-foreground">Saving…</span>
+          ) : autosaveStatus === "error" ? (
+            <span className="text-destructive">Not saved — will retry</span>
+          ) : lastSavedAt ? (
+            <span className="text-muted-foreground">
+              Draft saved ·{" "}
+              {lastSavedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">Autosaves as you go</span>
+          )
+        }
       />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
@@ -805,34 +853,13 @@ export default function ShiftReportForm({
       </CollapsibleSection>
 
       {submitAttemptError && <ErrorAlert message={submitAttemptError} />}
-      {mutation.error !== null && (
-        <ErrorAlert error={mutation.error} fallback="Failed to save shift report" />
+      {submitError !== null && (
+        <ErrorAlert error={submitError} fallback="Failed to save shift report" />
       )}
 
-      <div className="flex items-center justify-end gap-3">
-        {autosaveStatus === "saving" ? (
-          <span className="text-sm text-muted-foreground">Autosaving...</span>
-        ) : autosaveStatus === "error" ? (
-          <span className="text-sm text-destructive">Autosave failed — will retry</span>
-        ) : (
-          lastSavedAt && (
-            <span className="text-sm text-muted-foreground">
-              Saved as draft · {lastSavedAt.toLocaleTimeString()}
-            </span>
-          )
-        )}
-        {!isAlreadySubmitted && (
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={mutation.isPending || autosaveStatus === "saving"}
-            onClick={handleSaveDraftClick}
-          >
-            {mutation.isPending ? "Saving..." : "Save Draft"}
-          </Button>
-        )}
-        <Button type="button" disabled={mutation.isPending} onClick={handleSubmitClick}>
-          {mutation.isPending ? "Saving..." : isAlreadySubmitted ? "Save Changes" : "Submit Report"}
+      <div className="flex justify-end">
+        <Button type="button" disabled={submitting} onClick={handleSubmitClick}>
+          {submitting ? "Saving..." : isAlreadySubmitted ? "Save Changes" : "Submit Report"}
         </Button>
       </div>
     </form>
