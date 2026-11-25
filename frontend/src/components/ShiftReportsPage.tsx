@@ -6,7 +6,19 @@ import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { NativeSelect, NativeSelectOption } from "./ui/native-select";
 import { Input } from "./ui/input";
-import ShiftReportsTable from "./ShiftReportsTable";
+import ShiftReportsTable, { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "./ShiftReportsTable";
+
+const PAGE_SIZE_STORAGE_KEY = "shiftReports.pageSize";
+
+// Each person's last "per page" choice, kept on their device.
+function readSavedPageSize(): number {
+  try {
+    const saved = Number(localStorage.getItem(PAGE_SIZE_STORAGE_KEY));
+    return (PAGE_SIZE_OPTIONS as readonly number[]).includes(saved) ? saved : DEFAULT_PAGE_SIZE;
+  } catch {
+    return DEFAULT_PAGE_SIZE;
+  }
+}
 import AppLayout from "./AppLayout";
 
 export default function ShiftReportsPage() {
@@ -15,6 +27,7 @@ export default function ShiftReportsPage() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(readSavedPageSize);
 
   const { data: cats } = useCatOptions();
   const { data: kennels } = useQuery({
@@ -125,6 +138,16 @@ export default function ShiftReportsPage() {
       <ShiftReportsTable
         filters={filters}
         page={page}
+        pageSize={pageSize}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPage(1);
+          try {
+            localStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(size));
+          } catch {
+            // Storage can be unavailable (private mode); the choice just isn't kept.
+          }
+        }}
         onPageChange={(next) => {
           setPage(next);
           window.scrollTo({ top: 0 });

@@ -12,6 +12,7 @@ import { cn } from "../lib/utils";
 import ErrorAlert from "./ErrorAlert";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
+import { NativeSelect, NativeSelectOption } from "./ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Skeleton } from "./ui/skeleton";
 import { Card } from "./ui/card";
@@ -113,27 +114,32 @@ export interface ShiftReportFilters {
   to?: string;
 }
 
-export const REPORTS_PAGE_SIZE = 25;
+export const PAGE_SIZE_OPTIONS = [5, 10, 25] as const;
+export const DEFAULT_PAGE_SIZE = 10;
 
 interface ShiftReportsTableProps {
   filters?: ShiftReportFilters;
   /** 1-based. */
   page?: number;
   onPageChange?: (page: number) => void;
+  pageSize?: number;
+  onPageSizeChange?: (size: number) => void;
 }
 
 export default function ShiftReportsTable({
   filters = {},
   page = 1,
   onPageChange,
+  pageSize = DEFAULT_PAGE_SIZE,
+  onPageSizeChange,
 }: ShiftReportsTableProps) {
   const { data, isLoading, isPlaceholderData, error } = useQuery({
-    queryKey: ["shiftReports", "list", filters, page],
+    queryKey: ["shiftReports", "list", filters, page, pageSize],
     queryFn: async () => {
       const { data } = await api.get<{ shiftReports: ShiftReport[]; total: number }>(
         "/api/shift-reports",
         {
-          params: { ...filters, limit: REPORTS_PAGE_SIZE, offset: (page - 1) * REPORTS_PAGE_SIZE },
+          params: { ...filters, limit: pageSize, offset: (page - 1) * pageSize },
         },
       );
       return data;
@@ -143,7 +149,7 @@ export default function ShiftReportsTable({
     placeholderData: keepPreviousData,
   });
   const shiftReports = data?.shiftReports;
-  const totalPages = data ? Math.max(1, Math.ceil(data.total / REPORTS_PAGE_SIZE)) : 1;
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1;
 
   if (error) {
     return <ErrorAlert message="Failed to fetch shift reports" />;
@@ -231,33 +237,54 @@ export default function ShiftReportsTable({
       {shiftReports && shiftReports.length === 0 && (
         <p className="mt-4 text-sm text-muted-foreground">No shift reports match.</p>
       )}
-      {onPageChange && data && totalPages > 1 && (
+      {onPageChange && data && data.total > 0 && (
         <nav
           aria-label="Pagination"
           className={cn(
-            "mt-4 flex items-center justify-center gap-3",
+            "mt-4 flex flex-wrap items-center justify-center gap-3",
             isPlaceholderData && "opacity-60",
           )}
         >
-          <Button
-            variant="secondary"
-            disabled={page <= 1 || isPlaceholderData}
-            onClick={() => onPageChange(page - 1)}
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Prev
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            Page {Math.min(page, totalPages)} of {totalPages}
-          </span>
-          <Button
-            variant="secondary"
-            disabled={page >= totalPages || isPlaceholderData}
-            onClick={() => onPageChange(page + 1)}
-          >
-            Next
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+          {totalPages > 1 && (
+            <>
+              <Button
+                variant="secondary"
+                disabled={page <= 1 || isPlaceholderData}
+                onClick={() => onPageChange(page - 1)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Prev
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {Math.min(page, totalPages)} of {totalPages}
+              </span>
+              <Button
+                variant="secondary"
+                disabled={page >= totalPages || isPlaceholderData}
+                onClick={() => onPageChange(page + 1)}
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+          {onPageSizeChange && (
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              Per page
+              <NativeSelect
+                aria-label="Reports per page"
+                className="w-20"
+                value={String(pageSize)}
+                onChange={(e) => onPageSizeChange(Number(e.target.value))}
+              >
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <NativeSelectOption key={size} value={String(size)}>
+                    {size}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </label>
+          )}
         </nav>
       )}
     </>
