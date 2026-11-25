@@ -290,6 +290,22 @@ describe("ShiftReportForm", () => {
     expect(within(section).queryByRole("button", { name: "Remove Pepsi" })).toBeNull();
   });
 
+  test("a play group can select every cat on the report at once", async () => {
+    catsInCare = true;
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+    await waitFor(() => expect(screen.getAllByTestId("cat-entry-card")).toHaveLength(2));
+
+    await user.click(screen.getByRole("button", { name: "Add Play Group" }));
+    const section = document.getElementById("section-playGroups")!;
+    await user.click(within(section).getByRole("button", { name: "Select all cats" }));
+
+    for (const name of ["Pepsi", "Sprite", "Nehi"]) {
+      expect(within(section).getByRole("button", { name: `Remove ${name}` })).toBeInTheDocument();
+    }
+    expect(within(section).getByLabelText("General note (optional)")).toBeInTheDocument();
+  });
+
   test("has a Kennel Notes field after Kennel Status", () => {
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 

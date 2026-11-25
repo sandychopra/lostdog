@@ -20,6 +20,13 @@ interface CatNoteGroupListProps {
   collapsed: boolean;
   onToggleCollapsed: () => void;
   isEdit: boolean;
+  /**
+   * When set, each entry gets a "Select all cats" button that tags these cats
+   * (every cat on the report) at once — for play groups where everyone played
+   * together. The volunteer can then remove any who didn't.
+   */
+  selectAllCatIds?: number[];
+  noteLabel?: string;
 }
 
 export interface CatNoteGroupListHandle {
@@ -62,6 +69,8 @@ function GroupEntry({
   collapsed,
   onToggleCollapsed,
   onRemove,
+  selectAllCatIds,
+  noteLabel = "Note (optional)",
 }: {
   form: ShiftReportFormApi;
   name: GroupFieldName;
@@ -70,6 +79,8 @@ function GroupEntry({
   collapsed: boolean;
   onToggleCollapsed: () => void;
   onRemove: () => void;
+  selectAllCatIds?: number[];
+  noteLabel?: string;
 }) {
   const { register, formState } = form;
   const errors = formState.errors[name]?.[index];
@@ -95,8 +106,25 @@ function GroupEntry({
       onSave={handleSave}
     >
       <GroupCatIds form={form} name={name} index={index} catOptions={catOptions} />
+      {selectAllCatIds && selectAllCatIds.length > 0 && (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled={selectAllCatIds.every((id) => catIds.includes(id))}
+          onClick={() =>
+            form.setValue(
+              `${name}.${index}.catIds` as const,
+              [...new Set([...catIds, ...selectAllCatIds])],
+              { shouldValidate: true, shouldDirty: true },
+            )
+          }
+        >
+          Select all cats
+        </Button>
+      )}
       <ErrorMessage message={errors?.catIds?.message ?? errors?.catIds?.root?.message} />
-      <Label htmlFor={`${name}.${index}.note`}>Note (optional)</Label>
+      <Label htmlFor={`${name}.${index}.note`}>{noteLabel}</Label>
       <Textarea
         id={`${name}.${index}.note`}
         className="min-h-16"
@@ -108,7 +136,18 @@ function GroupEntry({
 
 const CatNoteGroupList = forwardRef<CatNoteGroupListHandle, CatNoteGroupListProps>(
   function CatNoteGroupList(
-    { form, name, title, addLabel, catOptions, collapsed, onToggleCollapsed, isEdit },
+    {
+      form,
+      name,
+      title,
+      addLabel,
+      catOptions,
+      collapsed,
+      onToggleCollapsed,
+      isEdit,
+      selectAllCatIds,
+      noteLabel,
+    },
     ref,
   ) {
     const { control } = form;
@@ -200,6 +239,8 @@ const CatNoteGroupList = forwardRef<CatNoteGroupListHandle, CatNoteGroupListProp
             collapsed={collapsedIds.has(field.id)}
             onToggleCollapsed={() => toggleEntryCollapsed(field.id)}
             onRemove={() => fieldArray.remove(index)}
+            selectAllCatIds={selectAllCatIds}
+            noteLabel={noteLabel}
           />
         ))}
       </CollapsibleSection>

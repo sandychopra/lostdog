@@ -592,6 +592,16 @@ export default function ShiftReportForm({
   const playGroupValues = useWatch({ control, name: "playGroups" }) ?? [];
   const meetAndGreetValues = useWatch({ control, name: "meetAndGreets" }) ?? [];
   const kennelsStatusValues = useWatch({ control, name: "kennelsStatus" }) ?? [];
+  // Every cat with a card on this report (group cards contribute each member).
+  const reportCatIds = [
+    ...new Set(
+      catEntryValues.flatMap((e) =>
+        e.entryType === CatEntryType.Individual
+          ? [Number(e.catId)]
+          : (e.catDetails ?? []).map((d) => Number(d.catId)),
+      ),
+    ),
+  ].filter((id) => Number.isInteger(id) && id > 0);
   const usedCatIds = new Set(
     catEntryValues
       .filter((e) => e.entryType === CatEntryType.Individual)
@@ -795,6 +805,8 @@ export default function ShiftReportForm({
         title="Play Groups"
         addLabel="Add Play Group"
         catOptions={catOptions}
+        selectAllCatIds={reportCatIds}
+        noteLabel="General note (optional)"
         collapsed={collapsedSections.playGroups}
         onToggleCollapsed={() => toggleSection("playGroups")}
         isEdit={isEdit}
