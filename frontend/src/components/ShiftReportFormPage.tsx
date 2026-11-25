@@ -1,16 +1,24 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { api } from "../lib/api";
 import ErrorAlert from "./ErrorAlert";
 import { Skeleton } from "./ui/skeleton";
 import ShiftReportForm from "./ShiftReportForm";
 import type { ShiftReport } from "./ShiftReportsTable";
 import AppLayout from "./AppLayout";
+import ShiftReportHeader from "./ShiftReportHeader";
 
 export default function ShiftReportFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const isEdit = id !== undefined;
+  // New and edit share this page, so React Router can reuse the same form
+  // instance between them. Each "New report" click is a new history entry
+  // (new location.key), so keying on it guarantees a blank form; the
+  // draft-created URL swap below carries the key forward so the form the
+  // volunteer is typing in isn't reset.
+  const formKey = (location.state as { formKey?: string } | null)?.formKey ?? location.key;
 
   const {
     data: report,
@@ -27,12 +35,14 @@ export default function ShiftReportFormPage() {
 
   return (
     <AppLayout width="3xl">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold">{isEdit ? "Edit Shift Report" : "New Shift Report"}</h1>
-        {isEdit && report && (
-          <Link to={`/shift-reports/${id}`} className="text-sm text-blue hover:underline">
-            View full report →
-          </Link>
+      <Link to="/shift-reports" className="text-sm text-blue hover:underline">
+        ← Back to Shift Reports
+      </Link>
+      <div className="mt-4 mb-6">
+        {isEdit ? (
+          report && <ShiftReportHeader report={report} mode="edit" />
+        ) : (
+          <h1 className="text-3xl font-bold">New Shift Report</h1>
         )}
       </div>
       {isEdit && isLoading && (
@@ -45,10 +55,11 @@ export default function ShiftReportFormPage() {
       {isEdit && error && <ErrorAlert message="Failed to load shift report" />}
       {(!isEdit || report) && (
         <ShiftReportForm
+          key={formKey}
           report={report}
           onSuccess={(reportId) => navigate(`/shift-reports/${reportId}`)}
           onDraftCreated={(newReportId) =>
-            navigate(`/shift-reports/${newReportId}/edit`, { replace: true })
+            navigate(`/shift-reports/${newReportId}/edit`, { replace: true, state: { formKey } })
           }
         />
       )}

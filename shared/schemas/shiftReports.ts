@@ -11,15 +11,19 @@ const distinctCatIds = (message: string) =>
     .array(z.coerce.number().int().positive())
     .refine((ids) => new Set(ids).size === ids.length, message);
 
-const fecalScoreField = z.preprocess(
-  emptyToUndefined,
-  z.coerce
-    .number("Fecal score must be a number")
-    .int("Fecal score must be a whole number")
-    .min(1, "Fecal score must be 1–7")
-    .max(7, "Fecal score must be 1–7")
-    .optional(),
-);
+// Several scores can be picked. "Empty" (fecalEmpty) is its own answer and
+// can't be combined with scores — see the refine in buildCatEntrySchema.
+const fecalScoresField = z
+  .array(
+    z.coerce
+      .number("Fecal score must be a number")
+      .int("Fecal score must be a whole number")
+      .min(1, "Fecal score must be 1–7")
+      .max(7, "Fecal score must be 1–7"),
+  )
+  .refine((scores) => new Set(scores).size === scores.length, "Fecal scores must be distinct")
+  .default([]);
+const fecalEmptyField = z.boolean().default(false);
 
 // Native <select> elements always submit a string, so an unselected/"None"
 // option submits "" rather than omitting the field — z.enum(...).optional()
@@ -34,20 +38,19 @@ const groupEntryCatDetailSchema = z.object({
   catId: z.coerce.number("Cat is required").int().positive("Cat is required"),
   wetFoodAmount: foodAmountField,
   foodNotes: z.string().trim().optional().transform(emptyToUndefined),
-  medicalNotes: z.string().trim().optional().transform(emptyToUndefined),
 });
 
 const individualCatEntrySchema = z.object({
   id: z.coerce.number().int().positive().optional(),
   entryType: z.literal(CatEntryType.Individual),
   catId: z.coerce.number("Cat is required").int().positive("Cat is required"),
-  fecalScore: fecalScoreField,
+  fecalScores: fecalScoresField,
+  fecalEmpty: fecalEmptyField,
   pee: z.boolean().default(false),
   peePoopNotes: z.string().trim().optional().transform(emptyToUndefined),
   dryFoodAmount: foodAmountField,
   wetFoodAmount: foodAmountField,
   foodNotes: z.string().trim().optional().transform(emptyToUndefined),
-  medicalNotes: z.string().trim().optional().transform(emptyToUndefined),
 });
 
 function buildGroupCatEntrySchema(strict: boolean) {
@@ -55,7 +58,8 @@ function buildGroupCatEntrySchema(strict: boolean) {
     id: z.coerce.number().int().positive().optional(),
     entryType: z.literal(CatEntryType.Group),
     groupId: z.coerce.number("Group is required").int().positive("Group is required"),
-    fecalScore: fecalScoreField,
+    fecalScores: fecalScoresField,
+    fecalEmpty: fecalEmptyField,
     pee: z.boolean().default(false),
     peePoopNotes: z.string().trim().optional().transform(emptyToUndefined),
     dryFoodAmount: foodAmountField,
@@ -63,6 +67,43 @@ function buildGroupCatEntrySchema(strict: boolean) {
     catDetails: z.array(groupEntryCatDetailSchema).min(strict ? 1 : 0, "Add at least one cat"),
   });
 }
+
+type EntryContent = {
+  fecalScores?: readonly unknown[];
+  fecalEmpty?: boolean;
+  pee?: boolean;
+  peePoopNotes?: string | null;
+  dryFoodAmount?: string | null;
+  wetFoodAmount?: string | null;
+  foodNotes?: string | null;
+  catDetails?: readonly {
+    wetFoodAmount?: string | null;
+    foodNotes?: string | null;
+  }[];
+};
+
+const filled = (value: string | null | undefined) => !!value && value.trim() !== "";
+
+/**
+ * True when nothing has been recorded on a cat entry yet. New reports start
+ * with a card for every kennelled cat, so a volunteer has to fill each one in
+ * or remove it before submitting — an untouched card would otherwise look
+ * like "checked, nothing to report".
+ */
+export function isCatEntryUntouched(entry: EntryContent): boolean {
+  const recorded =
+    (entry.fecalScores?.length ?? 0) > 0 ||
+    entry.fecalEmpty === true ||
+    entry.pee === true ||
+    filled(entry.peePoopNotes) ||
+    filled(entry.dryFoodAmount) ||
+    filled(entry.wetFoodAmount) ||
+    filled(entry.foodNotes) ||
+    (entry.catDetails ?? []).some((d) => filled(d.wetFoodAmount) || filled(d.foodNotes));
+  return !recorded;
+}
+
+export const UNTOUCHED_ENTRY_MESSAGE = "Fill in this cat's info or remove the card";
 
 // z.discriminatedUnion requires plain ZodObject members, so the "distinct cats
 // within a group entry" check is applied to the union as a whole afterward,
@@ -75,7 +116,14 @@ function buildCatEntrySchema(strict: boolean) {
         entry.entryType !== CatEntryType.Group ||
         new Set(entry.catDetails.map((c) => c.catId)).size === entry.catDetails.length,
       { error: "Cats must be distinct within a group entry", path: ["catDetails"] },
-    );
+    )
+    .refine((entry) => !entry.fecalEmpty || entry.fecalScores.length === 0, {
+      error: "Empty can't be combined with fecal scores",
+      path: ["fecalScores"],
+    })
+    .refine((entry) => !strict || !isCatEntryUntouched(entry), {
+      error: UNTOUCHED_ENTRY_MESSAGE,
+    });
 }
 
 function buildMeetAndGreetSchema(strict: boolean) {
@@ -106,9 +154,27 @@ function buildPlayGroupSchema(strict: boolean) {
   });
 }
 
+// No default shift type: the volunteer must pick one. A draft can be saved
+// before they have (the form starts blank), but submitting requires it.
+function buildShiftTypeField(strict: boolean) {
+  const shiftType = z.enum(ShiftType, { error: "Select a shift type" });
+  return z.preprocess(emptyToUndefined, strict ? shiftType : shiftType.optional());
+}
+
+// One note about one cat (at most one per cat per report). A draft can hold
+// a half-written one; submitting needs the text.
+function buildMedicalNoteSchema(strict: boolean) {
+  const note = z.string().trim();
+  return z.object({
+    id: z.coerce.number().int().positive().optional(),
+    catId: z.coerce.number("Pick a cat").int().positive("Pick a cat"),
+    note: strict ? note.min(1, "Write the note") : note.default(""),
+  });
+}
+
 function buildShiftReportFields(strict: boolean) {
   return {
-    shiftType: z.enum(ShiftType),
+    shiftType: buildShiftTypeField(strict),
     date: z.coerce.date("Invalid date"),
     isSplitShift: z.boolean().default(false),
     splitShiftPosition: splitShiftPositionField,
@@ -119,6 +185,13 @@ function buildShiftReportFields(strict: boolean) {
     catEntries: z.array(buildCatEntrySchema(strict)).default([]),
     meetAndGreets: z.array(buildMeetAndGreetSchema(strict)).default([]),
     playGroups: z.array(buildPlayGroupSchema(strict)).default([]),
+    medicalNotes: z
+      .array(buildMedicalNoteSchema(strict))
+      .refine(
+        (notes) => new Set(notes.map((n) => n.catId)).size === notes.length,
+        "Only one medical note per cat",
+      )
+      .default([]),
     kennelsStatus: z
       .array(kennelStatusSchema)
       .refine(
@@ -135,6 +208,7 @@ export type GroupCatEntryInput = z.infer<ReturnType<typeof buildGroupCatEntrySch
 export type CatEntryInput = z.infer<ReturnType<typeof buildCatEntrySchema>>;
 export type MeetAndGreetInput = z.infer<ReturnType<typeof buildMeetAndGreetSchema>>;
 export type PlayGroupInput = z.infer<ReturnType<typeof buildPlayGroupSchema>>;
+export type MedicalNoteInput = z.infer<ReturnType<typeof buildMedicalNoteSchema>>;
 export type KennelStatusInput = z.infer<typeof kennelStatusSchema>;
 
 export const createShiftReportSchema = z

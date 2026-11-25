@@ -3,6 +3,15 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "../test/render";
 
+// When true, the cats are in care (Available) and Pepsi sits in kennel 4, so
+// a new report pre-fills cards for Pepsi and the Sprite/Nehi group. Off by
+// default so the other tests start with no cards.
+let catsInCare = false;
+const status = () => (catsInCare ? "Available" : "PickedUp");
+// When true, Biscuit (Adopted, still in kennel 6) and Clementine (Picked Up,
+// still in kennel 9) are on the roster too.
+let withAdoptedAndPickedUp = false;
+
 const get = mock(async (url: string) => {
   if (url === "/api/cats") {
     return {
@@ -12,6 +21,8 @@ const get = mock(async (url: string) => {
             id: 1,
             name: "Pepsi",
             groupId: null,
+            status: status(),
+            kennel: catsInCare ? { id: 4, number: 4 } : null,
             dewormerStatus: "Given",
             needsProbiotic: false,
           },
@@ -19,6 +30,7 @@ const get = mock(async (url: string) => {
             id: 2,
             name: "Sprite",
             groupId: 10,
+            status: status(),
             dewormerStatus: "Given",
             needsProbiotic: false,
           },
@@ -26,9 +38,42 @@ const get = mock(async (url: string) => {
             id: 3,
             name: "Nehi",
             groupId: 10,
+            status: status(),
             dewormerStatus: "Given",
             needsProbiotic: false,
           },
+          // In care but in no kennel, so never gets a card.
+          {
+            id: 4,
+            name: "Fanta",
+            groupId: null,
+            status: status(),
+            kennel: null,
+            dewormerStatus: "Given",
+            needsProbiotic: false,
+          },
+          ...(withAdoptedAndPickedUp
+            ? [
+                {
+                  id: 5,
+                  name: "Biscuit",
+                  groupId: null,
+                  status: "Adopted",
+                  kennel: { id: 6, number: 6 },
+                  dewormerStatus: "Given",
+                  needsProbiotic: false,
+                },
+                {
+                  id: 6,
+                  name: "Clementine",
+                  groupId: null,
+                  status: "PickedUp",
+                  kennel: { id: 9, number: 9 },
+                  dewormerStatus: "Given",
+                  needsProbiotic: false,
+                },
+              ]
+            : []),
         ],
       },
     };
@@ -37,6 +82,35 @@ const get = mock(async (url: string) => {
     return {
       data: {
         kennels: [
+          ...(withAdoptedAndPickedUp
+            ? [
+                {
+                  id: 6,
+                  number: 6,
+                  state: "Occupied",
+                  cats: [{ id: 5, name: "Biscuit" }],
+                  groups: [],
+                },
+                {
+                  id: 9,
+                  number: 9,
+                  state: "Occupied",
+                  cats: [{ id: 6, name: "Clementine" }],
+                  groups: [],
+                },
+              ]
+            : []),
+          ...(catsInCare
+            ? [
+                {
+                  id: 4,
+                  number: 4,
+                  state: "Occupied",
+                  cats: [{ id: 1, name: "Pepsi" }],
+                  groups: [],
+                },
+              ]
+            : []),
           {
             id: 5,
             number: 5,
@@ -58,23 +132,47 @@ const get = mock(async (url: string) => {
   }
   throw new Error(`Unexpected GET ${url}`);
 });
-const post = mock(async (_url: string, _payload: unknown) => ({
+// Lets a test hold the report save open to line up a race.
+let reportSaveGate: Promise<void> | null = null;
+const post = mock(async (url: string, _payload: unknown) => {
+  if (url === "/api/photos") return { data: { photo: { id: 99, tags: [] } } };
+  if (reportSaveGate) await reportSaveGate;
+  return { data: { shiftReport: { id: 1, catEntries: [] } } };
+});
+
+const put = mock(async (_url: string, _payload: unknown) => ({
   data: { shiftReport: { id: 1, catEntries: [] } },
 }));
 
 mock.module("../lib/api", () => ({
-  api: { get, post },
+  api: { get, post, put },
 }));
 
 const { default: ShiftReportForm } = await import("./ShiftReportForm");
 
+function hidePage() {
+  Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+  document.dispatchEvent(new Event("visibilitychange"));
+}
+
+async function openEditor(user: ReturnType<typeof userEvent.setup>, title: string) {
+  await user.click(await screen.findByRole("button", { name: `Actions for ${title}` }));
+  await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
+  return screen.findByRole("dialog");
+}
+
 describe("ShiftReportForm", () => {
   beforeEach(() => {
+    catsInCare = false;
+    withAdoptedAndPickedUp = false;
+    reportSaveGate = null;
     get.mockClear();
     post.mockClear();
+    put.mockClear();
   });
 
   afterEach(() => {
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
     mock.restore();
   });
 
@@ -99,6 +197,17 @@ describe("ShiftReportForm", () => {
     await waitFor(() => expect(onSuccess).toHaveBeenCalledWith(1));
   });
 
+  test("shift type has no default and is required to submit", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+
+    expect(screen.getByLabelText("Shift Type")).toHaveValue("");
+    await user.click(screen.getByRole("button", { name: "Submit Report" }));
+
+    expect(await screen.findByText("Select a shift type")).toBeInTheDocument();
+    expect(post).not.toHaveBeenCalled();
+  });
+
   test("split shift is disabled and cleared for a Mid-day shift", async () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
@@ -112,6 +221,7 @@ describe("ShiftReportForm", () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
+    await user.selectOptions(screen.getByLabelText("Shift Type"), "Morning");
     await user.click(screen.getByLabelText("Split shift (Morning/Evening only)"));
     expect(screen.getByLabelText("Which half of the shift?")).toBeInTheDocument();
 
@@ -125,6 +235,7 @@ describe("ShiftReportForm", () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
+    await user.selectOptions(screen.getByLabelText("Shift Type"), "Morning");
     await user.click(screen.getByLabelText("Split shift (Morning/Evening only)"));
     await user.selectOptions(screen.getByLabelText("Which half of the shift?"), "Second");
     await user.click(screen.getByRole("button", { name: "Submit Report" }));
@@ -143,6 +254,7 @@ describe("ShiftReportForm", () => {
     await user.selectOptions(await screen.findByRole("combobox", { name: /add a cat/i }), [
       "cat:1",
     ]);
+    await openEditor(user, "Pepsi");
 
     expect(screen.queryByText("Free-fed")).not.toBeInTheDocument();
     expect(screen.getAllByRole("radio", { name: "Most" }).length).toBeGreaterThan(0);
@@ -155,7 +267,13 @@ describe("ShiftReportForm", () => {
     await user.selectOptions(await screen.findByRole("combobox", { name: /add a cat/i }), [
       "group:10",
     ]);
+    await openEditor(user, "Sprite / Nehi");
 
+    expect(screen.getByText("Fecal Score (shared)")).toBeInTheDocument();
+    // Each cat's food notes is a growing text box, not a one-line input.
+    expect(
+      screen.getByLabelText("Food Notes", { selector: '[id$=".catDetails.0.foodNotes"]' }).tagName,
+    ).toBe("TEXTAREA");
     expect(screen.queryByText("Water noted (shared)")).not.toBeInTheDocument();
   });
 
@@ -171,63 +289,162 @@ describe("ShiftReportForm", () => {
     expect(within(picker).queryByRole("option", { name: "Pepsi" })).not.toBeInTheDocument();
   });
 
-  test("a blank play group doesn't block Collapse or Save Draft", async () => {
+  test("Add Play Group opens an editor; closing it with no cats leaves no card", async () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
     await user.click(await screen.findByRole("button", { name: "Add Play Group" }));
-    const section = document.getElementById("section-playGroups")!;
-    const trigger = within(section).getByRole("button", { name: "New entry" });
+    expect(await screen.findByRole("dialog", { name: "New play group" })).toBeInTheDocument();
 
-    await user.click(within(section).getByRole("button", { name: "Collapse" }));
-    await waitFor(() => expect(trigger.getAttribute("aria-expanded")).toBe("false"));
-
-    await user.click(screen.getByRole("button", { name: "Save Draft" }));
-    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
-    expect(post).toHaveBeenCalledWith(
-      "/api/shift-reports",
-      expect.objectContaining({ status: "Draft" }),
-    );
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.queryByTestId("playGroups-card")).toBeNull();
   });
 
-  test("submitting a blank play group reopens it and shows why", async () => {
+  test("Done with no cats tagged says why and keeps the editor open", async () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
-    await user.click(await screen.findByRole("button", { name: "Add Play Group" }));
-    const section = document.getElementById("section-playGroups")!;
-    const trigger = within(section).getByRole("button", { name: "New entry" });
-    await user.click(within(section).getByRole("button", { name: "Collapse" }));
-    await waitFor(() => expect(trigger.getAttribute("aria-expanded")).toBe("false"));
+    await user.click(await screen.findByRole("button", { name: "Add Meet & Greet" }));
+    const dialog = await screen.findByRole("dialog", { name: "New meet & greet" });
+    await user.click(within(dialog).getByRole("button", { name: "Done" }));
 
-    await user.click(screen.getByRole("button", { name: "Submit Report" }));
-
-    expect(
-      await screen.findByText("Please complete the highlighted fields before submitting."),
-    ).toBeInTheDocument();
-    await waitFor(() => expect(trigger.getAttribute("aria-expanded")).toBe("true"));
-    expect(within(section).queryByText("Note is required")).toBeNull();
-    expect(within(section).getByText("Tag at least one cat")).toBeInTheDocument();
-    expect(post).not.toHaveBeenCalled();
+    expect(within(dialog).getByText("Tag at least one cat")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
-  test("play group cats are picked by search and shown as removable chips", async () => {
+  test("a play group's cats and note are set in the editor and shown on its card", async () => {
+    catsInCare = true;
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
     await user.click(await screen.findByRole("button", { name: "Add Play Group" }));
-    const section = document.getElementById("section-playGroups")!;
-
-    await user.click(within(section).getByRole("button", { name: "Add cat" }));
+    const dialog = await screen.findByRole("dialog", { name: "New play group" });
+    await user.click(within(dialog).getByRole("button", { name: "Add cat" }));
     await user.type(await screen.findByPlaceholderText("Search cats…"), "pep");
-    // Scoped to the popover's list: the add-entry <select> has cat <option>s too.
-    const list = screen.getByRole("listbox");
-    expect(within(list).queryByRole("option", { name: "Sprite" })).toBeNull();
-    await user.click(within(list).getByRole("option", { name: "Pepsi" }));
+    await user.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Pepsi" }));
+    await user.keyboard("{Escape}"); // close the cat list
+    await user.type(within(dialog).getByLabelText("General note (optional)"), "Zoomies");
+    await user.click(within(dialog).getByRole("button", { name: "Done" }));
 
-    const remove = await within(section).findByRole("button", { name: "Remove Pepsi" });
-    await user.click(remove);
-    expect(within(section).queryByRole("button", { name: "Remove Pepsi" })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    const card = screen.getByTestId("playGroups-card");
+    expect(card).toHaveTextContent("Pepsi");
+    expect(card).toHaveTextContent("Zoomies");
+
+    // Editing again comes from the card's ⋮ menu.
+    await user.click(within(card).getByRole("button", { name: /^Actions for play group/ }));
+    await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
+    expect(await screen.findByRole("dialog", { name: "Edit play group" })).toBeInTheDocument();
+  });
+
+  test("Select all cats in a play group includes in-care cats without a card", async () => {
+    catsInCare = true;
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+    await waitFor(() => expect(screen.getAllByTestId("cat-entry-card")).toHaveLength(2));
+
+    await user.click(screen.getByRole("button", { name: "Add Play Group" }));
+    const dialog = await screen.findByRole("dialog", { name: "New play group" });
+    await user.click(within(dialog).getByRole("button", { name: "Select all cats" }));
+
+    for (const name of ["Pepsi", "Sprite", "Nehi", "Fanta"]) {
+      expect(within(dialog).getByRole("button", { name: `Remove ${name}` })).toBeInTheDocument();
+    }
+  });
+
+  test("Adopted cats still in a kennel count as in care; Picked Up cats don't", async () => {
+    catsInCare = true;
+    withAdoptedAndPickedUp = true;
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+
+    await waitFor(() => expect(screen.getAllByTestId("cat-entry-card")).toHaveLength(3));
+    const cardText = screen.getAllByTestId("cat-entry-card").map((c) => c.textContent);
+    expect(cardText.some((t) => t?.includes("Biscuit"))).toBe(true);
+    expect(cardText.some((t) => t?.includes("Clementine"))).toBe(false);
+
+    await user.click(screen.getByRole("button", { name: "Add Play Group" }));
+    const dialog = await screen.findByRole("dialog", { name: "New play group" });
+    await user.click(within(dialog).getByRole("button", { name: "Add cat" }));
+    const list = await screen.findByRole("listbox");
+    expect(within(list).getByRole("option", { name: "Biscuit" })).toBeInTheDocument();
+    expect(within(list).queryByRole("option", { name: "Clementine" })).toBeNull();
+    await user.keyboard("{Escape}");
+
+    await user.click(within(dialog).getByRole("button", { name: "Select all cats" }));
+    expect(within(dialog).getByRole("button", { name: "Remove Biscuit" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Remove Clementine" })).toBeNull();
+
+    // Chips are alphabetical.
+    const chipNames = within(dialog)
+      .getAllByRole("button", { name: /^Remove / })
+      .map((b) => b.getAttribute("aria-label")!.replace("Remove ", ""));
+    expect(chipNames).toEqual([...chipNames].sort((a, b) => a.localeCompare(b)));
+    expect(chipNames[0]).toBe("Biscuit");
+  });
+
+  test("medical notes start empty; a note can be written about a cat with no Food card", async () => {
+    catsInCare = true;
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+    await waitFor(() => expect(screen.getAllByTestId("cat-entry-card")).toHaveLength(2));
+    expect(screen.queryByTestId("medical-note-card")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Add medical note" }));
+    const dialog = await screen.findByRole("dialog", { name: "New medical note" });
+
+    // Done needs a cat and a note.
+    await user.click(within(dialog).getByRole("button", { name: "Done" }));
+    expect(within(dialog).getByText("Pick a cat")).toBeInTheDocument();
+    expect(within(dialog).getByText("Write the note")).toBeInTheDocument();
+
+    // Fanta is in care but in no kennel, so has no Food card.
+    await user.selectOptions(within(dialog).getByLabelText("Cat"), "Fanta");
+    await user.type(within(dialog).getByLabelText("Note"), "Eye drops given");
+    await user.click(within(dialog).getByRole("button", { name: "Done" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    const card = screen.getByTestId("medical-note-card");
+    expect(card).toHaveTextContent("Fanta");
+    expect(card).toHaveTextContent("Eye drops given");
+
+    // A cat with a note isn't offered for a second one.
+    await user.click(screen.getByRole("button", { name: "Add medical note" }));
+    const second = await screen.findByRole("dialog", { name: "New medical note" });
+    expect(
+      within(within(second).getByLabelText("Cat")).queryByRole("option", { name: "Fanta" }),
+    ).toBeNull();
+    // Closing a new note without a cat discards it.
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getAllByTestId("medical-note-card")).toHaveLength(1);
+  });
+
+  test("medical notes are sent with the report, not on cat cards", async () => {
+    catsInCare = true;
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+    await waitFor(() => expect(screen.getAllByTestId("cat-entry-card")).toHaveLength(2));
+
+    await openEditor(user, "Pepsi");
+    expect(screen.queryByLabelText("Medical Notes")).toBeNull();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    await user.click(screen.getByRole("button", { name: "Add medical note" }));
+    const dialog = await screen.findByRole("dialog", { name: "New medical note" });
+    await user.selectOptions(within(dialog).getByLabelText("Cat"), "Pepsi");
+    await user.type(within(dialog).getByLabelText("Note"), "Sneezing");
+    await user.click(within(dialog).getByRole("button", { name: "Done" }));
+
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    const payload = post.mock.calls.at(-1)?.[1] as {
+      medicalNotes: unknown[];
+      catEntries: Record<string, unknown>[];
+    };
+    expect(payload.medicalNotes).toEqual([expect.objectContaining({ catId: 1, note: "Sneezing" })]);
+    expect(payload.catEntries.every((e) => !("medicalNotes" in e))).toBe(true);
   });
 
   test("has a Kennel Notes field after Kennel Status", () => {
@@ -247,6 +464,7 @@ describe("ShiftReportForm", () => {
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
     await user.selectOptions(await screen.findByLabelText("Kennel 5"), "Occupied");
+    await user.selectOptions(screen.getByLabelText("Shift Type"), "Morning");
     await user.click(screen.getByRole("button", { name: "Submit Report" }));
 
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
@@ -259,6 +477,7 @@ describe("ShiftReportForm", () => {
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
     await screen.findByLabelText("Kennel 5");
+    await user.selectOptions(screen.getByLabelText("Shift Type"), "Morning");
     await user.click(screen.getByRole("button", { name: "Submit Report" }));
 
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
@@ -267,16 +486,59 @@ describe("ShiftReportForm", () => {
     expect(payload.kennelsStatus[0]).toMatchObject({ kennelId: 5, reportedState: "Ready" });
   });
 
+  test("a new report pre-fills a card per kennelled cat or group, in kennel order", async () => {
+    catsInCare = true;
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+
+    await waitFor(() => expect(screen.getAllByTestId("cat-entry-card")).toHaveLength(2));
+    const cards = screen.getAllByTestId("cat-entry-card");
+    expect(cards[0]).toHaveTextContent("Pepsi");
+    expect(cards[1]).toHaveTextContent("Sprite / Nehi");
+    expect(within(cards[0]!).getByText("Needs info")).toBeInTheDocument();
+  });
+
+  test("untouched pre-filled cards block submit until filled in or removed", async () => {
+    catsInCare = true;
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+    await waitFor(() => expect(screen.getAllByTestId("cat-entry-card")).toHaveLength(2));
+    await user.selectOptions(screen.getByLabelText("Shift Type"), "Morning");
+
+    await user.click(screen.getByRole("button", { name: "Submit Report" }));
+    expect(
+      await screen.findByText("2 cats still need info — fill them in or remove the cards."),
+    ).toBeInTheDocument();
+    expect(post).not.toHaveBeenCalled();
+
+    // Fill in Pepsi, remove the group.
+    const dialog = await openEditor(user, "Pepsi");
+    await user.click(within(dialog).getByRole("button", { name: "3" }));
+    await user.click(within(dialog).getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByText("Fecal: 3")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Actions for Sprite / Nehi" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Remove" }));
+    await user.click(await screen.findByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(screen.getAllByTestId("cat-entry-card")).toHaveLength(1));
+
+    // Closing the editor autosaved a draft, so submitting updates it.
+    await user.click(screen.getByRole("button", { name: "Submit Report" }));
+    await waitFor(() => expect(put).toHaveBeenCalled());
+    const payload = put.mock.calls.at(-1)?.[1] as { status: string; catEntries: unknown[] };
+    expect(payload.status).toBe("Submitted");
+    expect(payload.catEntries).toEqual([
+      expect.objectContaining({ catId: 1, fecalScores: [3], fecalEmpty: false }),
+    ]);
+  });
+
   test("autosaves a draft when the page is hidden, and not again until something changes", async () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
     await user.selectOptions(screen.getByLabelText("Shift Type"), "Evening");
 
-    const hide = () => {
-      Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
-      document.dispatchEvent(new Event("visibilitychange"));
-    };
+    const hide = hidePage;
     hide();
 
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
@@ -288,7 +550,57 @@ describe("ShiftReportForm", () => {
     hide();
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  test("an untouched new report isn't saved; the first real edit saves a draft", async () => {
+    catsInCare = true;
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+    await waitFor(() => expect(screen.getAllByTestId("cat-entry-card")).toHaveLength(2));
+    await screen.findByLabelText("Kennel 5");
+
+    hidePage();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(post).not.toHaveBeenCalled();
 
     Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+    await user.selectOptions(screen.getByLabelText("Shift Type"), "Evening");
+    hidePage();
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+  });
+
+  test("there's no Save Draft button; drafts autosave", () => {
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+    expect(screen.queryByRole("button", { name: "Save Draft" })).toBeNull();
+    // Shown in the sticky summary bar and again next to Submit.
+    expect(screen.getAllByText("Autosaves as you go")).toHaveLength(2);
+    expect(screen.getByTestId("autosave-status-bottom")).toHaveTextContent("Autosaves as you go");
+  });
+
+  test("submitting while an autosave is running uploads a queued photo only once", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+    await user.selectOptions(screen.getByLabelText("Shift Type"), "Morning");
+
+    const input = document.querySelector<HTMLInputElement>('input[type="file"][multiple]')!;
+    await user.upload(
+      input, // GIFs skip client-side resizing, which needs a real canvas.
+      new File(["x"], "cat.gif", { type: "image/gif" }),
+    );
+
+    let release!: () => void;
+    reportSaveGate = new Promise((resolve) => (release = resolve));
+    hidePage(); // autosave starts and stalls on the report save
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+
+    await user.click(screen.getByRole("button", { name: "Submit Report" }));
+    release();
+
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const photoPosts = post.mock.calls.filter(([url]) => url === "/api/photos");
+    expect(photoPosts).toHaveLength(1);
+    const body = photoPosts[0]![1] as FormData;
+    expect(body.get("clientUploadId")).toBeTruthy();
   });
 });

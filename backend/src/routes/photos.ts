@@ -16,7 +16,11 @@ import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { buildPhotoFilename, uniqueFilename } from "../lib/photoFilename.ts";
 import { parseIdParam, parsePaging, submittedOnly } from "../lib/reportQueries.ts";
 import { detectImageType, isAllowedImageType } from "../lib/imageType.ts";
-import type { Prisma } from "../generated/prisma/client.ts";
+import { Prisma } from "../generated/prisma/client.ts";
+
+function isUniqueViolation(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
 
 const router = Router();
 
@@ -73,6 +77,14 @@ function parseCatIds(raw: unknown): number[] {
   }
 }
 
+const CLIENT_UPLOAD_ID = /^[A-Za-z0-9-]{8,64}$/;
+
+// undefined = not sent (older clients), null = sent but malformed.
+function parseClientUploadId(raw: unknown): string | null | undefined {
+  if (raw === undefined || raw === "") return undefined;
+  return typeof raw === "string" && CLIENT_UPLOAD_ID.test(raw) ? raw : null;
+}
+
 function buildStorageKey(shiftReportId: number, originalName: string): string {
   const safeName = originalName.replace(/[^a-zA-Z0-9._-]/g, "_");
   return `shift-reports/${shiftReportId}/${crypto.randomUUID()}-${safeName}`;
@@ -109,6 +121,29 @@ router.post("/", requireAuth, uploadLimiter, upload.single("photo"), async (req,
   if (shiftReport.authorId !== session.user.id && session.user.role !== Role.Admin) {
     res.status(403).json({ error: "Only the report's author or an Admin can add photos to it" });
     return;
+  }
+
+  const clientUploadId = parseClientUploadId(req.body.clientUploadId);
+  if (clientUploadId === null) {
+    res.status(400).json({ error: "Invalid clientUploadId" });
+    return;
+  }
+
+  // The same queued photo sent twice (a retry after a lost response, or two
+  // saves racing) returns the photo already stored instead of a duplicate.
+  if (clientUploadId !== undefined) {
+    const existing = await prisma.photo.findUnique({
+      where: { clientUploadId },
+      include: photoInclude,
+    });
+    if (existing) {
+      if (existing.shiftReportId !== shiftReportId) {
+        res.status(409).json({ error: "clientUploadId already used for another report" });
+        return;
+      }
+      res.status(200).json({ photo: existing });
+      return;
+    }
   }
 
   let catEntryId: number | undefined;
@@ -166,6 +201,7 @@ router.post("/", requireAuth, uploadLimiter, upload.single("photo"), async (req,
         catEntryId: catEntryId ?? null,
         storageKey: key,
         thumbnailKey,
+        clientUploadId: clientUploadId ?? null,
         tags: { create: [...tagCatIds].map((catId) => ({ catId })) },
       },
       include: photoInclude,
@@ -176,6 +212,17 @@ router.post("/", requireAuth, uploadLimiter, upload.single("photo"), async (req,
     await Promise.allSettled(
       photoStorageKeys([{ storageKey: key, thumbnailKey }]).map((k) => storage.delete(k)),
     );
+    // Lost the race to an identical concurrent upload: return the winner.
+    if (clientUploadId !== undefined && isUniqueViolation(error)) {
+      const winner = await prisma.photo.findUnique({
+        where: { clientUploadId },
+        include: photoInclude,
+      });
+      if (winner && winner.shiftReportId === shiftReportId) {
+        res.status(200).json({ photo: winner });
+        return;
+      }
+    }
     throw error;
   }
 

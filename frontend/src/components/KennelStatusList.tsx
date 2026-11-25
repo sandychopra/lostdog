@@ -5,14 +5,14 @@ import { Label } from "./ui/label";
 import { NativeSelect, NativeSelectOption } from "./ui/native-select";
 import { Textarea } from "./ui/textarea";
 import ErrorMessage from "./ErrorMessage";
-import CollapsibleSection from "./CollapsibleSection";
+import FormSection from "./FormSection";
 import type { ShiftReportFormApi } from "../lib/shiftReportForm";
 
 interface KennelStatusListProps {
   form: ShiftReportFormApi;
   kennelOptions: { id: number; number: number; state: KennelState }[];
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
+  /** Wraps the automatic fill-in so it isn't treated as an edit (see ShiftReportForm). */
+  withoutMarkingDirty?: (fill: () => void) => void;
 }
 
 // Every kennel gets a reported state each shift (Ready/Occupied/NeedsReset) —
@@ -25,8 +25,7 @@ interface KennelStatusListProps {
 export default function KennelStatusList({
   form,
   kennelOptions,
-  collapsed,
-  onToggleCollapsed,
+  withoutMarkingDirty,
 }: KennelStatusListProps) {
   const { control, register, formState } = form;
   const fieldArray = useFieldArray({ control, name: "kennelsStatus" });
@@ -42,12 +41,15 @@ export default function KennelStatusList({
       .filter((k) => !presentIds.has(k.id))
       .sort((a, b) => a.number - b.number);
     if (missing.length > 0) {
-      fieldArray.append(
-        missing.map((k) => ({
-          kennelId: k.id,
-          reportedState: toReportableKennelState(k.state),
-        })),
-      );
+      const fill = () =>
+        fieldArray.append(
+          missing.map((k) => ({
+            kennelId: k.id,
+            reportedState: toReportableKennelState(k.state),
+          })),
+        );
+      if (withoutMarkingDirty) withoutMarkingDirty(fill);
+      else fill();
     }
     // Only re-run when the kennel list itself changes, not on every keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -62,11 +64,9 @@ export default function KennelStatusList({
   const readyCount = values.filter((v) => v.reportedState === KennelState.Ready).length;
 
   return (
-    <CollapsibleSection
+    <FormSection
       title="Kennel Status"
       count={`${readyCount}/${orderedFields.length}`}
-      collapsed={collapsed}
-      onToggleCollapsed={onToggleCollapsed}
       anchorId="section-kennel-status"
     >
       <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
@@ -100,6 +100,6 @@ export default function KennelStatusList({
         <Label htmlFor="kennelNotes">Kennel Notes</Label>
         <Textarea id="kennelNotes" className="min-h-16" {...register("kennelNotes")} />
       </div>
-    </CollapsibleSection>
+    </FormSection>
   );
 }

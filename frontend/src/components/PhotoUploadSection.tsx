@@ -9,9 +9,20 @@ import { Role } from "shared/constants/role.ts";
 import { authClient } from "../lib/auth-client";
 import { cn } from "../lib/utils";
 
+// crypto.randomUUID only exists in secure contexts; getRandomValues works on a
+// plain-http LAN address too (e.g. testing on a phone).
+function newClientUploadId(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
 export interface QueuedPhoto {
   file: File;
   catIds: number[];
+  /** Sent with the upload so a retried/duplicated send can't store it twice. */
+  clientUploadId: string;
 }
 
 export interface UploadedPhotoSummary {
@@ -25,6 +36,7 @@ interface PhotoUploadSectionProps {
   onQueuedChange: (next: QueuedPhoto[]) => void;
   uploaded?: UploadedPhotoSummary[];
   onUploadedDeleted?: (photoId: number) => void;
+  onUploadedTagsSaved?: (photo: UploadedPhotoSummary) => void;
   catOptions: CatOption[];
   // Individual cat entries auto-tag server-side, so they don't need a tag
   // picker; group entries and the report-level section do (see photos.ts).
@@ -98,11 +110,13 @@ function UploadedThumb({
   catOptions,
   showTagPicker,
   onDeleted,
+  onTagsSaved,
 }: {
   photo: UploadedPhotoSummary;
   catOptions: CatOption[];
   showTagPicker?: boolean;
   onDeleted?: () => void;
+  onTagsSaved?: (photo: UploadedPhotoSummary) => void;
 }) {
   const [editingTags, setEditingTags] = useState(false);
   const { data: session } = authClient.useSession();
@@ -142,7 +156,8 @@ function UploadedThumb({
           photoId={photo.id}
           initialCatIds={photo.tags.map((t) => t.catId)}
           catOptions={catOptions}
-          onSaved={() => setEditingTags(false)}
+          onSaved={onTagsSaved}
+          onDone={() => setEditingTags(false)}
         />
       )}
     </div>
@@ -154,6 +169,7 @@ export default function PhotoUploadSection({
   onQueuedChange,
   uploaded = [],
   onUploadedDeleted,
+  onUploadedTagsSaved,
   catOptions,
   showTagPicker = true,
 }: PhotoUploadSectionProps) {
@@ -161,7 +177,11 @@ export default function PhotoUploadSection({
     if (!files || files.length === 0) return;
     onQueuedChange([
       ...queued,
-      ...Array.from(files).map((file) => ({ file, catIds: [] as number[] })),
+      ...Array.from(files).map((file) => ({
+        file,
+        catIds: [] as number[],
+        clientUploadId: newClientUploadId(),
+      })),
     ]);
   }
 
@@ -175,11 +195,12 @@ export default function PhotoUploadSection({
             catOptions={catOptions}
             showTagPicker={showTagPicker}
             onDeleted={() => onUploadedDeleted?.(photo.id)}
+            onTagsSaved={onUploadedTagsSaved}
           />
         ))}
         {queued.map((photo, index) => (
           <QueuedThumb
-            key={index}
+            key={photo.clientUploadId}
             photo={photo}
             catOptions={catOptions}
             showTagPicker={showTagPicker}

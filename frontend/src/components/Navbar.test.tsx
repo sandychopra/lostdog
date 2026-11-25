@@ -1,9 +1,8 @@
 import { describe, expect, mock, test } from "bun:test";
-import { screen, waitFor } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { renderWithQuery } from "../test/render";
 
 let role = "Volunteer";
-let draft: { id: number } | null = null;
 
 mock.module("../lib/auth-client", () => ({
   authClient: {
@@ -12,7 +11,7 @@ mock.module("../lib/auth-client", () => ({
   },
 }));
 mock.module("../lib/api", () => ({
-  api: { get: mock(async () => ({ data: { shiftReport: draft } })) },
+  api: { get: mock(async () => ({ data: {} })) },
 }));
 
 const { default: Navbar } = await import("./Navbar");
@@ -30,25 +29,12 @@ describe("Navbar", () => {
     expect(screen.getByRole("link", { name: "Users" })).toBeInTheDocument();
   });
 
-  test("Start report opens a new report when there's no draft", async () => {
+  test("New report always opens a blank report", () => {
     role = "Volunteer";
-    draft = null;
     renderWithQuery(<Navbar />);
-    expect(await screen.findByRole("link", { name: "Start report" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "New report" })).toHaveAttribute(
       "href",
       "/shift-reports/new",
-    );
-  });
-
-  test("Start report resumes the user's draft", async () => {
-    role = "Volunteer";
-    draft = { id: 42 };
-    renderWithQuery(<Navbar />);
-    await waitFor(() =>
-      expect(screen.getByRole("link", { name: "Start report" })).toHaveAttribute(
-        "href",
-        "/shift-reports/42/edit",
-      ),
     );
   });
 });

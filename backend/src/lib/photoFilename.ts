@@ -1,7 +1,7 @@
 /** Safe-for-download filename for a photo: `<date>_<shiftType>_<cat names|unassigned>.<ext>`. */
 export function buildPhotoFilename(args: {
   date: Date;
-  shiftType: string;
+  shiftType: string | null;
   catNames: string[];
   storageKey: string;
 }): string {
@@ -9,7 +9,7 @@ export function buildPhotoFilename(args: {
   const date = args.date.toISOString().slice(0, 10);
   const cats = args.catNames.length > 0 ? args.catNames.map(clean).filter(Boolean).join("-") : "";
   const ext = /\.([a-zA-Z0-9]{1,5})$/.exec(args.storageKey)?.[1]?.toLowerCase() ?? "jpg";
-  return `${date}_${args.shiftType}_${cats || "unassigned"}.${ext}`;
+  return `${date}_${args.shiftType ?? "shift"}_${cats || "unassigned"}.${ext}`;
 }
 
 /** Appends -2, -3, … before the extension when a name was already used in this set. */

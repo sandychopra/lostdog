@@ -2,7 +2,6 @@ import { Link, NavLink, useNavigate } from "react-router";
 import { LogOut, Plus } from "lucide-react";
 import { Role } from "shared/constants/role.ts";
 import { authClient } from "../lib/auth-client";
-import { useStartReportPath } from "../lib/useStartReportPath";
 import { cn } from "../lib/utils";
 import { buttonVariants } from "./ui/button";
 import {
@@ -43,12 +42,11 @@ const todayLabel = () =>
 /**
  * The navy banner with a gold rule, framed like the foundation's logo. On
  * phones it only identifies the app and the day (navigation is the bottom
- * bar); from md up it also carries the nav links and "Start report".
+ * bar); from md up it also carries the nav links and "New report".
  */
 export default function Navbar() {
   const { data: session } = authClient.useSession();
   const signOut = useSignOut();
-  const startReportPath = useStartReportPath();
 
   const items = session
     ? NAV_ITEMS.filter((item) => !item.adminOnly || session.user.role === Role.Admin)
@@ -91,14 +89,14 @@ export default function Navbar() {
         <div className="ml-auto flex shrink-0 items-center gap-3">
           {session && (
             <Link
-              to={startReportPath}
+              to="/shift-reports/new"
               className={cn(
                 buttonVariants(),
                 "hidden bg-gold font-bold text-navy hover:opacity-90 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none md:inline-flex",
               )}
             >
               <Plus className="size-4" />
-              Start report
+              New report
             </Link>
           )}
           {session && (

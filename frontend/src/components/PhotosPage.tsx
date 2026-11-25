@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { shiftTypeLabel } from "shared/constants/shiftType.ts";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { Download, Pencil } from "lucide-react";
@@ -24,7 +25,7 @@ import { Card } from "./ui/card";
 const PAGE_SIZE = 48;
 
 interface BrowsePhoto extends ShiftReportPhoto {
-  shiftReport: { id: number; date: string; shiftType: string };
+  shiftReport: { id: number; date: string; shiftType: string | null };
 }
 
 function PhotoTile({
@@ -52,7 +53,7 @@ function PhotoTile({
       />
       <div className="mt-1 space-y-0.5">
         <Link to={`/shift-reports/${photo.shiftReport.id}`} className="text-blue hover:underline">
-          {formatReportDate(photo.shiftReport.date)} · {photo.shiftReport.shiftType}
+          {formatReportDate(photo.shiftReport.date)} · {shiftTypeLabel(photo.shiftReport.shiftType)}
         </Link>
         <p className="text-muted-foreground">by {photo.uploadedBy.name}</p>
         <div className="flex items-center justify-between gap-1">
@@ -95,7 +96,7 @@ function PhotoTile({
           photoId={photo.id}
           initialCatIds={photo.tags.map((t) => t.catId)}
           catOptions={catOptions}
-          onSaved={() => setEditing(false)}
+          onDone={() => setEditing(false)}
         />
       )}
     </Card>

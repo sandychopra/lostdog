@@ -105,7 +105,7 @@ erDiagram
   "shift_report" {
     Int id "🗝️"
     String author_id 
-    ShiftType shift_type 
+    ShiftType shift_type "❓"
     DateTime date 
     Boolean is_split_shift 
     SplitShiftPosition split_shift_position "❓"
@@ -136,13 +136,13 @@ erDiagram
     CatEntryType entry_type 
     Int cat_id "❓"
     Int group_id "❓"
-    Int fecal_score "❓"
+    Int fecal_scores 
+    Boolean fecal_empty 
     Boolean pee 
     String pee_poop_notes "❓"
     FoodAmount dry_food_amount "❓"
     String food_notes "❓"
     FoodAmount wet_food_amount "❓"
-    String medical_notes "❓"
     DateTime created_at 
     DateTime updated_at 
     }
@@ -154,7 +154,6 @@ erDiagram
     Int cat_id 
     FoodAmount wet_food_amount "❓"
     String food_notes "❓"
-    String medical_notes "❓"
     }
   
 
@@ -174,6 +173,7 @@ erDiagram
     String thumbnail_key "❓"
     DateTime uploaded_at 
     Int cat_entry_id "❓"
+    String client_upload_id "❓"
     }
   
 
@@ -302,6 +302,15 @@ erDiagram
     DateTime created_at 
     }
   
+
+  "medical_note" {
+    Int id "🗝️"
+    Int shift_report_id 
+    Int cat_id 
+    String note 
+    DateTime created_at 
+    }
+  
     "session" }o--|| "user" : "user"
     "account" }o--|| "user" : "user"
     "cat" }o--|o "kennel" : "kennel"
@@ -354,4 +363,6 @@ erDiagram
     "kennel_move_request" }o--|o "user" : "completedBy"
     "kennel_move_request" }o--|o "announcement" : "announcement"
     "activity_log" }o--|o "user" : "actor"
+    "medical_note" }o--|| "shift_report" : "shiftReport"
+    "medical_note" }o--|| "cat" : "cat"
 ```

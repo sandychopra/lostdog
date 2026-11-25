@@ -1,4 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
+import { shiftTypeLabel } from "shared/constants/shiftType.ts";
+import { formatFecalScore } from "shared/constants/fecalScore.ts";
 import { Link, useParams } from "react-router";
 import { ActivityEntityType } from "shared/constants/activityLog.ts";
 import { api } from "../lib/api";
@@ -21,18 +23,17 @@ interface NamedCat {
 interface HistoryEntry {
   id: number;
   entryType: "Individual" | "Group";
-  fecalScore: number | null;
+  fecalScores: number[];
+  fecalEmpty: boolean;
   pee: boolean;
   peePoopNotes: string | null;
   dryFoodAmount: string | null;
   wetFoodAmount: string | null;
   foodNotes: string | null;
-  medicalNotes: string | null;
   group: { id: number; cats: NamedCat[] } | null;
   groupDetails: {
     wetFoodAmount: string | null;
     foodNotes: string | null;
-    medicalNotes: string | null;
   }[];
 }
 
@@ -45,11 +46,12 @@ interface NoteGroup {
 interface HistoryReport {
   id: number;
   date: string;
-  shiftType: string;
+  shiftType: string | null;
   author: { id: string; name: string };
   catEntries: HistoryEntry[];
   meetAndGreets: NoteGroup[];
   playGroups: NoteGroup[];
+  medicalNotes: { id: number; note: string }[];
   photos: { id: number }[];
 }
 
@@ -73,13 +75,12 @@ function EntryDetails({ entry }: { entry: HistoryEntry }) {
           Group entry with {entry.group.cats.map((c) => c.name).join(", ")}
         </p>
       )}
-      <Detail label="Fecal score" value={entry.fecalScore?.toString()} />
+      <Detail label="Fecal score" value={formatFecalScore(entry) ?? undefined} />
       <Detail label="Pee" value={entry.pee ? "Yes" : null} />
       <Detail label="Pee/poop notes" value={entry.peePoopNotes} />
       <Detail label="Dry food" value={entry.dryFoodAmount} />
       <Detail label="Wet food" value={own?.wetFoodAmount} />
       <Detail label="Food notes" value={own?.foodNotes ?? entry.foodNotes} />
-      <Detail label="Medical" value={own?.medicalNotes} />
     </div>
   );
 }
@@ -176,12 +177,18 @@ export default function CatDetailPage() {
                   to={`/shift-reports/${report.id}`}
                   className="font-medium text-blue hover:underline"
                 >
-                  {formatReportDate(report.date)} · {report.shiftType}
+                  {formatReportDate(report.date)} · {shiftTypeLabel(report.shiftType)}
                 </Link>
                 <span className="text-muted-foreground">by {report.author.name}</span>
               </header>
               {report.catEntries.map((entry) => (
                 <EntryDetails key={entry.id} entry={entry} />
+              ))}
+              {report.medicalNotes.map((m) => (
+                <p key={`med${m.id}`} className="text-sm">
+                  <span className="text-muted-foreground">Medical: </span>
+                  {m.note}
+                </p>
               ))}
               {report.meetAndGreets.map((m) => (
                 <p key={`m${m.id}`} className="text-sm">

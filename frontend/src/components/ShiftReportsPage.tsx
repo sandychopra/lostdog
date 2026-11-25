@@ -1,14 +1,24 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router";
-import { Plus } from "lucide-react";
 import { api } from "../lib/api";
 import { catOptionLabel, useCatOptions } from "../lib/useCatOptions";
-import { Button, buttonVariants } from "./ui/button";
+import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { NativeSelect, NativeSelectOption } from "./ui/native-select";
 import { Input } from "./ui/input";
-import ShiftReportsTable, { REPORTS_PAGE_SIZE } from "./ShiftReportsTable";
+import ShiftReportsTable, { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "./ShiftReportsTable";
+
+const PAGE_SIZE_STORAGE_KEY = "shiftReports.pageSize";
+
+// Each person's last "per page" choice, kept on their device.
+function readSavedPageSize(): number {
+  try {
+    const saved = Number(localStorage.getItem(PAGE_SIZE_STORAGE_KEY));
+    return (PAGE_SIZE_OPTIONS as readonly number[]).includes(saved) ? saved : DEFAULT_PAGE_SIZE;
+  } catch {
+    return DEFAULT_PAGE_SIZE;
+  }
+}
 import AppLayout from "./AppLayout";
 
 export default function ShiftReportsPage() {
@@ -16,7 +26,8 @@ export default function ShiftReportsPage() {
   const [kennelId, setKennelId] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [limit, setLimit] = useState(REPORTS_PAGE_SIZE);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(readSavedPageSize);
 
   const { data: cats } = useCatOptions();
   const { data: kennels } = useQuery({
@@ -41,19 +52,13 @@ export default function ShiftReportsPage() {
   function resetPaging<T>(setter: (v: T) => void) {
     return (v: T) => {
       setter(v);
-      setLimit(REPORTS_PAGE_SIZE);
+      setPage(1);
     };
   }
 
   return (
     <AppLayout width="5xl">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold">Shift Reports</h1>
-        <Link to="/shift-reports/new" className={buttonVariants({ variant: "default" })}>
-          <Plus className="mr-1 h-4 w-4" />
-          New Report
-        </Link>
-      </div>
+      <h1 className="mb-6 text-3xl font-bold">Shift Reports</h1>
 
       <div className="mb-6 flex flex-wrap items-end gap-3">
         <div className="w-full space-y-1 sm:w-auto">
@@ -117,7 +122,7 @@ export default function ShiftReportsPage() {
               setKennelId("");
               setFrom("");
               setTo("");
-              setLimit(REPORTS_PAGE_SIZE);
+              setPage(1);
             }}
           >
             Clear
@@ -132,8 +137,21 @@ export default function ShiftReportsPage() {
 
       <ShiftReportsTable
         filters={filters}
-        limit={limit}
-        onLoadMore={() => setLimit((l) => l + REPORTS_PAGE_SIZE)}
+        page={page}
+        pageSize={pageSize}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPage(1);
+          try {
+            localStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(size));
+          } catch {
+            // Storage can be unavailable (private mode); the choice just isn't kept.
+          }
+        }}
+        onPageChange={(next) => {
+          setPage(next);
+          window.scrollTo({ top: 0 });
+        }}
       />
     </AppLayout>
   );

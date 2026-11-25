@@ -1,32 +1,19 @@
 import { Controller, useWatch } from "react-hook-form";
 import { Label } from "./ui/label";
-import { Badge } from "./ui/badge";
 import { Textarea } from "./ui/textarea";
 import { Checkbox } from "./ui/checkbox";
 import FecalScorePicker from "./FecalScorePicker";
 import FoodAmountPicker from "./FoodAmountPicker";
-import CollapsibleEntryCard from "./CollapsibleEntryCard";
 import ErrorMessage from "./ErrorMessage";
-import type { Cat } from "./CatsTable";
 import type { ShiftReportFormApi } from "../lib/shiftReportForm";
 
 interface CatEntryFieldsProps {
   form: ShiftReportFormApi;
   index: number;
-  cats: Cat[];
-  onRemove: () => void;
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
 }
 
-export default function CatEntryFields({
-  form,
-  index,
-  cats,
-  onRemove,
-  collapsed,
-  onToggleCollapsed,
-}: CatEntryFieldsProps) {
+/** The editable fields of an individual cat entry, shown in CatEntryCard's Edit dialog. */
+export default function CatEntryFields({ form, index }: CatEntryFieldsProps) {
   const { control, register, setValue, formState } = form;
   const base = `catEntries.${index}` as const;
   // Individual and group entries share an index space, so the union's error
@@ -34,49 +21,26 @@ export default function CatEntryFields({
   const errors = formState.errors.catEntries?.[index] as
     Record<string, { message?: string; root?: { message?: string } } | undefined> | undefined;
 
-  const catId = useWatch({ control, name: `${base}.catId` as const });
-  const fecalScore = useWatch({ control, name: `${base}.fecalScore` as const });
+  const fecalScores = useWatch({ control, name: `${base}.fecalScores` as const }) ?? [];
+  const fecalEmpty = useWatch({ control, name: `${base}.fecalEmpty` as const }) ?? false;
   const dryFoodAmount = useWatch({ control, name: `${base}.dryFoodAmount` as const });
   const wetFoodAmount = useWatch({ control, name: `${base}.wetFoodAmount` as const });
-  const pee = useWatch({ control, name: `${base}.pee` as const });
-
-  // Native <select> values are always strings, even though the schema's
-  // parsed/output type is number — coerce before comparing against numeric ids.
-  const selectedCat = cats.find((c) => c.id === Number(catId));
-
-  const summary = (
-    <>
-      {fecalScore !== undefined && <Badge variant="outline">Fecal Score: {fecalScore}</Badge>}
-      {dryFoodAmount && <Badge variant="outline">Dry: {dryFoodAmount}</Badge>}
-      {wetFoodAmount && <Badge variant="outline">Wet: {wetFoodAmount}</Badge>}
-      {pee && <Badge variant="outline">Pee</Badge>}
-    </>
-  );
-
-  async function handleSave() {
-    const valid = await form.trigger(`catEntries.${index}` as const);
-    if (valid) onToggleCollapsed();
-  }
 
   return (
-    <CollapsibleEntryCard
-      title={selectedCat?.name ?? "Individual Entry"}
-      summary={summary}
-      collapsed={collapsed}
-      onToggleCollapsed={onToggleCollapsed}
-      onRemove={onRemove}
-      onSave={handleSave}
-    >
+    <div className="space-y-4">
       <input type="hidden" {...register(`${base}.catId` as const)} />
       <ErrorMessage message={errors?.catId?.message} />
 
       <div className="space-y-2">
         <Label>Fecal Score</Label>
         <FecalScorePicker
-          value={fecalScore}
-          onChange={(v) => setValue(`${base}.fecalScore` as const, v, { shouldValidate: true })}
+          value={{ scores: fecalScores, empty: fecalEmpty }}
+          onChange={(v) => {
+            setValue(`${base}.fecalEmpty` as const, v.empty, { shouldDirty: true });
+            setValue(`${base}.fecalScores` as const, v.scores, { shouldValidate: true });
+          }}
         />
-        <ErrorMessage message={errors?.fecalScore?.message} />
+        <ErrorMessage message={errors?.fecalScores?.message} />
       </div>
 
       <div className="flex items-center gap-2">
@@ -131,15 +95,6 @@ export default function CatEntryFields({
           {...register(`${base}.foodNotes` as const)}
         />
       </div>
-
-      <div className="space-y-2">
-        <Label htmlFor={`${base}.medicalNotes`}>Medical Notes</Label>
-        <Textarea
-          id={`${base}.medicalNotes`}
-          className="min-h-16"
-          {...register(`${base}.medicalNotes` as const)}
-        />
-      </div>
-    </CollapsibleEntryCard>
+    </div>
   );
 }

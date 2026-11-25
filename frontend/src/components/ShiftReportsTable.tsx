@@ -1,15 +1,18 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "react-router";
-import { ShiftType } from "shared/constants/shiftType.ts";
+import { shiftTypeLabel, type ShiftType } from "shared/constants/shiftType.ts";
 import { CatEntryType } from "shared/constants/catEntryType.ts";
 import { FoodAmount } from "shared/constants/foodAmount.ts";
 import { SplitShiftPosition } from "shared/constants/splitShiftPosition.ts";
 import { ShiftReportStatus } from "shared/constants/shiftReportStatus.ts";
 import type { ReportableKennelState } from "shared/constants/kennelState.ts";
 import { api } from "../lib/api";
+import { cn } from "../lib/utils";
 import ErrorAlert from "./ErrorAlert";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
+import { NativeSelect, NativeSelectOption } from "./ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Skeleton } from "./ui/skeleton";
 import { Card } from "./ui/card";
@@ -34,7 +37,6 @@ export interface GroupEntryCatDetail {
   cat: { id: number; name: string };
   wetFoodAmount: FoodAmount | null;
   foodNotes: string | null;
-  medicalNotes: string | null;
 }
 
 export interface CatEntry {
@@ -44,13 +46,13 @@ export interface CatEntry {
   groupId: number | null;
   cat: { id: number; name: string } | null;
   group: { id: number; bonded: boolean; cats: { id: number; name: string }[] } | null;
-  fecalScore: number | null;
+  fecalScores: number[];
+  fecalEmpty: boolean;
   pee: boolean;
   peePoopNotes: string | null;
   dryFoodAmount: FoodAmount | null;
   foodNotes: string | null;
   wetFoodAmount: FoodAmount | null;
-  medicalNotes: string | null;
   groupDetails: GroupEntryCatDetail[];
   photos: ShiftReportPhoto[];
 }
@@ -67,11 +69,18 @@ export interface PlayGroup {
   cats: { catId: number; cat: { id: number; name: string } }[];
 }
 
+export interface MedicalNote {
+  id: number;
+  catId: number;
+  note: string;
+  cat: { id: number; name: string };
+}
+
 export interface ShiftReport {
   id: number;
   authorId: string;
   author: { id: string; name: string };
-  shiftType: ShiftType;
+  shiftType: ShiftType | null;
   date: string;
   isSplitShift: boolean;
   splitShiftPosition: SplitShiftPosition | null;
@@ -86,6 +95,7 @@ export interface ShiftReport {
   catEntries: CatEntry[];
   meetAndGreets: MeetAndGreet[];
   playGroups: PlayGroup[];
+  medicalNotes: MedicalNote[];
   kennelsStatus: {
     kennelId: number;
     reportedState: ReportableKennelState;
@@ -110,32 +120,42 @@ export interface ShiftReportFilters {
   to?: string;
 }
 
-export const REPORTS_PAGE_SIZE = 50;
+export const PAGE_SIZE_OPTIONS = [5, 10, 25] as const;
+export const DEFAULT_PAGE_SIZE = 10;
 
 interface ShiftReportsTableProps {
   filters?: ShiftReportFilters;
-  limit?: number;
-  onLoadMore?: () => void;
+  /** 1-based. */
+  page?: number;
+  onPageChange?: (page: number) => void;
+  pageSize?: number;
+  onPageSizeChange?: (size: number) => void;
 }
 
 export default function ShiftReportsTable({
   filters = {},
-  limit = REPORTS_PAGE_SIZE,
-  onLoadMore,
+  page = 1,
+  onPageChange,
+  pageSize = DEFAULT_PAGE_SIZE,
+  onPageSizeChange,
 }: ShiftReportsTableProps) {
-  const {
-    data: shiftReports,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["shiftReports", "list", filters, limit],
+  const { data, isLoading, isPlaceholderData, error } = useQuery({
+    queryKey: ["shiftReports", "list", filters, page, pageSize],
     queryFn: async () => {
-      const { data } = await api.get<{ shiftReports: ShiftReport[] }>("/api/shift-reports", {
-        params: { ...filters, limit },
-      });
-      return data.shiftReports;
+      const { data } = await api.get<{ shiftReports: ShiftReport[]; total: number }>(
+        "/api/shift-reports",
+        {
+          params: { ...filters, limit: pageSize, offset: (page - 1) * pageSize },
+        },
+      );
+      return data;
     },
+    // Keep showing the current page while the next one loads, instead of
+    // flashing back to skeletons.
+    placeholderData: keepPreviousData,
   });
+  const shiftReports = data?.shiftReports;
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1;
 
   if (error) {
     return <ErrorAlert message="Failed to fetch shift reports" />;
@@ -223,12 +243,55 @@ export default function ShiftReportsTable({
       {shiftReports && shiftReports.length === 0 && (
         <p className="mt-4 text-sm text-muted-foreground">No shift reports match.</p>
       )}
-      {onLoadMore && shiftReports && shiftReports.length >= limit && (
-        <div className="mt-4 flex justify-center">
-          <Button variant="secondary" onClick={onLoadMore}>
-            Load more
-          </Button>
-        </div>
+      {onPageChange && data && data.total > 0 && (
+        <nav
+          aria-label="Pagination"
+          className={cn(
+            "mt-4 flex flex-wrap items-center justify-center gap-3",
+            isPlaceholderData && "opacity-60",
+          )}
+        >
+          {totalPages > 1 && (
+            <>
+              <Button
+                variant="secondary"
+                disabled={page <= 1 || isPlaceholderData}
+                onClick={() => onPageChange(page - 1)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Prev
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {Math.min(page, totalPages)} of {totalPages}
+              </span>
+              <Button
+                variant="secondary"
+                disabled={page >= totalPages || isPlaceholderData}
+                onClick={() => onPageChange(page + 1)}
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+          {onPageSizeChange && (
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              Per page
+              <NativeSelect
+                aria-label="Reports per page"
+                className="w-20"
+                value={String(pageSize)}
+                onChange={(e) => onPageSizeChange(Number(e.target.value))}
+              >
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <NativeSelectOption key={size} value={String(size)}>
+                    {size}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </label>
+          )}
+        </nav>
       )}
     </>
   );
@@ -241,11 +304,6 @@ function SplitBadge({ report }: { report: ShiftReport }) {
       {report.splitShiftPosition ? ` (${splitShiftPositionLabel(report.splitShiftPosition)})` : ""}
     </Badge>
   );
-}
-
-function shiftTypeLabel(shiftType: ShiftType): string {
-  if (shiftType === ShiftType.MidDay) return "Mid-day";
-  return shiftType;
 }
 
 export function splitShiftPositionLabel(position: SplitShiftPosition): string {

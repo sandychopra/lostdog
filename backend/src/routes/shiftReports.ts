@@ -48,6 +48,10 @@ const shiftReportInclude = {
     orderBy: { id: "asc" },
     include: { cats: { include: { cat: { select: { id: true, name: true } } } } },
   },
+  medicalNotes: {
+    orderBy: { cat: { name: "asc" } },
+    include: { cat: { select: { id: true, name: true } } },
+  },
   kennelsStatus: { include: { kennel: { select: { id: true, number: true } } } },
   // Report-level photos only — cat-entry-scoped photos are nested under
   // catEntries above instead, so a photo never appears in both places.
@@ -73,7 +77,6 @@ function detailFields(detail: GroupEntryCatDetailInput) {
   return {
     wetFoodAmount: detail.wetFoodAmount ?? null,
     foodNotes: detail.foodNotes ?? null,
-    medicalNotes: detail.medicalNotes ?? null,
   };
 }
 
@@ -84,20 +87,21 @@ function buildCatEntryCreate(
     return {
       entryType: entry.entryType,
       catId: entry.catId,
-      fecalScore: entry.fecalScore ?? null,
+      fecalScores: entry.fecalScores,
+      fecalEmpty: entry.fecalEmpty,
       pee: entry.pee,
       peePoopNotes: entry.peePoopNotes ?? null,
       dryFoodAmount: entry.dryFoodAmount ?? null,
       wetFoodAmount: entry.wetFoodAmount ?? null,
       foodNotes: entry.foodNotes ?? null,
-      medicalNotes: entry.medicalNotes ?? null,
     };
   }
 
   return {
     entryType: entry.entryType,
     groupId: entry.groupId,
-    fecalScore: entry.fecalScore ?? null,
+    fecalScores: entry.fecalScores,
+    fecalEmpty: entry.fecalEmpty,
     pee: entry.pee,
     peePoopNotes: entry.peePoopNotes ?? null,
     dryFoodAmount: entry.dryFoodAmount ?? null,
@@ -126,6 +130,7 @@ function collectReferencedCatIds(data: CreateShiftReportInput): number[] {
   for (const playGroup of data.playGroups) {
     for (const id of playGroup.catIds) ids.add(id);
   }
+  for (const medicalNote of data.medicalNotes) ids.add(medicalNote.catId);
   return [...ids];
 }
 
@@ -205,27 +210,20 @@ router.get("/", requireAuth, async (req, res: Response) => {
     and.push({ date: { ...(from && { gte: from }), ...(to && { lte: to }) } });
   }
 
-  const shiftReports = await prisma.shiftReport.findMany({
-    where: and.length > 0 ? { AND: and } : {},
-    include: shiftReportInclude,
-    omit: outboxOmit,
-    orderBy: [{ date: "desc" }, { id: "desc" }],
-    ...parsePaging(req.query),
-  });
+  const where: Prisma.ShiftReportWhereInput = and.length > 0 ? { AND: and } : {};
+  // total lets the list show "Page X of Y" without fetching every report.
+  const [shiftReports, total] = await prisma.$transaction([
+    prisma.shiftReport.findMany({
+      where,
+      include: shiftReportInclude,
+      omit: outboxOmit,
+      orderBy: [{ date: "desc" }, { id: "desc" }],
+      ...parsePaging(req.query),
+    }),
+    prisma.shiftReport.count({ where }),
+  ]);
 
-  res.json({ shiftReports });
-});
-
-// The signed-in user's most recently updated Draft, if any — the bottom bar's
-// "+ Report" button resumes it instead of starting a second report.
-router.get("/my-draft", requireAuth, async (req, res: Response) => {
-  const authorId = (req as AuthedRequest).session.user.id;
-  const draft = await prisma.shiftReport.findFirst({
-    where: { authorId, status: ShiftReportStatus.Draft },
-    select: { id: true },
-    orderBy: { updatedAt: "desc" },
-  });
-  res.json({ shiftReport: draft });
+  res.json({ shiftReports, total });
 });
 
 router.get("/:id", requireAuth, async (req, res: Response) => {
@@ -259,7 +257,7 @@ router.post("/", requireAuth, async (req, res: Response) => {
     const created = await tx.shiftReport.create({
       data: {
         authorId,
-        shiftType: data.shiftType,
+        shiftType: data.shiftType ?? null,
         date: data.date,
         isSplitShift: data.isSplitShift,
         splitShiftPosition: data.splitShiftPosition ?? null,
@@ -281,6 +279,9 @@ router.post("/", requireAuth, async (req, res: Response) => {
             note: playGroup.note,
             cats: { create: playGroup.catIds.map((catId) => ({ catId })) },
           })),
+        },
+        medicalNotes: {
+          create: data.medicalNotes.map((m) => ({ catId: m.catId, note: m.note })),
         },
         kennelsStatus: {
           create: data.kennelsStatus.map((k) => ({
@@ -377,13 +378,13 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
             where: { id: entry.id },
             data: {
               catId: entry.catId,
-              fecalScore: entry.fecalScore ?? null,
+              fecalScores: entry.fecalScores,
+              fecalEmpty: entry.fecalEmpty,
               pee: entry.pee,
               peePoopNotes: entry.peePoopNotes ?? null,
               dryFoodAmount: entry.dryFoodAmount ?? null,
               wetFoodAmount: entry.wetFoodAmount ?? null,
               foodNotes: entry.foodNotes ?? null,
-              medicalNotes: entry.medicalNotes ?? null,
             },
           });
           continue;
@@ -393,7 +394,8 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
           where: { id: entry.id },
           data: {
             groupId: entry.groupId,
-            fecalScore: entry.fecalScore ?? null,
+            fecalScores: entry.fecalScores,
+            fecalEmpty: entry.fecalEmpty,
             pee: entry.pee,
             peePoopNotes: entry.peePoopNotes ?? null,
             dryFoodAmount: entry.dryFoodAmount ?? null,
@@ -447,6 +449,13 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
         });
       }
 
+      await tx.medicalNote.deleteMany({ where: { shiftReportId: id } });
+      if (data.medicalNotes.length > 0) {
+        await tx.medicalNote.createMany({
+          data: data.medicalNotes.map((m) => ({ shiftReportId: id, catId: m.catId, note: m.note })),
+        });
+      }
+
       await tx.shiftReportKennelStatus.deleteMany({ where: { shiftReportId: id } });
       if (data.kennelsStatus.length > 0) {
         await tx.shiftReportKennelStatus.createMany({
@@ -461,7 +470,7 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
       await tx.shiftReport.update({
         where: { id },
         data: {
-          shiftType: data.shiftType,
+          shiftType: data.shiftType ?? null,
           date: data.date,
           isSplitShift: data.isSplitShift,
           splitShiftPosition: data.splitShiftPosition ?? null,

@@ -1,3 +1,4 @@
+import { formatFecalScore } from "shared/constants/fecalScore.ts";
 import { AnnouncementType } from "shared/constants/announcementType.ts";
 import { ChecklistActionType } from "shared/constants/checklistActionType.ts";
 import { CatEntryType } from "shared/constants/catEntryType.ts";
@@ -46,6 +47,7 @@ export const shiftReportEmailInclude = {
   },
   meetAndGreets: { orderBy: { id: "asc" }, include: { cats: { include: { cat: catSelect } } } },
   playGroups: { orderBy: { id: "asc" }, include: { cats: { include: { cat: catSelect } } } },
+  medicalNotes: { orderBy: { cat: { name: "asc" } }, include: { cat: catSelect } },
   kennelsStatus: { include: { kennel: kennelSelect } },
 } satisfies Prisma.ShiftReportInclude;
 
@@ -180,7 +182,7 @@ function compact(lines: (string | null)[], indent = "  "): string[] {
 }
 
 export function renderShiftReportEmail(report: ShiftReportForEmail): EmailMessage {
-  const shift = SHIFT_LABELS[report.shiftType] ?? report.shiftType;
+  const shift = report.shiftType ? (SHIFT_LABELS[report.shiftType] ?? report.shiftType) : "Shift";
   const split = report.isSplitShift ? ` (split shift, ${report.splitShiftPosition})` : "";
   const subject = `Shift report: ${formatDate(report.date)} ${shift}${split} — ${report.author.name}`;
 
@@ -208,7 +210,7 @@ export function renderShiftReportEmail(report: ShiftReportForEmail): EmailMessag
   if (report.catEntries.length > 0) lines.push("", "Cats:");
   for (const entry of report.catEntries) {
     const shared = [
-      field("Fecal score", entry.fecalScore),
+      field("Fecal score", formatFecalScore(entry)),
       field("Pee", entry.pee),
       field("Pee/poop notes", entry.peePoopNotes),
       field("Dry food", entry.dryFoodAmount),
@@ -220,11 +222,7 @@ export function renderShiftReportEmail(report: ShiftReportForEmail): EmailMessag
         lines.push(
           `  ${detail.cat.name}:`,
           ...compact(
-            [
-              field("Wet food", detail.wetFoodAmount),
-              field("Food notes", detail.foodNotes),
-              field("Medical notes", detail.medicalNotes),
-            ],
+            [field("Wet food", detail.wetFoodAmount), field("Food notes", detail.foodNotes)],
             "    ",
           ),
         );
@@ -236,10 +234,14 @@ export function renderShiftReportEmail(report: ShiftReportForEmail): EmailMessag
           ...shared,
           field("Wet food", entry.wetFoodAmount),
           field("Food notes", entry.foodNotes),
-          field("Medical notes", entry.medicalNotes),
         ]),
       );
     }
+  }
+
+  if (report.medicalNotes.length > 0) {
+    lines.push("", "Medical notes:");
+    for (const m of report.medicalNotes) lines.push(`- ${m.cat.name}: ${m.note}`);
   }
 
   if (report.meetAndGreets.length > 0) {
