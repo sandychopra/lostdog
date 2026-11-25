@@ -3,6 +3,12 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "../test/render";
 
+// When true, the cats are in care (Available) and Pepsi sits in kennel 4, so
+// a new report pre-fills cards for Pepsi and the Sprite/Nehi group. Off by
+// default so the other tests start with no cards.
+let catsInCare = false;
+const status = () => (catsInCare ? "Available" : "Adopted");
+
 const get = mock(async (url: string) => {
   if (url === "/api/cats") {
     return {
@@ -12,6 +18,8 @@ const get = mock(async (url: string) => {
             id: 1,
             name: "Pepsi",
             groupId: null,
+            status: status(),
+            kennel: catsInCare ? { id: 4, number: 4 } : null,
             dewormerStatus: "Given",
             needsProbiotic: false,
           },
@@ -19,6 +27,7 @@ const get = mock(async (url: string) => {
             id: 2,
             name: "Sprite",
             groupId: 10,
+            status: status(),
             dewormerStatus: "Given",
             needsProbiotic: false,
           },
@@ -26,6 +35,7 @@ const get = mock(async (url: string) => {
             id: 3,
             name: "Nehi",
             groupId: 10,
+            status: status(),
             dewormerStatus: "Given",
             needsProbiotic: false,
           },
@@ -37,6 +47,17 @@ const get = mock(async (url: string) => {
     return {
       data: {
         kennels: [
+          ...(catsInCare
+            ? [
+                {
+                  id: 4,
+                  number: 4,
+                  state: "Occupied",
+                  cats: [{ id: 1, name: "Pepsi" }],
+                  groups: [],
+                },
+              ]
+            : []),
           {
             id: 5,
             number: 5,
@@ -62,16 +83,28 @@ const post = mock(async (_url: string, _payload: unknown) => ({
   data: { shiftReport: { id: 1, catEntries: [] } },
 }));
 
+const put = mock(async (_url: string, _payload: unknown) => ({
+  data: { shiftReport: { id: 1, catEntries: [] } },
+}));
+
 mock.module("../lib/api", () => ({
-  api: { get, post },
+  api: { get, post, put },
 }));
 
 const { default: ShiftReportForm } = await import("./ShiftReportForm");
 
+async function openEditor(user: ReturnType<typeof userEvent.setup>, title: string) {
+  await user.click(await screen.findByRole("button", { name: `Actions for ${title}` }));
+  await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
+  return screen.findByRole("dialog");
+}
+
 describe("ShiftReportForm", () => {
   beforeEach(() => {
+    catsInCare = false;
     get.mockClear();
     post.mockClear();
+    put.mockClear();
   });
 
   afterEach(() => {
@@ -156,6 +189,7 @@ describe("ShiftReportForm", () => {
     await user.selectOptions(await screen.findByRole("combobox", { name: /add a cat/i }), [
       "cat:1",
     ]);
+    await openEditor(user, "Pepsi");
 
     expect(screen.queryByText("Free-fed")).not.toBeInTheDocument();
     expect(screen.getAllByRole("radio", { name: "Most" }).length).toBeGreaterThan(0);
@@ -168,7 +202,9 @@ describe("ShiftReportForm", () => {
     await user.selectOptions(await screen.findByRole("combobox", { name: /add a cat/i }), [
       "group:10",
     ]);
+    await openEditor(user, "Sprite / Nehi");
 
+    expect(screen.getByText("Fecal Score (shared)")).toBeInTheDocument();
     expect(screen.queryByText("Water noted (shared)")).not.toBeInTheDocument();
   });
 
@@ -280,6 +316,52 @@ describe("ShiftReportForm", () => {
     const payload = post.mock.calls[0]?.[1] as { kennelsStatus: unknown[] };
     expect(payload.kennelsStatus).toHaveLength(1);
     expect(payload.kennelsStatus[0]).toMatchObject({ kennelId: 5, reportedState: "Ready" });
+  });
+
+  test("a new report pre-fills a card per kennelled cat or group, in kennel order", async () => {
+    catsInCare = true;
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+
+    await waitFor(() => expect(screen.getAllByTestId("cat-entry-card")).toHaveLength(2));
+    const cards = screen.getAllByTestId("cat-entry-card");
+    expect(cards[0]).toHaveTextContent("Pepsi");
+    expect(cards[1]).toHaveTextContent("Sprite / Nehi");
+    expect(within(cards[0]!).getByText("Needs info")).toBeInTheDocument();
+  });
+
+  test("untouched pre-filled cards block submit until filled in or removed", async () => {
+    catsInCare = true;
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+    await waitFor(() => expect(screen.getAllByTestId("cat-entry-card")).toHaveLength(2));
+    await user.selectOptions(screen.getByLabelText("Shift Type"), "Morning");
+
+    await user.click(screen.getByRole("button", { name: "Submit Report" }));
+    expect(
+      await screen.findByText("2 cats still need info — fill them in or remove the cards."),
+    ).toBeInTheDocument();
+    expect(post).not.toHaveBeenCalled();
+
+    // Fill in Pepsi, remove the group.
+    const dialog = await openEditor(user, "Pepsi");
+    await user.click(within(dialog).getByRole("button", { name: "3" }));
+    await user.click(within(dialog).getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByText("Fecal: 3")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Actions for Sprite / Nehi" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Remove" }));
+    await user.click(await screen.findByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(screen.getAllByTestId("cat-entry-card")).toHaveLength(1));
+
+    // Closing the editor autosaved a draft, so submitting updates it.
+    await user.click(screen.getByRole("button", { name: "Submit Report" }));
+    await waitFor(() => expect(put).toHaveBeenCalled());
+    const payload = put.mock.calls.at(-1)?.[1] as { status: string; catEntries: unknown[] };
+    expect(payload.status).toBe("Submitted");
+    expect(payload.catEntries).toEqual([
+      expect.objectContaining({ catId: 1, fecalScores: [3], fecalEmpty: false }),
+    ]);
   });
 
   test("autosaves a draft when the page is hidden, and not again until something changes", async () => {

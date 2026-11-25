@@ -5,11 +5,13 @@ import {
   createShiftReportSchema,
   updateShiftReportSchema,
   draftShiftReportSchema,
+  UNTOUCHED_ENTRY_MESSAGE,
   type CreateShiftReportInput,
   type DraftShiftReportInput,
 } from "shared/schemas/shiftReports.ts";
 import { ShiftType } from "shared/constants/shiftType.ts";
 import { CatEntryType } from "shared/constants/catEntryType.ts";
+import { CatStatus } from "shared/constants/catStatus.ts";
 import { SplitShiftPosition } from "shared/constants/splitShiftPosition.ts";
 import { ShiftReportStatus } from "shared/constants/shiftReportStatus.ts";
 import { api } from "../lib/api";
@@ -23,8 +25,7 @@ import { Textarea } from "./ui/textarea";
 import { Checkbox } from "./ui/checkbox";
 import ErrorAlert from "./ErrorAlert";
 import ErrorMessage from "./ErrorMessage";
-import CatEntryFields from "./CatEntryFields";
-import GroupCatEntryFields from "./GroupCatEntryFields";
+import CatEntryCard from "./CatEntryCard";
 import CatNoteGroupList, { type CatNoteGroupListHandle } from "./CatNoteGroupList";
 import KennelStatusList from "./KennelStatusList";
 import PhotoUploadSection, {
@@ -193,27 +194,7 @@ export default function ShiftReportForm({
 
   const catEntries = useFieldArray({ control, name: "catEntries" });
 
-  // Keyed by useFieldArray's stable field.id (not array index, which shifts on
-  // add/remove). Entries default collapsed when editing an existing report, so
-  // a volunteer sees an overview first; a brand-new report starts empty, and a
-  // freshly-added entry is never added to this set, so both open expanded.
-  const [collapsedEntryIds, setCollapsedEntryIds] = useState<Set<string>>(() =>
-    report ? new Set(catEntries.fields.map((f) => f.id)) : new Set(),
-  );
-
-  function toggleEntryCollapsed(id: string) {
-    setCollapsedEntryIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-    // Collapsing an entry is a natural "done with this cat" moment.
-    void autosaveRef.current();
-  }
-
-  // Computed once at mount, same as collapsedEntryIds above: editing an
-  // existing report starts every section collapsed, so a volunteer sees an
+  // Computed once at mount: editing an existing report starts every section collapsed, so a volunteer sees an
   // overview first; a brand-new report starts each section expanded as it's
   // filled in, since there's nothing to collapse yet.
   const [collapsedSections, setCollapsedSections] = useState<Record<SectionKey, boolean>>(() => ({
@@ -243,7 +224,6 @@ export default function ShiftReportForm({
       photos: true,
       notes: true,
     });
-    setCollapsedEntryIds(new Set(catEntries.fields.map((f) => f.id)));
     playGroupsRef.current?.collapseAll();
     meetAndGreetsRef.current?.collapseAll();
   }
@@ -257,7 +237,6 @@ export default function ShiftReportForm({
       photos: false,
       notes: false,
     });
-    setCollapsedEntryIds(new Set());
     playGroupsRef.current?.expandAll();
     meetAndGreetsRef.current?.expandAll();
   }
@@ -277,18 +256,14 @@ export default function ShiftReportForm({
       otherNotes: "notes",
     };
     const sections = new Set<SectionKey>();
-    const entryIndices: Record<"catEntries" | "playGroups" | "meetAndGreets", number[]> = {
-      catEntries: [],
+    const entryIndices: Record<"playGroups" | "meetAndGreets", number[]> = {
       playGroups: [],
       meetAndGreets: [],
     };
     for (const [field, index] of paths) {
       const section = sectionByField[String(field)];
       if (section) sections.add(section);
-      if (
-        typeof index === "number" &&
-        (field === "catEntries" || field === "playGroups" || field === "meetAndGreets")
-      ) {
+      if (typeof index === "number" && (field === "playGroups" || field === "meetAndGreets")) {
         entryIndices[field].push(index);
       }
     }
@@ -298,12 +273,6 @@ export default function ShiftReportForm({
         for (const key of sections) next[key] = false;
         return next;
       });
-    }
-    if (entryIndices.catEntries.length > 0) {
-      const ids = new Set<string | undefined>(
-        entryIndices.catEntries.map((i) => catEntries.fields[i]?.id),
-      );
-      setCollapsedEntryIds((prev) => new Set([...prev].filter((id) => !ids.has(id))));
     }
     playGroupsRef.current?.expandEntries(entryIndices.playGroups);
     meetAndGreetsRef.current?.expandEntries(entryIndices.meetAndGreets);
@@ -499,7 +468,14 @@ export default function ShiftReportForm({
             issue.path.filter((p): p is string | number => typeof p !== "symbol"),
           ),
         );
-        setSubmitAttemptError("Please complete the highlighted fields before submitting.");
+        const untouched = result.error.issues.filter(
+          (issue) => issue.message === UNTOUCHED_ENTRY_MESSAGE,
+        ).length;
+        setSubmitAttemptError(
+          untouched > 0
+            ? `${untouched} ${untouched === 1 ? "cat still needs" : "cats still need"} info — fill ${untouched === 1 ? "it" : "them"} in or remove the card${untouched === 1 ? "" : "s"}.`
+            : "Please complete the highlighted fields before submitting.",
+        );
         return;
       }
       setSubmitAttemptError(null);
@@ -512,8 +488,8 @@ export default function ShiftReportForm({
     form.handleSubmit((data) => handleSaveDraft(data), handleInvalid)();
   }
 
-  function addIndividualEntry(catId: number) {
-    catEntries.append({
+  function individualEntry(catId: number): DraftShiftReportInput["catEntries"][number] {
+    return {
       entryType: CatEntryType.Individual,
       catId,
       fecalScores: [],
@@ -522,12 +498,12 @@ export default function ShiftReportForm({
       peePoopNotes: "",
       foodNotes: "",
       medicalNotes: "",
-    });
+    };
   }
 
-  function addGroupEntry(groupId: number) {
+  function groupEntry(groupId: number): DraftShiftReportInput["catEntries"][number] {
     const group = (kennels ?? []).flatMap((k) => k.groups).find((g) => g.id === groupId);
-    catEntries.append({
+    return {
       entryType: CatEntryType.Group,
       groupId,
       fecalScores: [],
@@ -540,8 +516,35 @@ export default function ShiftReportForm({
         foodNotes: "",
         medicalNotes: "",
       })),
-    });
+    };
   }
+
+  // A new report starts with a card for every cat in a kennel (a group gets
+  // one shared card), in kennel order, so volunteers fill cards in rather than
+  // hunting each cat down in the picker. Cards for cats this shift didn't
+  // look after (e.g. the other half of a split shift) are removed from the
+  // card's menu. Runs once, and never for an existing report.
+  const prefilledRef = useRef(isEdit);
+  useEffect(() => {
+    if (prefilledRef.current || !cats || !kennels) return;
+    prefilledRef.current = true;
+    const inCareIds = new Set(
+      cats
+        .filter((c) => c.status === CatStatus.Available || c.status === CatStatus.PendingAdoption)
+        .map((c) => c.id),
+    );
+    const entries: DraftShiftReportInput["catEntries"] = [];
+    for (const kennel of [...kennels].sort((a, b) => a.number - b.number)) {
+      for (const cat of kennel.cats) {
+        if (inCareIds.has(cat.id)) entries.push(individualEntry(cat.id));
+      }
+      for (const group of kennel.groups) {
+        if (group.cats.some((c) => inCareIds.has(c.id))) entries.push(groupEntry(group.id));
+      }
+    }
+    if (entries.length > 0) catEntries.append(entries);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot pre-fill once both lists load
+  }, [cats, kennels]);
 
   // A single picker replaces separate "Add Individual/Group Entry" buttons —
   // which kind of entry a cat needs is roster trivia (is it currently housed
@@ -581,8 +584,7 @@ export default function ShiftReportForm({
     if (!value) return;
     const [kind, idStr] = value.split(":");
     const id = Number(idStr);
-    if (kind === "cat") addIndividualEntry(id);
-    else addGroupEntry(id);
+    catEntries.append(kind === "cat" ? individualEntry(id) : groupEntry(id));
     setPickerValue("");
     if (collapsedSections.catEntries) toggleSection("catEntries");
   }
@@ -704,28 +706,6 @@ export default function ShiftReportForm({
         anchorId="section-cat-entries"
         headerExtra={
           <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-            {catEntries.fields.length > 1 && (
-              <>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="h-10 md:h-8"
-                  onClick={() => setCollapsedEntryIds(new Set())}
-                >
-                  Expand all
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="h-10 md:h-8"
-                  onClick={() => setCollapsedEntryIds(new Set(catEntries.fields.map((f) => f.id)))}
-                >
-                  Collapse all
-                </Button>
-              </>
-            )}
             <NativeSelect
               aria-label="Add a cat"
               className="w-full sm:w-56"
@@ -742,33 +722,22 @@ export default function ShiftReportForm({
           </div>
         }
       >
-        {catEntries.fields.map((field, index) => {
-          const entryType = form.getValues(`catEntries.${index}.entryType`);
-          const collapsed = collapsedEntryIds.has(field.id);
-          const onToggleCollapsed = () => toggleEntryCollapsed(field.id);
-          return entryType === CatEntryType.Individual ? (
-            <CatEntryFields
-              key={field.id}
-              form={form}
-              index={index}
-              cats={cats ?? []}
-              onRemove={() => catEntries.remove(index)}
-              collapsed={collapsed}
-              onToggleCollapsed={onToggleCollapsed}
-            />
-          ) : (
-            <GroupCatEntryFields
-              key={field.id}
-              form={form}
-              index={index}
-              cats={cats ?? []}
-              kennels={kennels ?? []}
-              onRemove={() => catEntries.remove(index)}
-              collapsed={collapsed}
-              onToggleCollapsed={onToggleCollapsed}
-            />
-          );
-        })}
+        {catEntries.fields.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            No cats on this report yet — add one from &ldquo;Add a cat…&rdquo;.
+          </p>
+        )}
+        {catEntries.fields.map((field, index) => (
+          <CatEntryCard
+            key={field.id}
+            form={form}
+            index={index}
+            cats={cats ?? []}
+            kennels={kennels ?? []}
+            onRemove={() => catEntries.remove(index)}
+            onEditDone={() => void autosaveRef.current()}
+          />
+        ))}
       </CollapsibleSection>
 
       <CatNoteGroupList

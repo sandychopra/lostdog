@@ -70,6 +70,48 @@ function buildGroupCatEntrySchema(strict: boolean) {
   });
 }
 
+type EntryContent = {
+  fecalScores?: readonly unknown[];
+  fecalEmpty?: boolean;
+  pee?: boolean;
+  peePoopNotes?: string | null;
+  dryFoodAmount?: string | null;
+  wetFoodAmount?: string | null;
+  foodNotes?: string | null;
+  medicalNotes?: string | null;
+  catDetails?: readonly {
+    wetFoodAmount?: string | null;
+    foodNotes?: string | null;
+    medicalNotes?: string | null;
+  }[];
+};
+
+const filled = (value: string | null | undefined) => !!value && value.trim() !== "";
+
+/**
+ * True when nothing has been recorded on a cat entry yet. New reports start
+ * with a card for every kennelled cat, so a volunteer has to fill each one in
+ * or remove it before submitting — an untouched card would otherwise look
+ * like "checked, nothing to report".
+ */
+export function isCatEntryUntouched(entry: EntryContent): boolean {
+  const recorded =
+    (entry.fecalScores?.length ?? 0) > 0 ||
+    entry.fecalEmpty === true ||
+    entry.pee === true ||
+    filled(entry.peePoopNotes) ||
+    filled(entry.dryFoodAmount) ||
+    filled(entry.wetFoodAmount) ||
+    filled(entry.foodNotes) ||
+    filled(entry.medicalNotes) ||
+    (entry.catDetails ?? []).some(
+      (d) => filled(d.wetFoodAmount) || filled(d.foodNotes) || filled(d.medicalNotes),
+    );
+  return !recorded;
+}
+
+export const UNTOUCHED_ENTRY_MESSAGE = "Fill in this cat's info or remove the card";
+
 // z.discriminatedUnion requires plain ZodObject members, so the "distinct cats
 // within a group entry" check is applied to the union as a whole afterward,
 // not on groupCatEntrySchema directly.
@@ -85,6 +127,9 @@ function buildCatEntrySchema(strict: boolean) {
     .refine((entry) => !entry.fecalEmpty || entry.fecalScores.length === 0, {
       error: "Empty can't be combined with fecal scores",
       path: ["fecalScores"],
+    })
+    .refine((entry) => !strict || !isCatEntryUntouched(entry), {
+      error: UNTOUCHED_ENTRY_MESSAGE,
     });
 }
 

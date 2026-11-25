@@ -1,31 +1,19 @@
-import { useState } from "react";
 import { Controller, useFieldArray, useWatch } from "react-hook-form";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
-import { Badge } from "./ui/badge";
 import { Textarea } from "./ui/textarea";
 import { Checkbox } from "./ui/checkbox";
 import FoodAmountPicker from "./FoodAmountPicker";
-import { formatFecalScore } from "shared/constants/fecalScore.ts";
 import FecalScorePicker from "./FecalScorePicker";
-import CollapsibleEntryCard from "./CollapsibleEntryCard";
+import CollarDot from "./CollarDot";
 import ErrorMessage from "./ErrorMessage";
 import type { Cat } from "./CatsTable";
-import type { Kennel } from "./KennelsTable";
 import type { ShiftReportFormApi } from "../lib/shiftReportForm";
-
-// Per-cat detail rows default collapsed when there are more than this many,
-// matching the top-level entry threshold in ShiftReportForm.tsx.
-const AUTO_COLLAPSE_THRESHOLD = 3;
 
 interface GroupCatEntryFieldsProps {
   form: ShiftReportFormApi;
   index: number;
   cats: Cat[];
-  kennels: Kennel[];
-  onRemove: () => void;
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
 }
 
 function GroupCatDetailFields({
@@ -33,42 +21,26 @@ function GroupCatDetailFields({
   entryIndex,
   detailIndex,
   cat,
-  collapsed,
-  onToggleCollapsed,
 }: {
   form: ShiftReportFormApi;
   entryIndex: number;
   detailIndex: number;
   cat: Cat;
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
 }) {
   const { control, register, setValue } = form;
   const base = `catEntries.${entryIndex}.catDetails.${detailIndex}` as const;
   const wetFoodAmount = useWatch({ control, name: `${base}.wetFoodAmount` as const });
 
-  const summary = (
-    <>{wetFoodAmount !== undefined && <Badge variant="outline">Wet: {wetFoodAmount}</Badge>}</>
-  );
-
-  async function handleSave() {
-    const valid = await form.trigger(`catEntries.${entryIndex}.catDetails.${detailIndex}` as const);
-    if (valid) onToggleCollapsed();
-  }
-
   return (
-    <CollapsibleEntryCard
-      title={cat.name}
-      summary={summary}
-      collapsed={collapsed}
-      onToggleCollapsed={onToggleCollapsed}
-      onSave={handleSave}
-      variant="nested"
-    >
+    <fieldset className="space-y-2 rounded-md border border-input/60 bg-muted/30 p-3">
+      <legend className="flex items-center gap-1.5 px-1 text-sm font-medium">
+        {cat.name}
+        <CollarDot color={cat.collarColor} />
+      </legend>
       <div className="space-y-1">
         <Label>Wet Food</Label>
         <FoodAmountPicker
-          aria-label="Wet food amount"
+          aria-label={`${cat.name} wet food amount`}
           value={wetFoodAmount}
           onChange={(v) => setValue(`${base}.wetFoodAmount` as const, v, { shouldValidate: true })}
         />
@@ -85,19 +57,12 @@ function GroupCatDetailFields({
           {...register(`${base}.medicalNotes` as const)}
         />
       </div>
-    </CollapsibleEntryCard>
+    </fieldset>
   );
 }
 
-export default function GroupCatEntryFields({
-  form,
-  index,
-  cats,
-  kennels,
-  onRemove,
-  collapsed,
-  onToggleCollapsed,
-}: GroupCatEntryFieldsProps) {
+/** The editable fields of a group cat entry, shown in CatEntryCard's Edit dialog. */
+export default function GroupCatEntryFields({ form, index, cats }: GroupCatEntryFieldsProps) {
   const { control, register, setValue, formState } = form;
   const base = `catEntries.${index}` as const;
   // Individual and group entries share an index space, so the union's error
@@ -105,76 +70,17 @@ export default function GroupCatEntryFields({
   const errors = formState.errors.catEntries?.[index] as
     Record<string, { message?: string; root?: { message?: string } } | undefined> | undefined;
 
-  const groups = kennels.flatMap((k) => k.groups);
-  const groupId = useWatch({ control, name: `${base}.groupId` as const });
   const fecalScores = useWatch({ control, name: `${base}.fecalScores` as const }) ?? [];
   const fecalEmpty = useWatch({ control, name: `${base}.fecalEmpty` as const }) ?? false;
-  const fecalSummary = formatFecalScore({ fecalScores, fecalEmpty });
   const dryFoodAmount = useWatch({ control, name: `${base}.dryFoodAmount` as const });
-  const pee = useWatch({ control, name: `${base}.pee` as const });
-  const catDetails = useWatch({ control, name: `${base}.catDetails` as const });
 
   const { fields: detailFields } = useFieldArray({
     control,
     name: `${base}.catDetails` as const,
   });
 
-  // Keyed by catId, local to this entry — nothing outside needs to know which
-  // per-cat detail rows are collapsed. Defaults collapsed for a group this
-  // large, same threshold as the top-level entries in ShiftReportForm.tsx.
-  const [collapsedDetailIds, setCollapsedDetailIds] = useState<Set<number>>(() =>
-    detailFields.length > AUTO_COLLAPSE_THRESHOLD
-      ? new Set(detailFields.map((f) => f.catId))
-      : new Set(),
-  );
-
-  function toggleDetailCollapsed(catId: number) {
-    setCollapsedDetailIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(catId)) next.delete(catId);
-      else next.add(catId);
-      return next;
-    });
-  }
-
-  // Native <select> values are always strings — coerce before comparing.
-  const selectedGroup = groups.find((g) => g.id === Number(groupId));
-  const groupCats = selectedGroup?.cats ?? [];
-
-  const summary = (
-    <>
-      {fecalSummary && <Badge variant="outline">Fecal Score: {fecalSummary}</Badge>}
-      {dryFoodAmount && <Badge variant="outline">Dry: {dryFoodAmount}</Badge>}
-      {pee && <Badge variant="outline">Pee</Badge>}
-      {(catDetails ?? []).map((detail, i) =>
-        detail.wetFoodAmount && groupCats[i] ? (
-          <Badge key={detail.catId} variant="outline">
-            {groupCats[i].name} Wet: {detail.wetFoodAmount}
-          </Badge>
-        ) : null,
-      )}
-      {detailFields.length > 0 && (
-        <Badge variant="outline">
-          {detailFields.length} cat{detailFields.length === 1 ? "" : "s"}
-        </Badge>
-      )}
-    </>
-  );
-
-  async function handleSave() {
-    const valid = await form.trigger(base);
-    if (valid) onToggleCollapsed();
-  }
-
   return (
-    <CollapsibleEntryCard
-      title={selectedGroup ? selectedGroup.cats.map((c) => c.name).join(" / ") : "Group Entry"}
-      summary={summary}
-      collapsed={collapsed}
-      onToggleCollapsed={onToggleCollapsed}
-      onRemove={onRemove}
-      onSave={handleSave}
-    >
+    <div className="space-y-4">
       <input type="hidden" {...register(`${base}.groupId` as const)} />
       <ErrorMessage
         message={
@@ -243,9 +149,9 @@ export default function GroupCatEntryFields({
       {detailFields.length > 0 && (
         <div className="space-y-2">
           <Label>Per-Cat Details</Label>
-          <div className="space-y-2">
+          <div className="space-y-3">
             {detailFields.map((field, detailIndex) => {
-              const cat = cats.find((c) => c.id === groupCats[detailIndex]?.id);
+              const cat = cats.find((c) => c.id === Number(field.catId));
               if (!cat) return null;
               return (
                 <GroupCatDetailFields
@@ -254,14 +160,12 @@ export default function GroupCatEntryFields({
                   entryIndex={index}
                   detailIndex={detailIndex}
                   cat={cat}
-                  collapsed={collapsedDetailIds.has(field.catId)}
-                  onToggleCollapsed={() => toggleDetailCollapsed(field.catId)}
                 />
               );
             })}
           </div>
         </div>
       )}
-    </CollapsibleEntryCard>
+    </div>
   );
 }

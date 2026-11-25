@@ -1,33 +1,19 @@
 import { Controller, useWatch } from "react-hook-form";
 import { Label } from "./ui/label";
-import { Badge } from "./ui/badge";
 import { Textarea } from "./ui/textarea";
 import { Checkbox } from "./ui/checkbox";
-import { formatFecalScore } from "shared/constants/fecalScore.ts";
 import FecalScorePicker from "./FecalScorePicker";
 import FoodAmountPicker from "./FoodAmountPicker";
-import CollapsibleEntryCard from "./CollapsibleEntryCard";
 import ErrorMessage from "./ErrorMessage";
-import type { Cat } from "./CatsTable";
 import type { ShiftReportFormApi } from "../lib/shiftReportForm";
 
 interface CatEntryFieldsProps {
   form: ShiftReportFormApi;
   index: number;
-  cats: Cat[];
-  onRemove: () => void;
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
 }
 
-export default function CatEntryFields({
-  form,
-  index,
-  cats,
-  onRemove,
-  collapsed,
-  onToggleCollapsed,
-}: CatEntryFieldsProps) {
+/** The editable fields of an individual cat entry, shown in CatEntryCard's Edit dialog. */
+export default function CatEntryFields({ form, index }: CatEntryFieldsProps) {
   const { control, register, setValue, formState } = form;
   const base = `catEntries.${index}` as const;
   // Individual and group entries share an index space, so the union's error
@@ -35,41 +21,13 @@ export default function CatEntryFields({
   const errors = formState.errors.catEntries?.[index] as
     Record<string, { message?: string; root?: { message?: string } } | undefined> | undefined;
 
-  const catId = useWatch({ control, name: `${base}.catId` as const });
   const fecalScores = useWatch({ control, name: `${base}.fecalScores` as const }) ?? [];
   const fecalEmpty = useWatch({ control, name: `${base}.fecalEmpty` as const }) ?? false;
-  const fecalSummary = formatFecalScore({ fecalScores, fecalEmpty });
   const dryFoodAmount = useWatch({ control, name: `${base}.dryFoodAmount` as const });
   const wetFoodAmount = useWatch({ control, name: `${base}.wetFoodAmount` as const });
-  const pee = useWatch({ control, name: `${base}.pee` as const });
-
-  // Native <select> values are always strings, even though the schema's
-  // parsed/output type is number — coerce before comparing against numeric ids.
-  const selectedCat = cats.find((c) => c.id === Number(catId));
-
-  const summary = (
-    <>
-      {fecalSummary && <Badge variant="outline">Fecal Score: {fecalSummary}</Badge>}
-      {dryFoodAmount && <Badge variant="outline">Dry: {dryFoodAmount}</Badge>}
-      {wetFoodAmount && <Badge variant="outline">Wet: {wetFoodAmount}</Badge>}
-      {pee && <Badge variant="outline">Pee</Badge>}
-    </>
-  );
-
-  async function handleSave() {
-    const valid = await form.trigger(`catEntries.${index}` as const);
-    if (valid) onToggleCollapsed();
-  }
 
   return (
-    <CollapsibleEntryCard
-      title={selectedCat?.name ?? "Individual Entry"}
-      summary={summary}
-      collapsed={collapsed}
-      onToggleCollapsed={onToggleCollapsed}
-      onRemove={onRemove}
-      onSave={handleSave}
-    >
+    <div className="space-y-4">
       <input type="hidden" {...register(`${base}.catId` as const)} />
       <ErrorMessage message={errors?.catId?.message} />
 
@@ -146,6 +104,6 @@ export default function CatEntryFields({
           {...register(`${base}.medicalNotes` as const)}
         />
       </div>
-    </CollapsibleEntryCard>
+    </div>
   );
 }
