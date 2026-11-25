@@ -271,7 +271,7 @@ export default function MedicalNotesList({
             fieldArray.append({ catId: "" as unknown as number, note: "" });
           }}
         >
-          Add medical note
+          Add Medical Note
         </Button>
       }
     >

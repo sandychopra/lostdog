@@ -391,7 +391,7 @@ describe("ShiftReportForm", () => {
     await waitFor(() => expect(screen.getAllByTestId("cat-entry-card")).toHaveLength(2));
     expect(screen.queryByTestId("medical-note-card")).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "Add medical note" }));
+    await user.click(screen.getByRole("button", { name: "Add Medical Note" }));
     const dialog = await screen.findByRole("dialog", { name: "New medical note" });
 
     // Done needs a cat and a note.
@@ -410,7 +410,7 @@ describe("ShiftReportForm", () => {
     expect(card).toHaveTextContent("Eye drops given");
 
     // A cat with a note isn't offered for a second one.
-    await user.click(screen.getByRole("button", { name: "Add medical note" }));
+    await user.click(screen.getByRole("button", { name: "Add Medical Note" }));
     const second = await screen.findByRole("dialog", { name: "New medical note" });
     expect(
       within(within(second).getByLabelText("Cat")).queryByRole("option", { name: "Fanta" }),
@@ -432,7 +432,7 @@ describe("ShiftReportForm", () => {
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
-    await user.click(screen.getByRole("button", { name: "Add medical note" }));
+    await user.click(screen.getByRole("button", { name: "Add Medical Note" }));
     const dialog = await screen.findByRole("dialog", { name: "New medical note" });
     await user.selectOptions(within(dialog).getByLabelText("Cat"), "Pepsi");
     await user.type(within(dialog).getByLabelText("Note"), "Sneezing");
