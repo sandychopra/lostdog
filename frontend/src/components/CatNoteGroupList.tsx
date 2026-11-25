@@ -41,7 +41,10 @@ interface CatNoteGroupListProps {
   /** Singular noun for the dialog title and menus, e.g. "Play Group". */
   itemLabel: string;
   addLabel: string;
+  /** Every cat, for showing names already tagged on an entry. */
   cats: Cat[];
+  /** The cats offered in the picker (in care — not Picked Up). */
+  pickableCats: Cat[];
   /**
    * When set, the editor gets a "Select all cats" button that tags these cats
    * at once — for play groups where everyone played together. The volunteer
@@ -63,6 +66,7 @@ function GroupEntryCard({
   index,
   itemLabel,
   cats,
+  pickableCats,
   isNew,
   editing,
   onOpenEditor,
@@ -76,6 +80,7 @@ function GroupEntryCard({
   index: number;
   itemLabel: string;
   cats: Cat[];
+  pickableCats: Cat[];
   isNew: boolean;
   editing: boolean;
   onOpenEditor: () => void;
@@ -96,7 +101,12 @@ function GroupEntryCard({
     .map((id) => cats.find((c) => c.id === Number(id)))
     .filter((c): c is Cat => c !== undefined);
   const title = tagged.map((c) => c.name).join(", ") || `New ${itemLabel.toLowerCase()}`;
-  const catOptions = cats.map((c) => ({ id: c.id, name: c.name }));
+  // Cats already tagged stay listed even if no longer pickable (e.g. since
+  // picked up), so they show as chips and can still be removed.
+  const catOptions = [
+    ...pickableCats,
+    ...tagged.filter((c) => !pickableCats.some((p) => p.id === c.id)),
+  ].map((c) => ({ id: c.id, name: c.name }));
 
   function setCatIds(ids: number[]) {
     form.setValue(`${name}.${index}.catIds` as const, ids, {
@@ -228,6 +238,7 @@ export default function CatNoteGroupList({
   itemLabel,
   addLabel,
   cats,
+  pickableCats,
   selectAllCatIds,
   noteLabel = "Note (optional)",
   onEditDone,
@@ -291,6 +302,7 @@ export default function CatNoteGroupList({
           index={index}
           itemLabel={itemLabel}
           cats={cats}
+          pickableCats={pickableCats}
           isNew={newIds.has(field.id)}
           editing={editingId === field.id}
           onOpenEditor={() => setEditingId(field.id)}

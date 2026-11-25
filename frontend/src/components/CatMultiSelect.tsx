@@ -58,7 +58,10 @@ export default function CatMultiSelect({
           </button>
         </Badge>
       ))}
-      <Popover open={open} onOpenChange={setOpen}>
+      {/* modal: the picker is often inside a Dialog, whose scroll lock would
+          otherwise swallow wheel/touch scrolling in this (portalled) list and
+          leave cats past the first screenful unreachable. */}
+      <Popover modal open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button type="button" variant="secondary" size="sm">
             <Plus className="h-4 w-4" />
@@ -74,7 +77,7 @@ export default function CatMultiSelect({
             }
           >
             <CommandInput placeholder="Search cats…" />
-            <CommandList>
+            <CommandList className="[scrollbar-width:thin]!">
               <CommandEmpty>{cats.length === 0 ? emptyMessage : "No matching cats."}</CommandEmpty>
               <CommandGroup>
                 {cats.map((cat) => (

@@ -48,9 +48,14 @@ const AUTOSAVE_MAX_INTERVAL_MS = 60_000;
 // no default, so a volunteer can't submit a report under the wrong shift.
 const NO_SHIFT_TYPE = "";
 
-// Cats the shelter is looking after now (not adopted or picked up).
+// Cats the volunteers look after now: Available, Pending Adoption, or
+// Adopted but not yet picked up. Picked Up cats are gone.
 function isInCare(cat: Cat): boolean {
-  return cat.status === CatStatus.Available || cat.status === CatStatus.PendingAdoption;
+  return (
+    cat.status === CatStatus.Available ||
+    cat.status === CatStatus.PendingAdoption ||
+    cat.status === CatStatus.Adopted
+  );
 }
 
 function toDateInputValue(value: string | null | undefined): string {
@@ -525,7 +530,8 @@ export default function ShiftReportForm({
   const kennelsStatusValues = useWatch({ control, name: "kennelsStatus" }) ?? [];
   // "Select all cats" in a play group: every cat in care, whether or not it
   // has a card on this report or a kennel.
-  const inCareCatIds = (cats ?? []).filter(isInCare).map((c) => c.id);
+  const inCareCats = (cats ?? []).filter(isInCare);
+  const inCareCatIds = inCareCats.map((c) => c.id);
   const usedCatIds = new Set(
     catEntryValues
       .filter((e) => e.entryType === CatEntryType.Individual)
@@ -715,6 +721,7 @@ export default function ShiftReportForm({
         itemLabel="Play Group"
         addLabel="Add Play Group"
         cats={cats ?? []}
+        pickableCats={inCareCats}
         selectAllCatIds={inCareCatIds}
         noteLabel="General note (optional)"
         onEditDone={() => void autosaveRef.current()}
@@ -727,6 +734,7 @@ export default function ShiftReportForm({
         itemLabel="Meet & Greet"
         addLabel="Add Meet & Greet"
         cats={cats ?? []}
+        pickableCats={inCareCats}
         onEditDone={() => void autosaveRef.current()}
       />
 

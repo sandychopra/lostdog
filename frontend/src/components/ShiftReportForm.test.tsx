@@ -7,7 +7,10 @@ import { renderWithQuery } from "../test/render";
 // a new report pre-fills cards for Pepsi and the Sprite/Nehi group. Off by
 // default so the other tests start with no cards.
 let catsInCare = false;
-const status = () => (catsInCare ? "Available" : "Adopted");
+const status = () => (catsInCare ? "Available" : "PickedUp");
+// When true, Biscuit (Adopted, still in kennel 6) and Clementine (Picked Up,
+// still in kennel 9) are on the roster too.
+let withAdoptedAndPickedUp = false;
 
 const get = mock(async (url: string) => {
   if (url === "/api/cats") {
@@ -49,6 +52,28 @@ const get = mock(async (url: string) => {
             dewormerStatus: "Given",
             needsProbiotic: false,
           },
+          ...(withAdoptedAndPickedUp
+            ? [
+                {
+                  id: 5,
+                  name: "Biscuit",
+                  groupId: null,
+                  status: "Adopted",
+                  kennel: { id: 6, number: 6 },
+                  dewormerStatus: "Given",
+                  needsProbiotic: false,
+                },
+                {
+                  id: 6,
+                  name: "Clementine",
+                  groupId: null,
+                  status: "PickedUp",
+                  kennel: { id: 9, number: 9 },
+                  dewormerStatus: "Given",
+                  needsProbiotic: false,
+                },
+              ]
+            : []),
         ],
       },
     };
@@ -57,6 +82,24 @@ const get = mock(async (url: string) => {
     return {
       data: {
         kennels: [
+          ...(withAdoptedAndPickedUp
+            ? [
+                {
+                  id: 6,
+                  number: 6,
+                  state: "Occupied",
+                  cats: [{ id: 5, name: "Biscuit" }],
+                  groups: [],
+                },
+                {
+                  id: 9,
+                  number: 9,
+                  state: "Occupied",
+                  cats: [{ id: 6, name: "Clementine" }],
+                  groups: [],
+                },
+              ]
+            : []),
           ...(catsInCare
             ? [
                 {
@@ -121,6 +164,7 @@ async function openEditor(user: ReturnType<typeof userEvent.setup>, title: strin
 describe("ShiftReportForm", () => {
   beforeEach(() => {
     catsInCare = false;
+    withAdoptedAndPickedUp = false;
     reportSaveGate = null;
     get.mockClear();
     post.mockClear();
@@ -266,6 +310,7 @@ describe("ShiftReportForm", () => {
   });
 
   test("a play group's cats and note are set in the editor and shown on its card", async () => {
+    catsInCare = true;
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
@@ -274,6 +319,7 @@ describe("ShiftReportForm", () => {
     await user.click(within(dialog).getByRole("button", { name: "Add cat" }));
     await user.type(await screen.findByPlaceholderText("Search cats…"), "pep");
     await user.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Pepsi" }));
+    await user.keyboard("{Escape}"); // close the cat list
     await user.type(within(dialog).getByLabelText("General note (optional)"), "Zoomies");
     await user.click(within(dialog).getByRole("button", { name: "Done" }));
 
@@ -301,6 +347,30 @@ describe("ShiftReportForm", () => {
     for (const name of ["Pepsi", "Sprite", "Nehi", "Fanta"]) {
       expect(within(dialog).getByRole("button", { name: `Remove ${name}` })).toBeInTheDocument();
     }
+  });
+
+  test("Adopted cats still in a kennel count as in care; Picked Up cats don't", async () => {
+    catsInCare = true;
+    withAdoptedAndPickedUp = true;
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+
+    await waitFor(() => expect(screen.getAllByTestId("cat-entry-card")).toHaveLength(3));
+    const cardText = screen.getAllByTestId("cat-entry-card").map((c) => c.textContent);
+    expect(cardText.some((t) => t?.includes("Biscuit"))).toBe(true);
+    expect(cardText.some((t) => t?.includes("Clementine"))).toBe(false);
+
+    await user.click(screen.getByRole("button", { name: "Add Play Group" }));
+    const dialog = await screen.findByRole("dialog", { name: "New play group" });
+    await user.click(within(dialog).getByRole("button", { name: "Add cat" }));
+    const list = await screen.findByRole("listbox");
+    expect(within(list).getByRole("option", { name: "Biscuit" })).toBeInTheDocument();
+    expect(within(list).queryByRole("option", { name: "Clementine" })).toBeNull();
+    await user.keyboard("{Escape}");
+
+    await user.click(within(dialog).getByRole("button", { name: "Select all cats" }));
+    expect(within(dialog).getByRole("button", { name: "Remove Biscuit" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Remove Clementine" })).toBeNull();
   });
 
   test("has a Kennel Notes field after Kennel Status", () => {

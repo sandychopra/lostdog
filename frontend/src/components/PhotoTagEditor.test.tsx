@@ -58,6 +58,7 @@ describe("PhotoTagEditor", () => {
 
     await user.click(screen.getByRole("button", { name: "Add cat" }));
     await user.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Sprite" }));
+    await user.keyboard("{Escape}"); // close the cat list
     await user.click(screen.getByRole("button", { name: "Done" }));
 
     expect(onDone).toHaveBeenCalled();
