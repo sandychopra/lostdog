@@ -31,11 +31,20 @@ function GroupCatDetailFields({
   const wetFoodAmount = useWatch({ control, name: `${base}.wetFoodAmount` as const });
 
   return (
-    <fieldset className="space-y-2 rounded-md border border-input/60 bg-muted/30 p-3">
-      <legend className="flex items-center gap-1.5 px-1 text-sm font-medium">
-        {cat.name}
+    // A plain heading rather than a <legend>: browsers draw a legend on the
+    // box's top border, which cut the name off.
+    <div
+      role="group"
+      aria-labelledby={`${base}.heading`}
+      className="space-y-2 rounded-md border border-input/60 bg-muted/30 p-3"
+    >
+      <h3
+        id={`${base}.heading`}
+        className="flex min-w-0 items-center gap-1.5 text-base font-semibold text-navy"
+      >
+        <span className="truncate">{cat.name}</span>
         <CollarDot color={cat.collarColor} />
-      </legend>
+      </h3>
       <div className="space-y-1">
         <Label>Wet Food</Label>
         <FoodAmountPicker
@@ -52,7 +61,7 @@ function GroupCatDetailFields({
           {...register(`${base}.foodNotes` as const)}
         />
       </div>
-    </fieldset>
+    </div>
   );
 }
 
