@@ -447,10 +447,11 @@ describe("ShiftReportForm", () => {
     expect(payload.catEntries.every((e) => !("medicalNotes" in e))).toBe(true);
   });
 
-  test("has a Kennel Notes field after Kennel Status", () => {
+  test("there's no Kennel Notes field; Other Notes covers it", () => {
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
 
-    expect(screen.getByLabelText("Kennel Notes")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Kennel Notes")).toBeNull();
+    expect(screen.getByLabelText("Other Notes")).toBeInTheDocument();
   });
 
   test("every kennel is listed, defaulted to its current state", async () => {

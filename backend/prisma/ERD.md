@@ -113,7 +113,6 @@ erDiagram
     DateTime submitted_at "❓"
     String cleaning_notes "❓"
     String supplies_notes "❓"
-    String kennel_notes "❓"
     String other_notes "❓"
     DateTime email_sent_at "❓"
     Int email_attempts 

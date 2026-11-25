@@ -265,7 +265,6 @@ router.post("/", requireAuth, async (req, res: Response) => {
         submittedAt: requestedStatus === ShiftReportStatus.Submitted ? new Date() : null,
         cleaningNotes: data.cleaningNotes ?? null,
         suppliesNotes: data.suppliesNotes ?? null,
-        kennelNotes: data.kennelNotes ?? null,
         otherNotes: data.otherNotes ?? null,
         catEntries: { create: data.catEntries.map(buildCatEntryCreate) },
         meetAndGreets: {
@@ -481,7 +480,6 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
               : null,
           cleaningNotes: data.cleaningNotes ?? null,
           suppliesNotes: data.suppliesNotes ?? null,
-          kennelNotes: data.kennelNotes ?? null,
           otherNotes: data.otherNotes ?? null,
         },
       });

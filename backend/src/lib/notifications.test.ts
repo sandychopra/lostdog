@@ -92,7 +92,6 @@ function addShiftReport(overrides: Partial<Row> = {}): Row {
     splitShiftPosition: null,
     cleaningNotes: null,
     suppliesNotes: null,
-    kennelNotes: null,
     otherNotes: null,
     author: { name: "Sam" },
     catEntries: [],

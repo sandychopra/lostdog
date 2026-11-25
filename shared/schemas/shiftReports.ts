@@ -138,7 +138,7 @@ function buildMeetAndGreetSchema(strict: boolean) {
 // set from the Kennel edit form, not something a volunteer reports during a
 // shift. No note field: a reported state that conflicts with the kennel's
 // current state is just logged as-is — anything worth explaining goes in the
-// report's general Kennel Notes field instead.
+// report's Other Notes instead.
 const kennelStatusSchema = z.object({
   kennelId: z.coerce.number("Kennel is required").int().positive("Kennel is required"),
   reportedState: z.enum(ReportableKennelState),
@@ -180,7 +180,6 @@ function buildShiftReportFields(strict: boolean) {
     splitShiftPosition: splitShiftPositionField,
     cleaningNotes: z.string().trim().optional().transform(emptyToUndefined),
     suppliesNotes: z.string().trim().optional().transform(emptyToUndefined),
-    kennelNotes: z.string().trim().optional().transform(emptyToUndefined),
     otherNotes: z.string().trim().optional().transform(emptyToUndefined),
     catEntries: z.array(buildCatEntrySchema(strict)).default([]),
     meetAndGreets: z.array(buildMeetAndGreetSchema(strict)).default([]),

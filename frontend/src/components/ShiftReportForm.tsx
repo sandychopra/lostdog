@@ -72,7 +72,6 @@ function mapReportToDefaultValues(report: ShiftReport): DraftShiftReportInput {
     splitShiftPosition: report.splitShiftPosition ?? undefined,
     cleaningNotes: report.cleaningNotes ?? "",
     suppliesNotes: report.suppliesNotes ?? "",
-    kennelNotes: report.kennelNotes ?? "",
     otherNotes: report.otherNotes ?? "",
     catEntries: report.catEntries.map((entry) =>
       entry.entryType === CatEntryType.Individual

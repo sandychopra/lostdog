@@ -88,7 +88,6 @@ export interface ShiftReport {
   submittedAt: string | null;
   cleaningNotes: string | null;
   suppliesNotes: string | null;
-  kennelNotes: string | null;
   otherNotes: string | null;
   createdAt: string;
   updatedAt: string;
