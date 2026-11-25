@@ -48,6 +48,11 @@ const AUTOSAVE_MAX_INTERVAL_MS = 60_000;
 // no default, so a volunteer can't submit a report under the wrong shift.
 const NO_SHIFT_TYPE = "";
 
+// Cats the shelter is looking after now (not adopted or picked up).
+function isInCare(cat: Cat): boolean {
+  return cat.status === CatStatus.Available || cat.status === CatStatus.PendingAdoption;
+}
+
 function toDateInputValue(value: string | null | undefined): string {
   return value ? value.slice(0, 10) : "";
 }
@@ -492,11 +497,7 @@ export default function ShiftReportForm({
   useEffect(() => {
     if (prefilledRef.current || !cats || !kennels) return;
     prefilledRef.current = true;
-    const inCareIds = new Set(
-      cats
-        .filter((c) => c.status === CatStatus.Available || c.status === CatStatus.PendingAdoption)
-        .map((c) => c.id),
-    );
+    const inCareIds = new Set(cats.filter(isInCare).map((c) => c.id));
     const entries: DraftShiftReportInput["catEntries"] = [];
     for (const kennel of [...kennels].sort((a, b) => a.number - b.number)) {
       for (const cat of kennel.cats) {
@@ -522,16 +523,9 @@ export default function ShiftReportForm({
   const playGroupValues = useWatch({ control, name: "playGroups" }) ?? [];
   const meetAndGreetValues = useWatch({ control, name: "meetAndGreets" }) ?? [];
   const kennelsStatusValues = useWatch({ control, name: "kennelsStatus" }) ?? [];
-  // Every cat with a card on this report (group cards contribute each member).
-  const reportCatIds = [
-    ...new Set(
-      catEntryValues.flatMap((e) =>
-        e.entryType === CatEntryType.Individual
-          ? [Number(e.catId)]
-          : (e.catDetails ?? []).map((d) => Number(d.catId)),
-      ),
-    ),
-  ].filter((id) => Number.isInteger(id) && id > 0);
+  // "Select all cats" in a play group: every cat in care, whether or not it
+  // has a card on this report or a kennel.
+  const inCareCatIds = (cats ?? []).filter(isInCare).map((c) => c.id);
   const usedCatIds = new Set(
     catEntryValues
       .filter((e) => e.entryType === CatEntryType.Individual)
@@ -561,6 +555,18 @@ export default function ShiftReportForm({
     catEntries.append(kind === "cat" ? individualEntry(id) : groupEntry(id));
     setPickerValue("");
   }
+
+  const autosaveStatusText = isAlreadySubmitted ? null : autosaveStatus === "saving" ? (
+    <span className="text-muted-foreground">Saving…</span>
+  ) : autosaveStatus === "error" ? (
+    <span className="text-destructive">Not saved — will retry</span>
+  ) : lastSavedAt ? (
+    <span className="text-muted-foreground">
+      Draft saved · {lastSavedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+    </span>
+  ) : (
+    <span className="text-muted-foreground">Autosaves as you go</span>
+  );
 
   return (
     <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
@@ -603,20 +609,7 @@ export default function ShiftReportForm({
             anchorId: "section-photos",
           },
         ]}
-        status={
-          isAlreadySubmitted ? null : autosaveStatus === "saving" ? (
-            <span className="text-muted-foreground">Saving…</span>
-          ) : autosaveStatus === "error" ? (
-            <span className="text-destructive">Not saved — will retry</span>
-          ) : lastSavedAt ? (
-            <span className="text-muted-foreground">
-              Draft saved ·{" "}
-              {lastSavedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-            </span>
-          ) : (
-            <span className="text-muted-foreground">Autosaves as you go</span>
-          )
-        }
+        status={autosaveStatusText}
       />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
@@ -722,7 +715,7 @@ export default function ShiftReportForm({
         itemLabel="Play Group"
         addLabel="Add Play Group"
         cats={cats ?? []}
-        selectAllCatIds={reportCatIds}
+        selectAllCatIds={inCareCatIds}
         noteLabel="General note (optional)"
         onEditDone={() => void autosaveRef.current()}
       />
@@ -777,7 +770,12 @@ export default function ShiftReportForm({
         <ErrorAlert error={submitError} fallback="Failed to save shift report" />
       )}
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+        {autosaveStatusText && (
+          <span data-testid="autosave-status-bottom" className="text-sm">
+            {autosaveStatusText}
+          </span>
+        )}
         <Button type="button" disabled={submitting} onClick={handleSubmitClick}>
           {submitting ? "Saving..." : isAlreadySubmitted ? "Save Changes" : "Submit Report"}
         </Button>

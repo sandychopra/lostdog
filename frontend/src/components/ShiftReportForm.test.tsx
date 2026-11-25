@@ -39,6 +39,16 @@ const get = mock(async (url: string) => {
             dewormerStatus: "Given",
             needsProbiotic: false,
           },
+          // In care but in no kennel, so never gets a card.
+          {
+            id: 4,
+            name: "Fanta",
+            groupId: null,
+            status: status(),
+            kennel: null,
+            dewormerStatus: "Given",
+            needsProbiotic: false,
+          },
         ],
       },
     };
@@ -278,7 +288,7 @@ describe("ShiftReportForm", () => {
     expect(await screen.findByRole("dialog", { name: "Edit play group" })).toBeInTheDocument();
   });
 
-  test("a play group can select every cat on the report at once", async () => {
+  test("Select all cats in a play group includes in-care cats without a card", async () => {
     catsInCare = true;
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
@@ -288,7 +298,7 @@ describe("ShiftReportForm", () => {
     const dialog = await screen.findByRole("dialog", { name: "New play group" });
     await user.click(within(dialog).getByRole("button", { name: "Select all cats" }));
 
-    for (const name of ["Pepsi", "Sprite", "Nehi"]) {
+    for (const name of ["Pepsi", "Sprite", "Nehi", "Fanta"]) {
       expect(within(dialog).getByRole("button", { name: `Remove ${name}` })).toBeInTheDocument();
     }
   });
@@ -418,7 +428,9 @@ describe("ShiftReportForm", () => {
   test("there's no Save Draft button; drafts autosave", () => {
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
     expect(screen.queryByRole("button", { name: "Save Draft" })).toBeNull();
-    expect(screen.getByText("Autosaves as you go")).toBeInTheDocument();
+    // Shown in the sticky summary bar and again next to Submit.
+    expect(screen.getAllByText("Autosaves as you go")).toHaveLength(2);
+    expect(screen.getByTestId("autosave-status-bottom")).toHaveTextContent("Autosaves as you go");
   });
 
   test("submitting while an autosave is running uploads a queued photo only once", async () => {
