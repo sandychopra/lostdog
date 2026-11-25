@@ -207,15 +207,20 @@ router.get("/", requireAuth, async (req, res: Response) => {
     and.push({ date: { ...(from && { gte: from }), ...(to && { lte: to }) } });
   }
 
-  const shiftReports = await prisma.shiftReport.findMany({
-    where: and.length > 0 ? { AND: and } : {},
-    include: shiftReportInclude,
-    omit: outboxOmit,
-    orderBy: [{ date: "desc" }, { id: "desc" }],
-    ...parsePaging(req.query),
-  });
+  const where: Prisma.ShiftReportWhereInput = and.length > 0 ? { AND: and } : {};
+  // total lets the list show "Page X of Y" without fetching every report.
+  const [shiftReports, total] = await prisma.$transaction([
+    prisma.shiftReport.findMany({
+      where,
+      include: shiftReportInclude,
+      omit: outboxOmit,
+      orderBy: [{ date: "desc" }, { id: "desc" }],
+      ...parsePaging(req.query),
+    }),
+    prisma.shiftReport.count({ where }),
+  ]);
 
-  res.json({ shiftReports });
+  res.json({ shiftReports, total });
 });
 
 // The signed-in user's most recently updated Draft, if any — the bottom bar's

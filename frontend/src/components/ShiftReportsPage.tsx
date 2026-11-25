@@ -6,7 +6,7 @@ import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { NativeSelect, NativeSelectOption } from "./ui/native-select";
 import { Input } from "./ui/input";
-import ShiftReportsTable, { REPORTS_PAGE_SIZE } from "./ShiftReportsTable";
+import ShiftReportsTable from "./ShiftReportsTable";
 import AppLayout from "./AppLayout";
 
 export default function ShiftReportsPage() {
@@ -14,7 +14,7 @@ export default function ShiftReportsPage() {
   const [kennelId, setKennelId] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [limit, setLimit] = useState(REPORTS_PAGE_SIZE);
+  const [page, setPage] = useState(1);
 
   const { data: cats } = useCatOptions();
   const { data: kennels } = useQuery({
@@ -39,7 +39,7 @@ export default function ShiftReportsPage() {
   function resetPaging<T>(setter: (v: T) => void) {
     return (v: T) => {
       setter(v);
-      setLimit(REPORTS_PAGE_SIZE);
+      setPage(1);
     };
   }
 
@@ -109,7 +109,7 @@ export default function ShiftReportsPage() {
               setKennelId("");
               setFrom("");
               setTo("");
-              setLimit(REPORTS_PAGE_SIZE);
+              setPage(1);
             }}
           >
             Clear
@@ -124,8 +124,11 @@ export default function ShiftReportsPage() {
 
       <ShiftReportsTable
         filters={filters}
-        limit={limit}
-        onLoadMore={() => setLimit((l) => l + REPORTS_PAGE_SIZE)}
+        page={page}
+        onPageChange={(next) => {
+          setPage(next);
+          window.scrollTo({ top: 0 });
+        }}
       />
     </AppLayout>
   );

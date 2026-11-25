@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "react-router";
 import { shiftTypeLabel, type ShiftType } from "shared/constants/shiftType.ts";
 import { CatEntryType } from "shared/constants/catEntryType.ts";
@@ -7,6 +8,7 @@ import { SplitShiftPosition } from "shared/constants/splitShiftPosition.ts";
 import { ShiftReportStatus } from "shared/constants/shiftReportStatus.ts";
 import type { ReportableKennelState } from "shared/constants/kennelState.ts";
 import { api } from "../lib/api";
+import { cn } from "../lib/utils";
 import ErrorAlert from "./ErrorAlert";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -111,32 +113,37 @@ export interface ShiftReportFilters {
   to?: string;
 }
 
-export const REPORTS_PAGE_SIZE = 50;
+export const REPORTS_PAGE_SIZE = 25;
 
 interface ShiftReportsTableProps {
   filters?: ShiftReportFilters;
-  limit?: number;
-  onLoadMore?: () => void;
+  /** 1-based. */
+  page?: number;
+  onPageChange?: (page: number) => void;
 }
 
 export default function ShiftReportsTable({
   filters = {},
-  limit = REPORTS_PAGE_SIZE,
-  onLoadMore,
+  page = 1,
+  onPageChange,
 }: ShiftReportsTableProps) {
-  const {
-    data: shiftReports,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["shiftReports", "list", filters, limit],
+  const { data, isLoading, isPlaceholderData, error } = useQuery({
+    queryKey: ["shiftReports", "list", filters, page],
     queryFn: async () => {
-      const { data } = await api.get<{ shiftReports: ShiftReport[] }>("/api/shift-reports", {
-        params: { ...filters, limit },
-      });
-      return data.shiftReports;
+      const { data } = await api.get<{ shiftReports: ShiftReport[]; total: number }>(
+        "/api/shift-reports",
+        {
+          params: { ...filters, limit: REPORTS_PAGE_SIZE, offset: (page - 1) * REPORTS_PAGE_SIZE },
+        },
+      );
+      return data;
     },
+    // Keep showing the current page while the next one loads, instead of
+    // flashing back to skeletons.
+    placeholderData: keepPreviousData,
   });
+  const shiftReports = data?.shiftReports;
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / REPORTS_PAGE_SIZE)) : 1;
 
   if (error) {
     return <ErrorAlert message="Failed to fetch shift reports" />;
@@ -224,12 +231,34 @@ export default function ShiftReportsTable({
       {shiftReports && shiftReports.length === 0 && (
         <p className="mt-4 text-sm text-muted-foreground">No shift reports match.</p>
       )}
-      {onLoadMore && shiftReports && shiftReports.length >= limit && (
-        <div className="mt-4 flex justify-center">
-          <Button variant="secondary" onClick={onLoadMore}>
-            Load more
+      {onPageChange && data && totalPages > 1 && (
+        <nav
+          aria-label="Pagination"
+          className={cn(
+            "mt-4 flex items-center justify-center gap-3",
+            isPlaceholderData && "opacity-60",
+          )}
+        >
+          <Button
+            variant="secondary"
+            disabled={page <= 1 || isPlaceholderData}
+            onClick={() => onPageChange(page - 1)}
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Prev
           </Button>
-        </div>
+          <span className="text-sm text-muted-foreground">
+            Page {Math.min(page, totalPages)} of {totalPages}
+          </span>
+          <Button
+            variant="secondary"
+            disabled={page >= totalPages || isPlaceholderData}
+            onClick={() => onPageChange(page + 1)}
+          >
+            Next
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </nav>
       )}
     </>
   );
