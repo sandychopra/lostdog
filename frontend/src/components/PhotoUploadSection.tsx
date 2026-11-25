@@ -36,6 +36,7 @@ interface PhotoUploadSectionProps {
   onQueuedChange: (next: QueuedPhoto[]) => void;
   uploaded?: UploadedPhotoSummary[];
   onUploadedDeleted?: (photoId: number) => void;
+  onUploadedTagsSaved?: (photo: UploadedPhotoSummary) => void;
   catOptions: CatOption[];
   // Individual cat entries auto-tag server-side, so they don't need a tag
   // picker; group entries and the report-level section do (see photos.ts).
@@ -109,11 +110,13 @@ function UploadedThumb({
   catOptions,
   showTagPicker,
   onDeleted,
+  onTagsSaved,
 }: {
   photo: UploadedPhotoSummary;
   catOptions: CatOption[];
   showTagPicker?: boolean;
   onDeleted?: () => void;
+  onTagsSaved?: (photo: UploadedPhotoSummary) => void;
 }) {
   const [editingTags, setEditingTags] = useState(false);
   const { data: session } = authClient.useSession();
@@ -153,7 +156,8 @@ function UploadedThumb({
           photoId={photo.id}
           initialCatIds={photo.tags.map((t) => t.catId)}
           catOptions={catOptions}
-          onSaved={() => setEditingTags(false)}
+          onSaved={onTagsSaved}
+          onDone={() => setEditingTags(false)}
         />
       )}
     </div>
@@ -165,6 +169,7 @@ export default function PhotoUploadSection({
   onQueuedChange,
   uploaded = [],
   onUploadedDeleted,
+  onUploadedTagsSaved,
   catOptions,
   showTagPicker = true,
 }: PhotoUploadSectionProps) {
@@ -190,11 +195,12 @@ export default function PhotoUploadSection({
             catOptions={catOptions}
             showTagPicker={showTagPicker}
             onDeleted={() => onUploadedDeleted?.(photo.id)}
+            onTagsSaved={onUploadedTagsSaved}
           />
         ))}
         {queued.map((photo, index) => (
           <QueuedThumb
-            key={index}
+            key={photo.clientUploadId}
             photo={photo}
             catOptions={catOptions}
             showTagPicker={showTagPicker}

@@ -847,6 +847,9 @@ export default function ShiftReportForm({
           onUploadedDeleted={(photoId) =>
             setUploadedPhotos((prev) => prev.filter((p) => p.id !== photoId))
           }
+          onUploadedTagsSaved={(photo) =>
+            setUploadedPhotos((prev) => prev.map((p) => (p.id === photo.id ? photo : p)))
+          }
           catOptions={catOptions}
           showTagPicker
         />

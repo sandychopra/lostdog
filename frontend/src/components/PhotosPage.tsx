@@ -96,7 +96,7 @@ function PhotoTile({
           photoId={photo.id}
           initialCatIds={photo.tags.map((t) => t.catId)}
           catOptions={catOptions}
-          onSaved={() => setEditing(false)}
+          onDone={() => setEditing(false)}
         />
       )}
     </Card>
