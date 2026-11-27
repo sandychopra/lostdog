@@ -65,6 +65,7 @@ export const EMAILED_ANNOUNCEMENT_TYPES = [
   AnnouncementType.Adopted,
   AnnouncementType.BackAvailable,
   AnnouncementType.ReturnedToRcc,
+  AnnouncementType.PickedUp,
   AnnouncementType.KennelMoveRequested,
   AnnouncementType.KennelNeedsReset,
   AnnouncementType.Manual,
@@ -140,6 +141,10 @@ export function renderAnnouncementEmail(announcement: AnnouncementForEmail): Ema
     case AnnouncementType.ReturnedToRcc:
       subject = `${catName} returned to RCC`;
       lines.push(`${catName} is returning to the RCC and is no longer at this location.`);
+      break;
+    case AnnouncementType.PickedUp:
+      subject = `${catName} has been picked up`;
+      lines.push(`${catName} has been picked up by their adopter and has left the shelter.`);
       break;
     case AnnouncementType.KennelNeedsReset:
       subject = `Kennel ${announcement.kennel?.number} needs reset`;

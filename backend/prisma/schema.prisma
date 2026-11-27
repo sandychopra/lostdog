@@ -34,6 +34,7 @@ enum CatStatus {
 }
 
 enum DewormerStatus {
+  NotNeeded
   Due
   Given
 }
@@ -96,6 +97,7 @@ enum AnnouncementType {
   KennelNeedsReset
   DewormerDue
   ProbioticNeeded
+  PickedUp
   Manual
 }
 
@@ -217,7 +219,7 @@ model Cat {
   pickedUpById    String?        @map("picked_up_by_id")
   pickedUpBy      User?          @relation("CatPickedUpBy", fields: [pickedUpById], references: [id])
   pickedUpAt      DateTime?      @map("picked_up_at")
-  dewormerStatus  DewormerStatus @default(Due) @map("dewormer_status")
+  dewormerStatus  DewormerStatus @default(NotNeeded) @map("dewormer_status")
   dewormerDueDate DateTime?      @map("dewormer_due_date") @db.Date
   needsProbiotic  Boolean        @default(false) @map("needs_probiotic")
   litterId        Int?           @map("litter_id")
@@ -576,6 +578,9 @@ model Announcement {
   resolvedAt     DateTime?            @map("resolved_at")
   resolvedById   String?              @map("resolved_by_id")
   resolvedBy     User?                @relation("AnnouncementResolvedBy", fields: [resolvedById], references: [id])
+  // "Not relevant": closed without being done. Also sets resolved/resolvedAt/resolvedById.
+  dismissed      Boolean              @default(false)
+  dismissNote    String?              @map("dismiss_note")
   createdById    String?              @map("created_by_id")
   createdBy      User?                @relation("AnnouncementCreatedBy", fields: [createdById], references: [id])
   comment        String?

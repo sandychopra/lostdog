@@ -14,6 +14,7 @@ import { DewormerStatus } from "shared/constants/dewormerStatus.ts";
 import { CatStatus } from "shared/constants/catStatus.ts";
 import { VALID_STATUS_TRANSITIONS } from "shared/constants/catStatusTransitions.ts";
 import { api } from "../lib/api";
+import { cn } from "../lib/utils";
 import { authClient } from "../lib/auth-client";
 import ErrorAlert from "./ErrorAlert";
 import { Badge } from "./ui/badge";
@@ -43,6 +44,7 @@ export interface Cat {
   groupId: number | null;
   litterId: number | null;
   status: CatStatus;
+  active: boolean;
   // Still needed by CatForm (editing) even though this table no longer
   // renders them itself — dewormer/probiotic are managed entirely from the
   // Announcements page now, not the roster or the shift report.
@@ -55,7 +57,7 @@ export interface Cat {
   litter: { id: number; cats: { id: number; name: string }[] } | null;
 }
 
-interface CatsTableProps {
+interface CatActionHandlers {
   onEdit: (cat: Cat) => void;
   onDelete: (cat: Cat) => void;
   onRemoveFromGroup: (cat: Cat) => void;
@@ -63,6 +65,11 @@ interface CatsTableProps {
   onManageSiblings: (cat: Cat) => void;
   onChangeStatus: (cat: Cat) => void;
   onReturnToRcc: (cat: Cat) => void;
+}
+
+interface CatsTableProps extends CatActionHandlers {
+  /** Also list cats that have left: picked up or returned to RCC. */
+  showInactive?: boolean;
 }
 
 export const CAT_STATUS_LABELS: Record<CatStatus, string> = {
@@ -114,7 +121,18 @@ function siblingsLabel(cat: Cat): string {
   return names.length > 0 ? names.join(", ") : "—";
 }
 
-export default function CatsTable(handlers: CatsTableProps) {
+// A cat that has left shows why instead of its (now frozen) adoption status.
+function statusBadge(cat: Cat): {
+  label: string;
+  variant: ReturnType<typeof catStatusBadgeVariant>;
+} {
+  if (!cat.active && cat.status !== CatStatus.PickedUp) {
+    return { label: "Returned to RCC", variant: "secondary" };
+  }
+  return { label: CAT_STATUS_LABELS[cat.status], variant: catStatusBadgeVariant(cat.status) };
+}
+
+export default function CatsTable({ showInactive = false, ...handlers }: CatsTableProps) {
   const { data: session } = authClient.useSession();
   const isAdmin = session?.user.role === Role.Admin;
 
@@ -123,9 +141,11 @@ export default function CatsTable(handlers: CatsTableProps) {
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["cats"],
+    queryKey: ["cats", { includeInactive: showInactive }],
     queryFn: async () => {
-      const { data } = await api.get<{ cats: Cat[] }>("/api/cats");
+      const { data } = await api.get<{ cats: Cat[] }>("/api/cats", {
+        params: showInactive ? { includeInactive: "true" } : {},
+      });
       return data.cats;
     },
   });
@@ -157,7 +177,12 @@ export default function CatsTable(handlers: CatsTableProps) {
     <ul className="grid gap-3 lg:grid-cols-2">
       {cats.map((cat) => (
         <li key={cat.id}>
-          <Card className="h-full flex-row items-start gap-3 px-3 sm:px-4">
+          <Card
+            className={cn(
+              "h-full flex-row items-start gap-3 px-3 sm:px-4",
+              !cat.active && "opacity-70",
+            )}
+          >
             <KennelTile number={kennelNumberOf(cat)} />
             <div className="min-w-0 flex-1 space-y-1.5">
               <div className="flex items-start justify-between gap-2">
@@ -169,10 +194,8 @@ export default function CatsTable(handlers: CatsTableProps) {
                   <span className="min-w-0 break-words">{cat.name}</span>
                 </Link>
                 <div className="-mt-1 -mr-2 flex shrink-0 items-center gap-1">
-                  <Badge variant={catStatusBadgeVariant(cat.status)}>
-                    {CAT_STATUS_LABELS[cat.status]}
-                  </Badge>
-                  {isAdmin && <CatActions cat={cat} {...handlers} />}
+                  <Badge variant={statusBadge(cat).variant}>{statusBadge(cat).label}</Badge>
+                  {isAdmin && cat.active && <CatActions cat={cat} {...handlers} />}
                 </div>
               </div>
               <p className="text-sm text-muted-foreground">{detailsLabel(cat)}</p>
@@ -222,7 +245,7 @@ function CatActions({
   onManageSiblings,
   onChangeStatus,
   onReturnToRcc,
-}: CatsTableProps & { cat: Cat }) {
+}: CatActionHandlers & { cat: Cat }) {
   return (
     <div className="flex items-center gap-1">
       <DropdownMenu>
@@ -246,7 +269,7 @@ function CatActions({
             <Users2 className="h-4 w-4" />
             Manage Siblings
           </DropdownMenuItem>
-          {cat.groupId === null && VALID_STATUS_TRANSITIONS[cat.status].length > 0 && (
+          {VALID_STATUS_TRANSITIONS[cat.status].length > 0 && (
             <DropdownMenuItem onClick={() => onChangeStatus(cat)}>
               <ArrowRightLeft className="h-4 w-4" />
               Change Status

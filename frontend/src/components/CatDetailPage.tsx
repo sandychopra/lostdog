@@ -3,6 +3,7 @@ import { shiftTypeLabel } from "shared/constants/shiftType.ts";
 import { formatFecalScore } from "shared/constants/fecalScore.ts";
 import { Link, useParams } from "react-router";
 import { ActivityEntityType } from "shared/constants/activityLog.ts";
+import { DEWORMER_STATUS_LABELS } from "shared/constants/dewormerStatus.ts";
 import { api } from "../lib/api";
 import ActivitySection from "./ActivitySection";
 import AuthenticatedImage from "./AuthenticatedImage";
@@ -141,7 +142,15 @@ export default function CatDetailPage() {
                   : null
               }
             />
-            <Detail label="Dewormer" value={cat.dewormerStatus} />
+            <Detail
+              label="Dewormer"
+              value={
+                DEWORMER_STATUS_LABELS[cat.dewormerStatus] +
+                (cat.dewormerStatus === "Due" && cat.dewormerDueDate
+                  ? ` (${new Date(`${cat.dewormerDueDate.slice(0, 10)}T00:00`).toLocaleDateString()})`
+                  : "")
+              }
+            />
             <Detail label="Needs probiotic" value={cat.needsProbiotic ? "Yes" : null} />
             <Detail
               label="Pickup"

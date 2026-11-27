@@ -19,6 +19,8 @@ function announcement(overrides: Partial<AnnouncementForEmail>): AnnouncementFor
     resolved: false,
     resolvedAt: null,
     resolvedById: null,
+    dismissed: false,
+    dismissNote: null,
     createdById: null,
     comment: null,
     commentedAt: null,
@@ -37,6 +39,17 @@ function announcement(overrides: Partial<AnnouncementForEmail>): AnnouncementFor
 }
 
 describe("renderAnnouncementEmail", () => {
+  test("picked up names the cat", () => {
+    const { subject, text } = renderAnnouncementEmail(
+      announcement({
+        type: "PickedUp",
+        cat: { id: 1, name: "Pepsi", pickupAt: null, kennel: null },
+      }),
+    );
+    expect(subject).toBe("Pepsi has been picked up");
+    expect(text).toContain("Pepsi has been picked up");
+  });
+
   test("new arrival names the cat and kennel", () => {
     const { subject, text } = renderAnnouncementEmail(announcement({}));
     expect(subject).toBe("New arrival: Pepsi");

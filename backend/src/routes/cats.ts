@@ -18,7 +18,7 @@ import {
   InvalidPickupError,
   returnCatToRcc,
 } from "../lib/catStatus.ts";
-import { markKennelNeedsReset, markKennelOccupied } from "../lib/kennelResets.ts";
+import { isKennelOccupied, markKennelNeedsReset, markKennelOccupied } from "../lib/kennelResets.ts";
 import { describeChanges, logActivity } from "../lib/activityLog.ts";
 import {
   syncDewormerAnnouncement,
@@ -165,11 +165,7 @@ router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
       return;
     }
 
-    const [catCount, groupCount] = await Promise.all([
-      prisma.cat.count({ where: { kennelId: data.kennelId } }),
-      prisma.group.count({ where: { kennelId: data.kennelId } }),
-    ]);
-    if (catCount > 0 || groupCount > 0) {
+    if (await isKennelOccupied(prisma, data.kennelId)) {
       res.status(409).json({ error: "That kennel is already occupied" });
       return;
     }
@@ -213,8 +209,8 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
     const cat = await prisma.$transaction(async (tx) => {
       const updated = await tx.cat.update({ where: { id }, data, include: catInclude });
       await logCatEdit(tx, existing, updated, actorId);
-      await syncDewormerAnnouncement(tx, { catId: id, actorId });
-      await syncProbioticAnnouncement(tx, { catId: id, actorId });
+      await syncDewormerAnnouncement(tx, { catId: id, actorId, previous: existing });
+      await syncProbioticAnnouncement(tx, { catId: id, actorId, previous: existing });
       return updated;
     });
     res.json({ cat });
@@ -235,11 +231,7 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
       return;
     }
 
-    const [catCount, groupCount] = await Promise.all([
-      prisma.cat.count({ where: { kennelId: data.kennelId } }),
-      prisma.group.count({ where: { kennelId: data.kennelId } }),
-    ]);
-    if (catCount > 0 || groupCount > 0) {
+    if (await isKennelOccupied(prisma, data.kennelId)) {
       res.status(409).json({ error: "That kennel is already occupied" });
       return;
     }
@@ -252,8 +244,8 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
     if (kennelChanged && existing.kennelId !== null) {
       await markKennelNeedsReset(tx, existing.kennelId, actorId);
     }
-    await syncDewormerAnnouncement(tx, { catId: id, actorId });
-    await syncProbioticAnnouncement(tx, { catId: id, actorId });
+    await syncDewormerAnnouncement(tx, { catId: id, actorId, previous: existing });
+    await syncProbioticAnnouncement(tx, { catId: id, actorId, previous: existing });
     return updated;
   });
 
@@ -376,13 +368,6 @@ router.patch("/:id/status", requireAuth, requireAdmin, async (req, res: Response
     res.status(404).json({ error: "Cat not found" });
     return;
   }
-  if (existing.groupId !== null) {
-    res
-      .status(409)
-      .json({ error: "This cat is part of a group and can't have its status changed here" });
-    return;
-  }
-
   const actorId = (req as AuthedRequest).session.user.id;
 
   try {

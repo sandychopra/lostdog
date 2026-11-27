@@ -13,7 +13,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import {
@@ -36,14 +35,15 @@ import {
 
 interface ShiftReportHeaderProps {
   report: ShiftReport;
-  /** Which page it's on — the menu offers the other one. */
+  /** Which page it's on — the button offers the other one. */
   mode: "view" | "edit";
 }
 
 /**
  * Title block shared by a report's view and edit pages: date and shift,
- * status, author, and a ⋮ menu (top right) with the actions the viewer can
- * take — View or Edit, and Delete for Admins.
+ * status, author, and (top right) a visible button to switch between viewing
+ * and editing — kept out of the ⋮ menu so volunteers can find Edit — plus a ⋮
+ * menu holding Delete, for Admins only.
  */
 export default function ShiftReportHeader({ report, mode }: ShiftReportHeaderProps) {
   const navigate = useNavigate();
@@ -83,42 +83,43 @@ export default function ShiftReportHeader({ report, mode }: ShiftReportHeaderPro
       </div>
 
       {(showEdit || showView || isAdmin) && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+        <div className="flex shrink-0 items-center gap-1">
+          {showEdit && (
             <Button
               type="button"
-              variant="ghost"
-              size="icon"
-              className="shrink-0"
-              aria-label="Report actions"
+              variant="outline"
+              onClick={() => navigate(`/shift-reports/${report.id}/edit`)}
             >
-              <MoreVertical className="h-5 w-5" />
+              <Pencil className="h-4 w-4" />
+              Edit
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {showView && (
-              <DropdownMenuItem onClick={() => navigate(`/shift-reports/${report.id}`)}>
-                <Eye className="h-4 w-4" />
-                View report
-              </DropdownMenuItem>
-            )}
-            {showEdit && (
-              <DropdownMenuItem onClick={() => navigate(`/shift-reports/${report.id}/edit`)}>
-                <Pencil className="h-4 w-4" />
-                Edit
-              </DropdownMenuItem>
-            )}
-            {isAdmin && (
-              <>
-                {(showEdit || showView) && <DropdownMenuSeparator />}
+          )}
+          {showView && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate(`/shift-reports/${report.id}`)}
+            >
+              <Eye className="h-4 w-4" />
+              View report
+            </Button>
+          )}
+          {isAdmin && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="ghost" size="icon" aria-label="More report actions">
+                  <MoreVertical className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
                 <DropdownMenuItem variant="destructive" onClick={() => setConfirmingDelete(true)}>
                   <Trash2 className="h-4 w-4" />
                   Delete
                 </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
       )}
 
       <AlertDialog

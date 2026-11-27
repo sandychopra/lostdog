@@ -10,7 +10,7 @@ import {
   type UpdateCatInput,
 } from "shared/schemas/cats.ts";
 import { CatSex } from "shared/constants/catSex.ts";
-import { DewormerStatus } from "shared/constants/dewormerStatus.ts";
+import { DEWORMER_STATUS_LABELS, DewormerStatus } from "shared/constants/dewormerStatus.ts";
 import { CAT_COLOR_PATTERNS } from "shared/constants/catColorPattern.ts";
 import { COLLAR_COLORS, matchCollarColor } from "shared/constants/collarColor.ts";
 import { api } from "../lib/api";
@@ -85,7 +85,7 @@ export default function CatForm({ cat, onSuccess }: CatFormProps) {
       collarColor: matchCollarColor(cat?.collarColor) ?? cat?.collarColor ?? "",
       microchipNumber: cat?.microchipNumber ?? "",
       kennelId: cat?.kennelId ?? undefined,
-      dewormerStatus: cat?.dewormerStatus ?? DewormerStatus.Due,
+      dewormerStatus: cat?.dewormerStatus ?? DewormerStatus.NotNeeded,
       dewormerDueDate: toDateInputValue(cat?.dewormerDueDate),
       needsProbiotic: cat?.needsProbiotic ?? false,
       pickupAt: toDateTimeInputValue(cat?.pickupAt),
@@ -93,6 +93,7 @@ export default function CatForm({ cat, onSuccess }: CatFormProps) {
   });
 
   const colorPattern = useWatch({ control: form.control, name: "colorPattern" });
+  const dewormerStatus = useWatch({ control: form.control, name: "dewormerStatus" });
   const collarColor = useWatch({ control: form.control, name: "collarColor" });
 
   const mutation = useMutation({
@@ -259,21 +260,29 @@ export default function CatForm({ cat, onSuccess }: CatFormProps) {
         <div className="space-y-2">
           <Label htmlFor="dewormerStatus">Dewormer</Label>
           <NativeSelect id="dewormerStatus" {...form.register("dewormerStatus")}>
-            <NativeSelectOption value={DewormerStatus.Due}>Due</NativeSelectOption>
-            <NativeSelectOption value={DewormerStatus.Given}>Given</NativeSelectOption>
+            {Object.values(DewormerStatus).map((status) => (
+              <NativeSelectOption key={status} value={status}>
+                {DEWORMER_STATUS_LABELS[status]}
+              </NativeSelectOption>
+            ))}
           </NativeSelect>
           <ErrorMessage message={form.formState.errors.dewormerStatus?.message} />
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="dewormerDueDate">Dewormer Due Date</Label>
-          <Input
-            id="dewormerDueDate"
-            type="date"
-            aria-invalid={!!form.formState.errors.dewormerDueDate}
-            {...form.register("dewormerDueDate")}
-          />
-          <ErrorMessage message={form.formState.errors.dewormerDueDate?.message} />
-        </div>
+        {dewormerStatus === DewormerStatus.Due && (
+          <div className="space-y-2">
+            <Label htmlFor="dewormerDueDate">Dewormer Due Date</Label>
+            <Input
+              id="dewormerDueDate"
+              type="date"
+              aria-invalid={!!form.formState.errors.dewormerDueDate}
+              {...form.register("dewormerDueDate")}
+            />
+            <p className="text-xs text-muted-foreground">
+              A reminder appears on the Announcements page on this date.
+            </p>
+            <ErrorMessage message={form.formState.errors.dewormerDueDate?.message} />
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <Controller
             control={form.control}

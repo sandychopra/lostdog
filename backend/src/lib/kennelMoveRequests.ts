@@ -1,7 +1,7 @@
 import { TaskState } from "shared/constants/taskState.ts";
 import { AnnouncementType } from "shared/constants/announcementType.ts";
 import type { Prisma } from "../generated/prisma/client.ts";
-import { markKennelNeedsReset, markKennelOccupied } from "./kennelResets.ts";
+import { isKennelOccupied, markKennelNeedsReset, markKennelOccupied } from "./kennelResets.ts";
 import { logOccupantMoved } from "./activityLog.ts";
 
 export class InvalidKennelMoveError extends Error {}
@@ -60,11 +60,7 @@ export async function completeKennelMoveRequest(
     );
   }
 
-  const [catCount, groupCount] = await Promise.all([
-    tx.cat.count({ where: { kennelId: request.toKennelId } }),
-    tx.group.count({ where: { kennelId: request.toKennelId } }),
-  ]);
-  if (catCount > 0 || groupCount > 0) {
+  if (await isKennelOccupied(tx, request.toKennelId)) {
     throw new InvalidKennelMoveError("Destination kennel is already occupied");
   }
 

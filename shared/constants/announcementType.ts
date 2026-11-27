@@ -8,6 +8,7 @@ export const AnnouncementType = {
   KennelNeedsReset: "KennelNeedsReset",
   DewormerDue: "DewormerDue",
   ProbioticNeeded: "ProbioticNeeded",
+  PickedUp: "PickedUp",
   Manual: "Manual",
 } as const;
 
