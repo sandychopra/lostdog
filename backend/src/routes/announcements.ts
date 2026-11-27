@@ -5,7 +5,9 @@ import {
   createManualAnnouncementSchema,
   updateManualAnnouncementSchema,
   announcementCommentSchema,
+  dismissAnnouncementSchema,
 } from "shared/schemas/announcements.ts";
+import { TaskState } from "shared/constants/taskState.ts";
 import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { validate } from "../lib/validate.ts";
@@ -257,6 +259,86 @@ router.patch("/:id/resolve", requireAuth, requireAdmin, async (req, res: Respons
   const announcement = await prisma.announcement.update({
     where: { id },
     data: { resolved: true, resolvedAt: new Date(), resolvedById },
+    include: announcementInclude,
+    omit: outboxOmit,
+  });
+
+  res.json({ announcement });
+});
+
+// "Not relevant": any Volunteer or Admin can close any open announcement
+// without doing it, with an optional note. Its open sign tasks and kennel move
+// request are cancelled with it; the cat/kennel itself is left unchanged
+// (dewormer/probiotic flags, status, kennel state).
+router.patch("/:id/dismiss", requireAuth, async (req, res: Response) => {
+  const id = Number(req.params.id);
+
+  const existing = await prisma.announcement.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Announcement not found" });
+    return;
+  }
+
+  const data = validate(dismissAnnouncementSchema, req.body ?? {}, res);
+  if (!data) return;
+
+  if (existing.resolved) {
+    res.status(409).json({ error: "Announcement is already resolved" });
+    return;
+  }
+
+  const actorId = (req as AuthedRequest).session.user.id;
+
+  const announcement = await prisma.$transaction(async (tx) => {
+    await tx.signTask.updateMany({
+      where: { announcementId: id, state: TaskState.Open },
+      data: { state: TaskState.Cancelled },
+    });
+    await tx.kennelMoveRequest.updateMany({
+      where: { announcementId: id, state: TaskState.Open },
+      data: { state: TaskState.Cancelled },
+    });
+    return tx.announcement.update({
+      where: { id },
+      data: {
+        resolved: true,
+        resolvedAt: new Date(),
+        resolvedById: actorId,
+        dismissed: true,
+        dismissNote: data.note ?? null,
+      },
+      include: announcementInclude,
+      omit: outboxOmit,
+    });
+  });
+
+  res.json({ announcement });
+});
+
+// Admin-only undo of "Not relevant". Cancelled sign tasks / move requests are
+// not restored — the card comes back without them.
+router.patch("/:id/reopen", requireAuth, requireAdmin, async (req, res: Response) => {
+  const id = Number(req.params.id);
+
+  const existing = await prisma.announcement.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Announcement not found" });
+    return;
+  }
+  if (!existing.dismissed) {
+    res.status(409).json({ error: "Only announcements marked not relevant can be reopened" });
+    return;
+  }
+
+  const announcement = await prisma.announcement.update({
+    where: { id },
+    data: {
+      resolved: false,
+      resolvedAt: null,
+      resolvedById: null,
+      dismissed: false,
+      dismissNote: null,
+    },
     include: announcementInclude,
     omit: outboxOmit,
   });

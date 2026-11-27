@@ -62,3 +62,15 @@ export const announcementCommentSchema = z.object({
   comment: z.string().trim().max(2000, "Comment is too long"),
 });
 export type AnnouncementCommentInput = z.infer<typeof announcementCommentSchema>;
+
+// Any signed-in user can mark an announcement "Not relevant" (closed without
+// being done), with an optional short note explaining why.
+export const dismissAnnouncementSchema = z.object({
+  note: z
+    .string()
+    .trim()
+    .max(500, "Note is too long")
+    .optional()
+    .transform((note) => (note ? note : undefined)),
+});
+export type DismissAnnouncementInput = z.infer<typeof dismissAnnouncementSchema>;

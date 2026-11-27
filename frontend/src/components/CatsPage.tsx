@@ -5,6 +5,7 @@ import { api } from "../lib/api";
 import { authClient } from "../lib/auth-client";
 import { Role } from "shared/constants/role.ts";
 import { Button } from "./ui/button";
+import { Checkbox } from "./ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import {
   AlertDialog,
@@ -41,6 +42,7 @@ export default function CatsPage() {
   const isAdmin = session?.user.role === Role.Admin;
 
   const [dialog, setDialog] = useState<DialogState>(null);
+  const [showInactive, setShowInactive] = useState(false);
   const [deletingCat, setDeletingCat] = useState<Cat | null>(null);
   const [removingFromGroup, setRemovingFromGroup] = useState<Cat | null>(null);
   const queryClient = useQueryClient();
@@ -82,7 +84,15 @@ export default function CatsPage() {
           </div>
         )}
       </div>
+      <label className="mb-4 flex w-fit items-center gap-2 text-sm">
+        <Checkbox
+          checked={showInactive}
+          onCheckedChange={(checked) => setShowInactive(checked === true)}
+        />
+        Show picked up &amp; returned cats
+      </label>
       <CatsTable
+        showInactive={showInactive}
         onEdit={(cat) => setDialog({ mode: "edit", cat })}
         onDelete={(cat) => setDeletingCat(cat)}
         onRemoveFromGroup={(cat) => setRemovingFromGroup(cat)}

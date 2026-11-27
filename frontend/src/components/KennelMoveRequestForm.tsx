@@ -30,7 +30,10 @@ export default function KennelMoveRequestForm({ kennel, onSuccess }: KennelMoveR
     },
   });
 
-  const destinationOptions = (kennels ?? []).filter((k) => k.id !== kennel.id);
+  // Only empty kennels: completing a move into an occupied one always fails.
+  const destinationOptions = (kennels ?? []).filter(
+    (k) => k.id !== kennel.id && k.cats.length === 0 && k.groups.length === 0,
+  );
   const catId = kennel.cats[0]?.id;
   const groupId = kennel.groups[0]?.id;
 
@@ -82,12 +85,17 @@ export default function KennelMoveRequestForm({ kennel, onSuccess }: KennelMoveR
             <NativeSelectOption value="">Select a kennel</NativeSelectOption>
             {destinationOptions.map((k) => (
               <NativeSelectOption key={k.id} value={k.id}>
-                Kennel {k.number} —{" "}
-                {k.cats.length === 0 && k.groups.length === 0 ? k.state : occupantLabel(k)}
+                Kennel {k.number} — {k.state}
               </NativeSelectOption>
             ))}
           </NativeSelect>
+          {kennels && destinationOptions.length === 0 && (
+            <p className="text-sm text-muted-foreground">No empty kennels to move into.</p>
+          )}
           <ErrorMessage message={form.formState.errors.toKennelId?.message} />
+          {/* The occupant fields are hidden, so surface their error here (e.g. a
+              kennel holding both a cat and a group). */}
+          <ErrorMessage message={form.formState.errors.catId?.message} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="reason">Reason (optional)</Label>

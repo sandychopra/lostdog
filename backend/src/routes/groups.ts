@@ -4,8 +4,9 @@ import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
-import { markKennelNeedsReset, markKennelOccupied } from "../lib/kennelResets.ts";
+import { isKennelOccupied, markKennelNeedsReset, markKennelOccupied } from "../lib/kennelResets.ts";
 import { logActivity } from "../lib/activityLog.ts";
+import { removeCatFromGroup } from "../lib/groups.ts";
 
 const router = Router();
 
@@ -36,11 +37,7 @@ router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
   const destinationIsOwnKennel = currentKennelIds.has(data.kennelId);
 
   if (!destinationIsOwnKennel) {
-    const [catCount, groupCount] = await Promise.all([
-      prisma.cat.count({ where: { kennelId: data.kennelId } }),
-      prisma.group.count({ where: { kennelId: data.kennelId } }),
-    ]);
-    if (catCount > 0 || groupCount > 0) {
+    if (await isKennelOccupied(prisma, data.kennelId)) {
       res.status(409).json({ error: "That kennel is already occupied" });
       return;
     }
@@ -172,35 +169,7 @@ router.delete("/:id/cats/:catId", requireAuth, requireAdmin, async (req, res: Re
     return;
   }
 
-  const otherCats = await prisma.cat.findMany({
-    where: { groupId, id: { not: catId } },
-  });
-
-  await prisma.$transaction(async (tx) => {
-    await tx.cat.update({ where: { id: catId }, data: { groupId: null, kennelId: null } });
-    await logActivity(tx, {
-      entityType: "Cat",
-      entityId: catId,
-      action: "Update",
-      actorId,
-      description: `Removed from group ${groupId}`,
-    });
-
-    if (otherCats.length === 1) {
-      await tx.cat.update({
-        where: { id: otherCats[0]!.id },
-        data: { groupId: null, kennelId: group.kennelId },
-      });
-      await logActivity(tx, {
-        entityType: "Cat",
-        entityId: otherCats[0]!.id,
-        action: "Update",
-        actorId,
-        description: `Group ${groupId} dissolved`,
-      });
-      await tx.group.delete({ where: { id: groupId } });
-    }
-  });
+  await prisma.$transaction((tx) => removeCatFromGroup(tx, { catId, groupId, actorId }));
 
   res.json({ message: "Cat removed from group" });
 });

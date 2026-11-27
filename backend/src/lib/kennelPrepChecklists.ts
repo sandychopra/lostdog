@@ -1,7 +1,7 @@
 import { ChecklistActionType } from "shared/constants/checklistActionType.ts";
 import type { Prisma } from "../generated/prisma/client.ts";
 import { logOccupantMoved } from "./activityLog.ts";
-import { markKennelOccupied, markKennelReady } from "./kennelResets.ts";
+import { isKennelOccupied, markKennelOccupied, markKennelReady } from "./kennelResets.ts";
 
 export class InvalidChecklistActionError extends Error {}
 
@@ -67,11 +67,7 @@ export async function completeChecklistAction(
   if (action.actionType === ChecklistActionType.ResetKennel) {
     await markKennelReady(tx, action.kennelId!, args.actorId);
   } else if (action.actionType === ChecklistActionType.MoveCat) {
-    const [catCount, groupCount] = await Promise.all([
-      tx.cat.count({ where: { kennelId: action.kennelId! } }),
-      tx.group.count({ where: { kennelId: action.kennelId! } }),
-    ]);
-    if (catCount > 0 || groupCount > 0) {
+    if (await isKennelOccupied(tx, action.kennelId!)) {
       throw new InvalidChecklistActionError("Destination kennel is already occupied");
     }
 

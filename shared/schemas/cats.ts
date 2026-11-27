@@ -51,13 +51,32 @@ const optionalKennelIdField = {
 
 const catFields = { ...catFieldsBase, ...kennelIdField };
 
-export const createCatSchema = z.object({ ...catFieldsBase, ...optionalKennelIdField });
+// A Due dewormer only means something with a date: the DewormerDue announcement
+// appears on that date, so without one there would be nothing to schedule.
+function requireDewormerDueDate(data: {
+  dewormerStatus: DewormerStatus;
+  dewormerDueDate?: Date | undefined;
+}) {
+  return data.dewormerStatus !== DewormerStatus.Due || data.dewormerDueDate !== undefined;
+}
+const dewormerDueDateRequired = {
+  error: "Due date is required when the dewormer is due",
+  path: ["dewormerDueDate"],
+};
+
+export const createCatSchema = z
+  .object({ ...catFieldsBase, ...optionalKennelIdField })
+  .refine(requireDewormerDueDate, dewormerDueDateRequired);
 export type CreateCatInput = z.infer<typeof createCatSchema>;
 
-export const updateCatSchema = z.object(catFields);
+export const updateCatSchema = z
+  .object(catFields)
+  .refine(requireDewormerDueDate, dewormerDueDateRequired);
 export type UpdateCatInput = z.infer<typeof updateCatSchema>;
 
 // For a cat that's part of a Group: its kennel comes from the Group, not the
 // Cat, so kennelId doesn't apply here.
-export const updateGroupedCatSchema = z.object(catFieldsBase);
+export const updateGroupedCatSchema = z
+  .object(catFieldsBase)
+  .refine(requireDewormerDueDate, dewormerDueDateRequired);
 export type UpdateGroupedCatInput = z.infer<typeof updateGroupedCatSchema>;

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 import { api } from "../lib/api";
 import ErrorAlert from "./ErrorAlert";
 import { Skeleton } from "./ui/skeleton";
@@ -35,10 +35,7 @@ export default function ShiftReportFormPage() {
 
   return (
     <AppLayout width="3xl">
-      <Link to="/shift-reports" className="text-sm text-blue hover:underline">
-        ← Back to Shift Reports
-      </Link>
-      <div className="mt-4 mb-6">
+      <div className="mb-6">
         {isEdit ? (
           report && <ShiftReportHeader report={report} mode="edit" />
         ) : (

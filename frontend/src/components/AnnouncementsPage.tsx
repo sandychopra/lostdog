@@ -103,6 +103,8 @@ interface Announcement {
   resolved: boolean;
   resolvedAt: string | null;
   resolvedBy: { id: string; name: string } | null;
+  dismissed: boolean;
+  dismissNote: string | null;
   createdBy: { id: string; name: string } | null;
   comment: string | null;
   commentedAt: string | null;
@@ -120,6 +122,7 @@ const ANNOUNCEMENT_TYPE_LABELS: Record<AnnouncementType, string> = {
   [AnnouncementType.KennelNeedsReset]: "Kennel Needs Reset",
   [AnnouncementType.DewormerDue]: "Dewormer",
   [AnnouncementType.ProbioticNeeded]: "Probiotic",
+  [AnnouncementType.PickedUp]: "Picked Up",
   [AnnouncementType.Manual]: "Announcement",
 };
 
@@ -150,11 +153,36 @@ function groupOrCatLabel(entry: {
   return entry.cat?.name ?? entry.group!.cats.map((c) => c.name).join("/");
 }
 
-// Ported from the old Cats-page roster badge — a cat still Due past its due
-// date shows as Overdue.
+// Today as YYYY-MM-DD in the viewer's time zone. dewormerDueDate is a date-only
+// value (sent as UTC midnight), so comparing its YYYY-MM-DD prefix against the
+// local date avoids it flipping a day early or late around midnight.
+function localToday(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+function dueDateKey(cat: AnnouncementCat): string | null {
+  return cat.dewormerDueDate ? cat.dewormerDueDate.slice(0, 10) : null;
+}
+
+function formatDateOnly(key: string): string {
+  const [year, month, day] = key.split("-").map(Number);
+  return new Date(year!, month! - 1, day!).toLocaleDateString();
+}
+
+// A cat still Due after its due date shows as Overdue.
 function isDewormerOverdue(cat: AnnouncementCat): boolean {
-  if (cat.dewormerStatus !== DewormerStatus.Due || !cat.dewormerDueDate) return false;
-  return new Date(cat.dewormerDueDate) < new Date();
+  const due = dueDateKey(cat);
+  if (cat.dewormerStatus !== DewormerStatus.Due || !due) return false;
+  return due < localToday();
+}
+
+// An open DewormerDue card stays hidden until its due date arrives.
+function isNotYetDue(announcement: Announcement): boolean {
+  if (announcement.type !== AnnouncementType.DewormerDue || announcement.resolved) return false;
+  const due = announcement.cat ? dueDateKey(announcement.cat) : null;
+  return due !== null && due > localToday();
 }
 
 // Same 24h-since-last-dose rule as before, now scoped to the current
@@ -222,7 +250,8 @@ function getSubActions(announcement: Announcement): SubAction[] {
       return actions;
     }
     case AnnouncementType.BackAvailable:
-    case AnnouncementType.ReturnedToRcc: {
+    case AnnouncementType.ReturnedToRcc:
+    case AnnouncementType.PickedUp: {
       const task = announcement.signTasks[0];
       if (!task) return [];
       return [
@@ -279,9 +308,8 @@ function getSubActions(announcement: Announcement): SubAction[] {
     case AnnouncementType.DewormerDue: {
       if (!announcement.cat) return [];
       const overdue = isDewormerOverdue(announcement.cat);
-      const dueDate = announcement.cat.dewormerDueDate
-        ? new Date(announcement.cat.dewormerDueDate).toLocaleDateString()
-        : null;
+      const dueKey = dueDateKey(announcement.cat);
+      const dueDate = dueKey ? formatDateOnly(dueKey) : null;
       return [
         {
           kind: "dewormerGiven",
@@ -437,6 +465,7 @@ function statusBadge(announcement: Announcement): {
   label: string;
   variant: "secondary" | "warning" | "destructive";
 } {
+  if (announcement.dismissed) return { label: "Not relevant", variant: "secondary" };
   if (announcement.resolved) return { label: "Resolved", variant: "secondary" };
   if (isOverdue(announcement)) return { label: "Overdue", variant: "destructive" };
   if (announcement.type === AnnouncementType.ProbioticNeeded)
@@ -515,6 +544,8 @@ export default function AnnouncementsPage() {
     id: number;
     title: string | null;
   } | null>(null);
+  const [dismissing, setDismissing] = useState<{ id: number; headline: string } | null>(null);
+  const [dismissNote, setDismissNote] = useState("");
 
   const {
     data: announcements,
@@ -536,7 +567,7 @@ export default function AnnouncementsPage() {
 
   const sorted = useMemo(() => {
     if (!announcements) return [];
-    const list = [...announcements];
+    const list = announcements.filter((announcement) => !isNotYetDue(announcement));
     list.sort((a, b) => {
       const av = sortValue(a, sort.column);
       const bv = sortValue(b, sort.column);
@@ -561,6 +592,20 @@ export default function AnnouncementsPage() {
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ["announcements"] });
   };
+
+  const dismiss = useMutation({
+    mutationFn: (args: { id: number; note: string }) =>
+      api.patch(`/api/announcements/${args.id}/dismiss`, { note: args.note }),
+    onSuccess: () => {
+      invalidateAll();
+      queryClient.invalidateQueries({ queryKey: ["kennels"] });
+      setDismissing(null);
+    },
+  });
+  const reopen = useMutation({
+    mutationFn: (id: number) => api.patch(`/api/announcements/${id}/reopen`),
+    onSuccess: invalidateAll,
+  });
 
   const completeSignTask = useMutation({
     mutationFn: (id: number) => api.patch(`/api/sign-tasks/${id}/complete`),
@@ -697,18 +742,23 @@ export default function AnnouncementsPage() {
     }
   }
 
-  function uncompleteErrorFor(kind: SubActionKind, id: number): unknown {
+  // The error from the last complete/undo attempt on this action, if it failed.
+  function actionErrorFor(kind: SubActionKind, id: number): unknown {
+    const failed = (mutation: { isError: boolean; variables: unknown; error: unknown }): unknown =>
+      mutation.isError && mutation.variables === id ? mutation.error : undefined;
     switch (kind) {
       case "signTask":
-        return uncompleteSignTask.isError && uncompleteSignTask.variables === id
-          ? uncompleteSignTask.error
-          : undefined;
+        return failed(completeSignTask) ?? failed(uncompleteSignTask);
+      case "confirmPickup":
+        return failed(confirmPickup);
+      case "kennelMove":
+        return failed(completeKennelMove);
+      case "checklistAction":
+        return failed(completeChecklistAction);
       case "kennelReset":
-        return uncompleteKennelReset.isError && uncompleteKennelReset.variables === id
-          ? uncompleteKennelReset.error
-          : undefined;
-      default:
-        return undefined;
+        return failed(completeKennelReset) ?? failed(uncompleteKennelReset);
+      case "dewormerGiven":
+        return failed(markDewormerGiven);
     }
   }
 
@@ -723,13 +773,14 @@ export default function AnnouncementsPage() {
 
   // Cell contents shared by the desktop table and the phone cards.
   function renderActions(announcement: Announcement) {
-    const subActions = getSubActions(announcement);
+    // A card marked "Not relevant" keeps its message but drops its actions.
+    const subActions = announcement.dismissed ? [] : getSubActions(announcement);
     return (
       <>
         {announcement.type === AnnouncementType.Manual && announcement.message && (
           <p className="text-muted-foreground">{announcement.message}</p>
         )}
-        {announcement.type === AnnouncementType.ProbioticNeeded ? (
+        {announcement.dismissed ? null : announcement.type === AnnouncementType.ProbioticNeeded ? (
           <ProbioticStatus
             announcement={announcement}
             collapsed={collapsedIds.has(announcement.id)}
@@ -766,7 +817,7 @@ export default function AnnouncementsPage() {
                       isBusy={isBusy(action.kind, action.id)}
                       onComplete={() => triggerComplete(action)}
                       onUncomplete={() => triggerUncomplete(action)}
-                      error={uncompleteErrorFor(action.kind, action.id)}
+                      error={actionErrorFor(action.kind, action.id)}
                     />
                   ))}
                 </CollapsibleContent>
@@ -782,7 +833,7 @@ export default function AnnouncementsPage() {
                 isBusy={isBusy(action.kind, action.id)}
                 onComplete={() => triggerComplete(action)}
                 onUncomplete={() => triggerUncomplete(action)}
-                error={uncompleteErrorFor(action.kind, action.id)}
+                error={actionErrorFor(action.kind, action.id)}
               />
             ))}
           </div>
@@ -792,6 +843,33 @@ export default function AnnouncementsPage() {
   }
 
   function renderResolution(announcement: Announcement) {
+    if (announcement.dismissed) {
+      return (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="min-w-0 text-xs text-muted-foreground">
+            Not relevant
+            {announcement.dismissNote && `: ${announcement.dismissNote}`}
+            {announcement.resolvedBy && ` — ${announcement.resolvedBy.name}`}
+            {announcement.resolvedAt && `, ${new Date(announcement.resolvedAt).toLocaleString()}`}
+          </p>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={reopen.isPending && reopen.variables === announcement.id}
+              onClick={() => reopen.mutate(announcement.id)}
+            >
+              Reopen
+            </Button>
+          )}
+          {reopen.isError && reopen.variables === announcement.id && (
+            <div className="w-full">
+              <ErrorAlert error={reopen.error} />
+            </div>
+          )}
+        </div>
+      );
+    }
     if (announcement.resolvedAt) {
       return (
         <p className="text-xs text-muted-foreground">
@@ -800,19 +878,32 @@ export default function AnnouncementsPage() {
         </p>
       );
     }
-    if (announcement.type === AnnouncementType.Manual && !announcement.resolved && isAdmin) {
-      return (
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        {announcement.type === AnnouncementType.Manual && isAdmin && (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={resolveManual.isPending}
+            onClick={() => resolveManual.mutate(announcement.id)}
+          >
+            Mark resolved
+          </Button>
+        )}
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
-          disabled={resolveManual.isPending}
-          onClick={() => resolveManual.mutate(announcement.id)}
+          className="-ml-3 text-muted-foreground"
+          onClick={() => {
+            dismiss.reset();
+            setDismissNote("");
+            setDismissing({ id: announcement.id, headline: announcementHeadline(announcement) });
+          }}
         >
-          Mark resolved
+          Not relevant
         </Button>
-      );
-    }
-    return null;
+      </div>
+    );
   }
 
   function renderCard(announcement: Announcement) {
@@ -1080,6 +1171,49 @@ export default function AnnouncementsPage() {
             announcement={dialog?.mode === "edit" ? dialog.announcement : undefined}
             onSuccess={close}
           />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={dismissing !== null}
+        onOpenChange={(open) => {
+          if (!open) setDismissing(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark as not relevant</DialogTitle>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (dismissing) dismiss.mutate({ id: dismissing.id, note: dismissNote });
+            }}
+          >
+            <p className="text-sm text-muted-foreground">
+              &ldquo;{dismissing?.headline}&rdquo; will be closed without being done. Any open sign
+              or move task on it is cancelled.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="dismissNote">Note (optional)</Label>
+              <Textarea
+                id="dismissNote"
+                placeholder="Why it no longer applies"
+                value={dismissNote}
+                onChange={(e) => setDismissNote(e.target.value)}
+              />
+            </div>
+            {dismiss.error && <ErrorAlert error={dismiss.error} />}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="ghost" onClick={() => setDismissing(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={dismiss.isPending}>
+                {dismiss.isPending ? "Saving..." : "Mark not relevant"}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
 

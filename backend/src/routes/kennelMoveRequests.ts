@@ -11,6 +11,7 @@ import {
   completeKennelMoveRequest,
   InvalidKennelMoveError,
 } from "../lib/kennelMoveRequests.ts";
+import { isKennelOccupied } from "../lib/kennelResets.ts";
 
 const router = Router();
 
@@ -39,6 +40,10 @@ router.post("/", requireAuth, requireAdmin, async (req: Request, res: Response) 
   });
   if (!toKennel) {
     res.status(404).json({ error: "Destination kennel not found" });
+    return;
+  }
+  if (await isKennelOccupied(prisma, data.toKennelId)) {
+    res.status(409).json({ error: `Kennel ${toKennel.number} is already occupied` });
     return;
   }
 

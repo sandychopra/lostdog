@@ -9,6 +9,7 @@ import { ActivityAction, ActivityEntityType } from "shared/constants/activityLog
 import { logActivity } from "./activityLog.ts";
 import { markKennelNeedsReset } from "./kennelResets.ts";
 import { syncDewormerAnnouncement, syncProbioticAnnouncement } from "./medicalAlerts.ts";
+import { removeCatFromGroup } from "./groups.ts";
 
 export class InvalidCatStatusTransitionError extends Error {}
 export class InvalidPickupError extends Error {}
@@ -33,6 +34,33 @@ const DRIVING_ANNOUNCEMENT_TYPES = [
   AnnouncementType.Adopted,
   AnnouncementType.BackAvailable,
 ];
+
+// A grouped cat has no kennelId of its own — it lives in its group's kennel.
+async function effectiveKennelId(
+  tx: Tx,
+  cat: { kennelId: number | null; groupId: number | null },
+): Promise<number | null> {
+  if (cat.kennelId !== null || cat.groupId === null) return cat.kennelId;
+  const group = await tx.group.findUniqueOrThrow({ where: { id: cat.groupId } });
+  return group.kennelId;
+}
+
+/**
+ * A cat leaving the shelter (picked up or returned to RCC) closes out
+ * everything still open about it: every unresolved cat announcement and any
+ * open kennel move request for the cat. Sign tasks are handled separately by
+ * cancelOpenSignTasks.
+ */
+async function closeOpenCatAnnouncements(tx: Tx, catId: number, actorId: string): Promise<void> {
+  await tx.kennelMoveRequest.updateMany({
+    where: { catId, state: TaskState.Open },
+    data: { state: TaskState.Cancelled },
+  });
+  await tx.announcement.updateMany({
+    where: { catId, resolved: false },
+    data: { resolved: true, resolvedAt: new Date(), resolvedById: actorId },
+  });
+}
 
 async function cancelOpenSignTasks(tx: Tx, catId: number): Promise<void> {
   await tx.signTask.updateMany({
@@ -142,6 +170,7 @@ export async function changeCatStatus(
   }
 
   await cancelOpenSignTasks(tx, args.catId);
+  const kennelId = await effectiveKennelId(tx, cat);
 
   // PendingAdoption -> Adopted is forward progress within the same adoption
   // attempt, not a new one — per FR-85, both announcements stay open together
@@ -167,11 +196,11 @@ export async function changeCatStatus(
     const announcement = await tx.announcement.create({
       data: { type: announcementType, catId: args.catId },
     });
-    if (cat.kennelId !== null) {
+    if (kennelId !== null) {
       await tx.signTask.create({
         data: {
           catId: args.catId,
-          kennelId: cat.kennelId,
+          kennelId,
           action: signAction,
           announcementId: announcement.id,
           state: TaskState.Open,
@@ -197,7 +226,7 @@ export async function changeCatStatus(
   });
   await maybeCreateRemoveSignTask(tx, {
     catId: args.catId,
-    kennelId: cat.kennelId,
+    kennelId,
     departingStatus: cat.status,
     announcementId: announcement.id,
   });
@@ -216,7 +245,9 @@ export async function changeCatStatus(
 
 /**
  * The one Volunteer-triggerable transition (adopted -> picked up), completed
- * directly from the Announcements page.
+ * directly from the Announcements page. The cat leaves the shelter: it becomes
+ * inactive (off the Cats page), leaves its kennel and group, everything still
+ * open about it is closed, and a single PickedUp announcement replaces it.
  */
 export async function confirmPickup(tx: Tx, args: { catId: number; actorId: string }) {
   const cat = await tx.cat.findUniqueOrThrow({ where: { id: args.catId } });
@@ -224,18 +255,21 @@ export async function confirmPickup(tx: Tx, args: { catId: number; actorId: stri
     throw new InvalidPickupError(`Cat ${args.catId} is not adopted with a scheduled pickup`);
   }
 
-  await cancelOpenSignTasks(tx, args.catId); // defensive — normally none open on this path
+  const kennelId = await effectiveKennelId(tx, cat);
+  // Checked before cancelOpenSignTasks, which doesn't touch Done tasks anyway.
+  const adoptedSignPosted = await wasSignPosted(tx, args.catId, SignAction.PostAdopted);
 
-  // This transaction is exactly what satisfies FR-85's 3-condition rule for the
-  // PendingAdoption/Adopted announcement(s) still open on this cat (picked up +
-  // kennel reset + no open sign task, all set right here) — so resolving them
-  // now is authoritative; the announcements feed never needs to re-derive this
-  // at read time.
-  await resolveDrivingAnnouncement(tx, args.catId, args.actorId);
+  await cancelOpenSignTasks(tx, args.catId);
 
-  if (cat.kennelId !== null) {
-    await markKennelNeedsReset(tx, cat.kennelId, args.actorId);
-  }
+  // Closes the PendingAdoption/Adopted announcement(s) — FR-85's 3-condition
+  // rule (picked up + kennel reset/sign removal + no open sign task) is
+  // satisfied right here — along with every other open item about this cat
+  // (New Arrival, dewormer, probiotic, move requests).
+  await closeOpenCatAnnouncements(tx, args.catId, args.actorId);
+
+  const pickedUp = await tx.announcement.create({
+    data: { type: AnnouncementType.PickedUp, catId: args.catId },
+  });
 
   await logCatActivity(
     tx,
@@ -244,14 +278,46 @@ export async function confirmPickup(tx: Tx, args: { catId: number; actorId: stri
     `Status changed from ${cat.status} to ${CatStatus.PickedUp} (pickup confirmed)`,
   );
 
-  // No new SignTask here — the Adopted sign's removal is implied by the kennel
-  // reset above, never tracked as its own task on this path.
+  // Leaving the kennel: a solo cat empties it, so it needs a reset (which also
+  // covers taking the Adopted sign down). A cat leaving a group leaves its
+  // kennel-mates behind — no reset, but the Adopted sign still has to come
+  // down, tracked as its own task on the PickedUp card.
+  let kennelNowEmpty = true;
+  if (cat.groupId !== null) {
+    const result = await removeCatFromGroup(tx, {
+      catId: args.catId,
+      groupId: cat.groupId,
+      actorId: args.actorId,
+      reason: "picked up",
+    });
+    kennelNowEmpty = result.catsLeftInKennel === 0;
+  }
+
+  if (kennelId !== null) {
+    if (kennelNowEmpty) {
+      await markKennelNeedsReset(tx, kennelId, args.actorId);
+    } else if (adoptedSignPosted) {
+      await tx.signTask.create({
+        data: {
+          catId: args.catId,
+          kennelId,
+          action: SignAction.RemoveAdopted,
+          announcementId: pickedUp.id,
+          state: TaskState.Open,
+        },
+      });
+    }
+  }
+
   return tx.cat.update({
     where: { id: args.catId },
     data: {
       status: CatStatus.PickedUp,
       pickedUpById: args.actorId,
       pickedUpAt: new Date(),
+      active: false,
+      kennelId: null,
+      groupId: null,
     },
   });
 }
@@ -264,7 +330,10 @@ export async function returnCatToRcc(
   const cat = await tx.cat.findUniqueOrThrow({ where: { id: args.catId } });
 
   await cancelOpenSignTasks(tx, args.catId);
-  await resolveDrivingAnnouncement(tx, args.catId, args.actorId);
+  // Leaving the active roster closes everything still open about this cat
+  // (status, dewormer/probiotic reminders, move requests) — without touching
+  // the underlying dewormerStatus/needsProbiotic flags themselves.
+  await closeOpenCatAnnouncements(tx, args.catId, args.actorId);
 
   const announcement = await tx.announcement.create({
     data: { type: AnnouncementType.ReturnedToRcc, catId: args.catId },
@@ -287,21 +356,9 @@ export async function returnCatToRcc(
     args.reason ? `Returned to RCC: ${args.reason}` : "Returned to RCC",
   );
 
-  // Leaving the active roster makes any open dewormer/probiotic reminder about
-  // this cat unactionable noise — close both out, without touching the
-  // underlying dewormerStatus/needsProbiotic flags themselves.
-  await tx.announcement.updateMany({
-    where: {
-      catId: args.catId,
-      type: { in: [AnnouncementType.DewormerDue, AnnouncementType.ProbioticNeeded] },
-      resolved: false,
-    },
-    data: { resolved: true, resolvedAt: new Date(), resolvedById: args.actorId },
-  });
-
   return tx.cat.update({
     where: { id: args.catId },
-    data: { active: false, inactiveReason: args.reason ?? null },
+    data: { active: false, inactiveReason: args.reason ?? null, kennelId: null },
   });
 }
 

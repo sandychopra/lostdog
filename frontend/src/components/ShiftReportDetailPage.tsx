@@ -1,6 +1,6 @@
 import { formatFecalScore } from "shared/constants/fecalScore.ts";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 import { CatEntryType } from "shared/constants/catEntryType.ts";
 import { api } from "../lib/api";
 import ErrorAlert from "./ErrorAlert";
@@ -91,12 +91,8 @@ export default function ShiftReportDetailPage() {
 
   return (
     <AppLayout width="3xl">
-      <Link to="/shift-reports" className="text-sm text-blue hover:underline">
-        ← Back to Shift Reports
-      </Link>
-
       {isLoading && (
-        <div className="mt-4 space-y-4">
+        <div className="space-y-4">
           <Skeleton className="h-8 w-64" />
           <Skeleton className="h-32 w-full" />
         </div>
@@ -105,9 +101,7 @@ export default function ShiftReportDetailPage() {
 
       {report && (
         <>
-          <div className="mt-4">
-            <ShiftReportHeader report={report} mode="view" />
-          </div>
+          <ShiftReportHeader report={report} mode="view" />
 
           {report.kennelsStatus.length > 0 && (
             <section className="mt-6 space-y-2">

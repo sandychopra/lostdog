@@ -252,6 +252,8 @@ erDiagram
     Boolean resolved 
     DateTime resolved_at "❓"
     String resolved_by_id "❓"
+    Boolean dismissed 
+    String dismiss_note "❓"
     String created_by_id "❓"
     String comment "❓"
     DateTime commented_at "❓"

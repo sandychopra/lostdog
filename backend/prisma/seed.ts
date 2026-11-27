@@ -278,6 +278,7 @@ async function seedAnnouncements() {
         sex: "Male",
         colorPattern: "Ginger",
         dewormerStatus: DewormerStatus.Due,
+        dewormerDueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
         needsProbiotic: false,
       }));
 

@@ -9,6 +9,16 @@ export class KennelResetConflictError extends Error {}
 
 type Tx = Prisma.TransactionClient;
 
+/** True when an active cat or a group is assigned to the kennel. Cats that have
+ * left (picked up / returned to RCC) have no kennel, so they never count. */
+export async function isKennelOccupied(db: Tx, kennelId: number): Promise<boolean> {
+  const [catCount, groupCount] = await Promise.all([
+    db.cat.count({ where: { kennelId, active: true } }),
+    db.group.count({ where: { kennelId } }),
+  ]);
+  return catCount > 0 || groupCount > 0;
+}
+
 /**
  * Flips a kennel to NeedsReset and ensures exactly one open KennelNeedsReset
  * announcement exists for it. Every place in the app that sets a kennel to
