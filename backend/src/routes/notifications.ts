@@ -33,6 +33,7 @@ const notificationInclude = {
       dewormerDueDate: true,
       needsProbiotic: true,
       collarColor: true,
+      active: true,
       kennel: { select: { id: true, number: true } },
     },
   },

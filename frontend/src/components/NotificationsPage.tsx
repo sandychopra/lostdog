@@ -18,6 +18,7 @@ import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { Checkbox } from "./ui/checkbox";
+import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,7 +35,7 @@ import { Card } from "./ui/card";
 import CollarDot from "./CollarDot";
 import KennelTile from "./KennelTile";
 import { NativeSelect, NativeSelectOption } from "./ui/native-select";
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Megaphone } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Megaphone, Pill, X } from "lucide-react";
 
 interface NotificationCat {
   id: number;
@@ -46,6 +47,7 @@ interface NotificationCat {
   dewormerDueDate: string | null;
   needsProbiotic: boolean;
   collarColor: string | null;
+  active: boolean;
   kennel: { id: number; number: number } | null;
 }
 
@@ -479,6 +481,74 @@ function kennelNumberOf(notification: Notification): number | null {
   return notification.cat?.kennel?.number ?? notification.kennel?.number ?? null;
 }
 
+type StatusFilter = "open" | "done" | "notRelevant" | "all";
+type Kind = "action" | "medical" | "info";
+type KindFilter = Kind | "all";
+
+const STATUS_FILTERS: [StatusFilter, string][] = [
+  ["open", "Open"],
+  ["done", "Done"],
+  ["notRelevant", "Not relevant"],
+  ["all", "All"],
+];
+
+const KIND_FILTERS: [KindFilter, string][] = [
+  ["all", "All"],
+  ["action", "Needs action"],
+  ["medical", "Medical"],
+  ["info", "Informational"],
+];
+
+const MEDICAL_TYPES: NotificationType[] = [
+  NotificationType.DewormerDue,
+  NotificationType.ProbioticNeeded,
+];
+const ACTION_TYPES: NotificationType[] = [
+  NotificationType.PendingAdoption,
+  NotificationType.Adopted,
+  NotificationType.KennelMoveRequested,
+  NotificationType.KennelNeedsReset,
+];
+
+// Medical: dewormer and probiotic. Needs action: anything with something to
+// tick off (signs, pickup, moves, resets, checklists). Informational: the rest
+// (arrivals, departures without a sign task, plain admin posts).
+function kindOf(notification: Notification): Kind {
+  if (MEDICAL_TYPES.includes(notification.type)) return "medical";
+  if (
+    ACTION_TYPES.includes(notification.type) ||
+    notification.checklist !== null ||
+    getSubActions(notification).length > 0
+  ) {
+    return "action";
+  }
+  return "info";
+}
+
+function matchesStatus(notification: Notification, filter: StatusFilter): boolean {
+  switch (filter) {
+    case "open":
+      return !notification.resolved;
+    case "done":
+      return notification.resolved && !notification.dismissed;
+    case "notRelevant":
+      return notification.dismissed;
+    case "all":
+      return true;
+  }
+}
+
+// A cat that has left (picked up / returned to RCC) is off the Cats page; of its
+// notifications only the one saying it left is still worth showing.
+function isAboutDepartedCat(notification: Notification): boolean {
+  return (
+    notification.cat !== null &&
+    !notification.cat.active &&
+    notification.type !== NotificationType.PickedUp &&
+    notification.type !== NotificationType.ReturnedToRcc
+  );
+}
+
 type SortColumn = "type" | "cat" | "kennel" | "created" | "status";
 
 const SORT_COLUMNS: [SortColumn, string][] = [
@@ -531,7 +601,9 @@ export default function NotificationsPage() {
   const initialRange = defaultDateRange();
   const [dateFrom, setDateFrom] = useState(initialRange.from);
   const [dateTo, setDateTo] = useState(initialRange.to);
-  const [activeOnly, setActiveOnly] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("open");
+  const [kindFilter, setKindFilter] = useState<KindFilter>("all");
+  const [catFilter, setCatFilter] = useState<{ id: number; name: string } | null>(null);
   const [sort, setSort] = useState<{ column: SortColumn; direction: "asc" | "desc" }>({
     column: "created",
     direction: "desc",
@@ -552,11 +624,10 @@ export default function NotificationsPage() {
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["notifications", activeOnly, dateFrom, dateTo],
+    queryKey: ["notifications", dateFrom, dateTo],
     queryFn: async () => {
       const { data } = await api.get<{ notifications: Notification[] }>("/api/notifications", {
         params: {
-          ...(activeOnly ? { activeOnly: "true" } : {}),
           ...(dateFrom ? { from: `${dateFrom}T00:00:00.000` } : {}),
           ...(dateTo ? { to: `${dateTo}T23:59:59.999` } : {}),
         },
@@ -565,9 +636,43 @@ export default function NotificationsPage() {
     },
   });
 
+  // Status and the departed-cat rule decide what's "in view"; the Cat dropdown
+  // lists the cats in that view, and Kind/Cat then narrow it further.
+  const inView = useMemo(
+    () =>
+      (notifications ?? []).filter(
+        (notification) =>
+          !isNotYetDue(notification) &&
+          !isAboutDepartedCat(notification) &&
+          matchesStatus(notification, statusFilter),
+      ),
+    [notifications, statusFilter],
+  );
+
+  const catOptions = useMemo(() => {
+    const byId = new Map<number, string>();
+    for (const notification of inView) {
+      if (notification.cat) byId.set(notification.cat.id, notification.cat.name);
+    }
+    if (catFilter) byId.set(catFilter.id, catFilter.name);
+    return [...byId]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [inView, catFilter]);
+
+  const filtersActive = statusFilter !== "open" || kindFilter !== "all" || catFilter !== null;
+  function clearFilters() {
+    setStatusFilter("open");
+    setKindFilter("all");
+    setCatFilter(null);
+  }
+
   const sorted = useMemo(() => {
-    if (!notifications) return [];
-    const list = notifications.filter((notification) => !isNotYetDue(notification));
+    const list = inView.filter(
+      (notification) =>
+        (kindFilter === "all" || kindOf(notification) === kindFilter) &&
+        (catFilter === null || notification.cat?.id === catFilter.id),
+    );
     list.sort((a, b) => {
       const av = sortValue(a, sort.column);
       const bv = sortValue(b, sort.column);
@@ -575,7 +680,7 @@ export default function NotificationsPage() {
       return sort.direction === "asc" ? cmp : -cmp;
     });
     return list;
-  }, [notifications, sort]);
+  }, [inView, kindFilter, catFilter, sort]);
 
   function toggleCollapsed(id: number) {
     setCollapsedIds((prev) => {
@@ -924,7 +1029,12 @@ export default function NotificationsPage() {
         <div className="min-w-0 flex-1 space-y-3">
           <div>
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-bold text-blue">{typeLabel}</p>
+              <p className="flex items-center gap-1 text-sm font-bold text-blue">
+                {kindOf(notification) === "medical" && (
+                  <Pill className="size-4" aria-hidden="true" />
+                )}
+                {typeLabel}
+              </p>
               <Badge variant={status.variant} className="shrink-0">
                 {status.label}
               </Badge>
@@ -932,7 +1042,20 @@ export default function NotificationsPage() {
             {headline !== typeLabel && (
               <h2 className="mt-0.5 flex items-center gap-2 text-lg leading-snug font-semibold">
                 <CollarDot color={notification.cat?.collarColor} />
-                <span className="min-w-0 break-words">{headline}</span>
+                {notification.cat && notification.type !== NotificationType.Manual ? (
+                  <button
+                    type="button"
+                    className="min-w-0 cursor-pointer text-left break-words hover:underline"
+                    title={`Show only ${notification.cat.name}`}
+                    onClick={() =>
+                      setCatFilter({ id: notification.cat!.id, name: notification.cat!.name })
+                    }
+                  >
+                    {headline}
+                  </button>
+                ) : (
+                  <span className="min-w-0 break-words">{headline}</span>
+                )}
               </h2>
             )}
             <p className="text-xs text-muted-foreground">
@@ -1091,13 +1214,61 @@ export default function NotificationsPage() {
             />
           </div>
         </div>
-        <label className="flex h-10 items-center gap-2 text-sm">
-          <Checkbox
-            checked={activeOnly}
-            onCheckedChange={(checked) => setActiveOnly(checked === true)}
-          />
-          Active only
-        </label>
+        <div className="grid w-full grid-cols-2 gap-3 sm:flex sm:w-auto sm:gap-4">
+          <div className="min-w-0 space-y-1">
+            <Label htmlFor="statusFilter">Status</Label>
+            <NativeSelect
+              id="statusFilter"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+            >
+              {STATUS_FILTERS.map(([value, label]) => (
+                <NativeSelectOption key={value} value={value}>
+                  {label}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+          <div className="min-w-0 space-y-1">
+            <Label htmlFor="catFilter">Cat</Label>
+            <NativeSelect
+              id="catFilter"
+              value={catFilter?.id ?? ""}
+              onChange={(e) => {
+                const id = Number(e.target.value);
+                const cat = catOptions.find((option) => option.id === id);
+                setCatFilter(cat ?? null);
+              }}
+            >
+              <NativeSelectOption value="">All cats</NativeSelectOption>
+              {catOptions.map((cat) => (
+                <NativeSelectOption key={cat.id} value={cat.id}>
+                  {cat.name}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+        </div>
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          aria-label="Kind"
+          className="w-full flex-wrap sm:w-auto"
+          value={kindFilter}
+          // Re-clicking the selected chip yields "": go back to All.
+          onValueChange={(next) => setKindFilter(next === "" ? "all" : (next as KindFilter))}
+        >
+          {KIND_FILTERS.map(([value, label]) => (
+            <ToggleGroupItem
+              key={value}
+              value={value}
+              className="h-9 rounded-full bg-white px-3 text-foreground data-[state=on]:border-navy data-[state=on]:bg-navy data-[state=on]:text-white data-[state=on]:hover:bg-navy data-[state=on]:hover:text-white"
+            >
+              {value === "medical" && <Pill className="size-4" aria-hidden="true" />}
+              {label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
         <div className="flex w-full items-end gap-2 sm:ml-auto sm:w-auto">
           <div className="flex-1 space-y-1">
             <Label htmlFor="sortBy">Sort by</Label>
@@ -1129,6 +1300,29 @@ export default function NotificationsPage() {
         </div>
       </div>
 
+      {(catFilter || filtersActive) && (
+        <div className="-mt-3 mb-4 flex flex-wrap items-center gap-2">
+          {catFilter && (
+            <Badge variant="secondary" className="h-8 gap-1 pr-1 pl-3 text-sm">
+              Cat: {catFilter.name}
+              <button
+                type="button"
+                aria-label={`Clear cat filter ${catFilter.name}`}
+                className="grid size-6 cursor-pointer place-content-center rounded-full hover:bg-black/10"
+                onClick={() => setCatFilter(null)}
+              >
+                <X className="size-3.5" />
+              </button>
+            </Badge>
+          )}
+          {filtersActive && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          )}
+        </div>
+      )}
+
       {error ? (
         <ErrorAlert message="Failed to fetch notifications" />
       ) : isLoading ? (
@@ -1141,10 +1335,15 @@ export default function NotificationsPage() {
         <Card className="items-center px-4 py-10 text-center">
           <p className="font-display text-lg font-semibold text-navy">Nothing to do here</p>
           <p className="text-sm text-muted-foreground">
-            {activeOnly
-              ? "No open notifications in these dates. Clear Active only to see resolved ones."
-              : "No notifications in these dates. Widen the date range to see older ones."}
+            {filtersActive
+              ? "No notifications match these filters in these dates."
+              : "No open notifications in these dates. Widen the dates or change Status to see older or finished ones."}
           </p>
+          {filtersActive && (
+            <Button variant="outline" size="sm" className="mt-2" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          )}
         </Card>
       ) : (
         <ul className="space-y-3">
