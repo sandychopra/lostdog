@@ -74,6 +74,27 @@ describe("CatStatusForm", () => {
     expect(payload.pickupAt).toEqual(new Date("2026-12-05T12:00"));
   });
 
+  test("clearing the pickup date on an adopted cat sends pickupAt: null", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(
+      <CatStatusForm
+        cat={makeCat({ status: "Adopted", pickupAt: "2026-12-05T17:00:00.000Z" })}
+        onSuccess={() => {}}
+      />,
+    );
+
+    await user.clear(screen.getByLabelText("Time (optional)"));
+    await user.clear(screen.getByLabelText("Pickup Date"));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+    const [, payload] = patch.mock.calls[0] as unknown as [
+      string,
+      { status: string; pickupAt: Date | null },
+    ];
+    expect(payload).toEqual({ status: "Adopted", pickupAt: null });
+  });
+
   test("a time without a date is rejected", async () => {
     const user = userEvent.setup();
     renderWithQuery(<CatStatusForm cat={makeCat()} onSuccess={() => {}} />);

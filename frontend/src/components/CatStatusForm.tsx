@@ -43,7 +43,9 @@ const DEFAULT_PICKUP_TIME = "12:00";
 function toPayload(values: StatusFormValues): ChangeCatStatusInput {
   const wantsPickup =
     values.status === CatStatus.PendingAdoption || values.status === CatStatus.Adopted;
-  if (!wantsPickup || values.pickupDate === "") return { status: values.status };
+  if (!wantsPickup) return { status: values.status };
+  // An explicit null clears a previously scheduled pickup (omitting it keeps it).
+  if (values.pickupDate === "") return { status: values.status, pickupAt: null };
   const time = values.pickupTime || DEFAULT_PICKUP_TIME;
   return { status: values.status, pickupAt: new Date(`${values.pickupDate}T${time}`) };
 }
