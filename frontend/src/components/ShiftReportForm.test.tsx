@@ -140,9 +140,10 @@ const post = mock(async (url: string, _payload: unknown) => {
   return { data: { shiftReport: { id: 1, catEntries: [] } } };
 });
 
-const put = mock(async (_url: string, _payload: unknown) => ({
-  data: { shiftReport: { id: 1, catEntries: [] } },
-}));
+const put = mock(async (_url: string, _payload: unknown) => {
+  if (reportSaveGate) await reportSaveGate;
+  return { data: { shiftReport: { id: 1, catEntries: [] } } };
+});
 
 mock.module("../lib/api", () => ({
   api: { get, post, put },
@@ -153,6 +154,22 @@ const { default: ShiftReportForm } = await import("./ShiftReportForm");
 function hidePage() {
   Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
   document.dispatchEvent(new Event("visibilitychange"));
+}
+
+// A new report saves itself as a draft (POST) as soon as it opens; every
+// later save — autosave or submit — updates it (PUT).
+async function waitForInitialDraft() {
+  await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+  expect(post.mock.calls[0]).toEqual([
+    "/api/shift-reports",
+    expect.objectContaining({ status: "Draft" }),
+  ]);
+}
+
+function submittedPayloads() {
+  return [...post.mock.calls, ...put.mock.calls]
+    .map(([, payload]) => payload as { status?: string } | undefined)
+    .filter((payload) => payload?.status === "Submitted");
 }
 
 async function openEditor(user: ReturnType<typeof userEvent.setup>, title: string) {
@@ -180,15 +197,17 @@ describe("ShiftReportForm", () => {
     const onSuccess = mock(() => {});
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={onSuccess} />);
+    await waitForInitialDraft();
 
     await user.selectOptions(screen.getByLabelText("Shift Type"), "Evening");
     await user.type(screen.getByLabelText("Cleaning Notes"), "Swept floors");
     await user.click(screen.getByRole("button", { name: "Submit Report" }));
 
-    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
-    expect(post).toHaveBeenCalledWith(
-      "/api/shift-reports",
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
+    expect(put).toHaveBeenCalledWith(
+      "/api/shift-reports/1",
       expect.objectContaining({
+        status: "Submitted",
         shiftType: "Evening",
         cleaningNotes: "Swept floors",
         catEntries: [],
@@ -205,7 +224,7 @@ describe("ShiftReportForm", () => {
     await user.click(screen.getByRole("button", { name: "Submit Report" }));
 
     expect(await screen.findByText("Select a shift type")).toBeInTheDocument();
-    expect(post).not.toHaveBeenCalled();
+    expect(submittedPayloads()).toHaveLength(0);
   });
 
   test("split shift is disabled and cleared for a Mid-day shift", async () => {
@@ -228,7 +247,7 @@ describe("ShiftReportForm", () => {
     await user.click(screen.getByRole("button", { name: "Submit Report" }));
 
     expect(await screen.findByText("Select First or Second shift")).toBeInTheDocument();
-    expect(post).not.toHaveBeenCalled();
+    expect(submittedPayloads()).toHaveLength(0);
   });
 
   test("submits the chosen split-shift position", async () => {
@@ -240,11 +259,11 @@ describe("ShiftReportForm", () => {
     await user.selectOptions(screen.getByLabelText("Which half of the shift?"), "Second");
     await user.click(screen.getByRole("button", { name: "Submit Report" }));
 
-    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
-    expect(post).toHaveBeenCalledWith(
-      "/api/shift-reports",
-      expect.objectContaining({ isSplitShift: true, splitShiftPosition: "Second" }),
-    );
+    await waitFor(() => expect(submittedPayloads()).toHaveLength(1));
+    expect(submittedPayloads()[0]).toMatchObject({
+      isSplitShift: true,
+      splitShiftPosition: "Second",
+    });
   });
 
   test("individual entry has no Free-fed field, has a Most food-amount option", async () => {
@@ -438,8 +457,8 @@ describe("ShiftReportForm", () => {
     await user.type(within(dialog).getByLabelText("Note"), "Sneezing");
     await user.click(within(dialog).getByRole("button", { name: "Done" }));
 
-    await waitFor(() => expect(post).toHaveBeenCalled());
-    const payload = post.mock.calls.at(-1)?.[1] as {
+    await waitFor(() => expect(put).toHaveBeenCalled());
+    const payload = put.mock.calls.at(-1)?.[1] as {
       medicalNotes: unknown[];
       catEntries: Record<string, unknown>[];
     };
@@ -468,8 +487,8 @@ describe("ShiftReportForm", () => {
     await user.selectOptions(screen.getByLabelText("Shift Type"), "Morning");
     await user.click(screen.getByRole("button", { name: "Submit Report" }));
 
-    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
-    const payload = post.mock.calls[0]?.[1] as { kennelsStatus: unknown[] };
+    await waitFor(() => expect(submittedPayloads()).toHaveLength(1));
+    const payload = submittedPayloads()[0] as unknown as { kennelsStatus: unknown[] };
     expect(payload.kennelsStatus[0]).toMatchObject({ kennelId: 5, reportedState: "Occupied" });
   });
 
@@ -481,8 +500,8 @@ describe("ShiftReportForm", () => {
     await user.selectOptions(screen.getByLabelText("Shift Type"), "Morning");
     await user.click(screen.getByRole("button", { name: "Submit Report" }));
 
-    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
-    const payload = post.mock.calls[0]?.[1] as { kennelsStatus: unknown[] };
+    await waitFor(() => expect(submittedPayloads()).toHaveLength(1));
+    const payload = submittedPayloads()[0] as unknown as { kennelsStatus: unknown[] };
     expect(payload.kennelsStatus).toHaveLength(1);
     expect(payload.kennelsStatus[0]).toMatchObject({ kennelId: 5, reportedState: "Ready" });
   });
@@ -509,7 +528,7 @@ describe("ShiftReportForm", () => {
     expect(
       await screen.findByText("2 cats still need info — fill them in or remove the cards."),
     ).toBeInTheDocument();
-    expect(post).not.toHaveBeenCalled();
+    expect(submittedPayloads()).toHaveLength(0);
 
     // Fill in Pepsi, remove the group.
     const dialog = await openEditor(user, "Pepsi");
@@ -523,7 +542,7 @@ describe("ShiftReportForm", () => {
     await user.click(await screen.findByRole("button", { name: "Remove" }));
     await waitFor(() => expect(screen.getAllByTestId("cat-entry-card")).toHaveLength(1));
 
-    // Closing the editor autosaved a draft, so submitting updates it.
+    // The report was saved as a draft when it opened, so submitting updates it.
     await user.click(screen.getByRole("button", { name: "Submit Report" }));
     await waitFor(() => expect(put).toHaveBeenCalled());
     const payload = put.mock.calls.at(-1)?.[1] as { status: string; catEntries: unknown[] };
@@ -536,38 +555,56 @@ describe("ShiftReportForm", () => {
   test("autosaves a draft when the page is hidden, and not again until something changes", async () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+    await waitForInitialDraft();
 
     await user.selectOptions(screen.getByLabelText("Shift Type"), "Evening");
+    hidePage();
 
-    const hide = hidePage;
-    hide();
-
-    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
-    expect(post).toHaveBeenCalledWith(
-      "/api/shift-reports",
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
+    expect(put).toHaveBeenCalledWith(
+      "/api/shift-reports/1",
       expect.objectContaining({ shiftType: "Evening", status: "Draft" }),
     );
 
-    hide();
+    hidePage();
     await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(put).toHaveBeenCalledTimes(1);
     expect(post).toHaveBeenCalledTimes(1);
   });
 
-  test("an untouched new report isn't saved; the first real edit saves a draft", async () => {
+  test("a new report is saved as a draft as soon as it opens, pre-fill included", async () => {
     catsInCare = true;
-    const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
-    await waitFor(() => expect(screen.getAllByTestId("cat-entry-card")).toHaveLength(2));
-    await screen.findByLabelText("Kennel 5");
 
-    hidePage();
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(post).not.toHaveBeenCalled();
+    await waitForInitialDraft();
+    const payload = post.mock.calls[0]?.[1] as {
+      catEntries: { catId?: number; groupId?: number }[];
+      kennelsStatus: { kennelId: number }[];
+    };
+    expect(payload.catEntries).toEqual([
+      expect.objectContaining({ catId: 1 }),
+      expect.objectContaining({ groupId: 10 }),
+    ]);
+    expect(payload.kennelsStatus.map((k) => k.kennelId).sort()).toEqual([4, 5]);
+  });
 
-    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+  test("a 409 (already has a draft) reports the conflict once and stops saving", async () => {
+    const onDraftConflict = mock(() => {});
+    post.mockImplementationOnce(async () => {
+      throw Object.assign(new Error("Conflict"), {
+        isAxiosError: true,
+        response: { status: 409, data: { error: "You already have a draft in progress" } },
+      });
+    });
+    const user = userEvent.setup();
+    renderWithQuery(<ShiftReportForm onSuccess={() => {}} onDraftConflict={onDraftConflict} />);
+
+    await waitFor(() => expect(onDraftConflict).toHaveBeenCalledTimes(1));
     await user.selectOptions(screen.getByLabelText("Shift Type"), "Evening");
     hidePage();
-    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(put).not.toHaveBeenCalled();
   });
 
   test("there's no Save Draft button; drafts autosave", () => {
@@ -581,6 +618,7 @@ describe("ShiftReportForm", () => {
   test("submitting while an autosave is running uploads a queued photo only once", async () => {
     const user = userEvent.setup();
     renderWithQuery(<ShiftReportForm onSuccess={() => {}} />);
+    await waitForInitialDraft();
     await user.selectOptions(screen.getByLabelText("Shift Type"), "Morning");
 
     const input = document.querySelector<HTMLInputElement>('input[type="file"][multiple]')!;
@@ -592,12 +630,12 @@ describe("ShiftReportForm", () => {
     let release!: () => void;
     reportSaveGate = new Promise((resolve) => (release = resolve));
     hidePage(); // autosave starts and stalls on the report save
-    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
 
     await user.click(screen.getByRole("button", { name: "Submit Report" }));
     release();
 
-    await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(2));
     await new Promise((resolve) => setTimeout(resolve, 20));
     const photoPosts = post.mock.calls.filter(([url]) => url === "/api/photos");
     expect(photoPosts).toHaveLength(1);

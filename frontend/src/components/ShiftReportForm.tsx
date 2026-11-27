@@ -1,3 +1,4 @@
+import { isAxiosError } from "axios";
 import { useEffect, useRef, useState } from "react";
 import { Controller, useFieldArray, useForm, useWatch, type FieldErrors } from "react-hook-form";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -140,12 +141,15 @@ interface ShiftReportFormProps {
   report?: ShiftReport;
   onSuccess: (id: number) => void;
   onDraftCreated?: (id: number) => void;
+  /** A new report couldn't be saved because the user already has a draft (409). */
+  onDraftConflict?: () => void;
 }
 
 export default function ShiftReportForm({
   report,
   onSuccess,
   onDraftCreated,
+  onDraftConflict,
 }: ShiftReportFormProps) {
   const isEdit = !!report;
   const queryClient = useQueryClient();
@@ -207,21 +211,6 @@ export default function ShiftReportForm({
   // Unsaved changes exist. A ref (not RHF's isDirty) so edits made while a
   // save is in flight aren't wiped by a post-save reset.
   const dirtyRef = useRef(false);
-  // A new report fills itself in (cat cards, kennel statuses); that alone
-  // isn't work worth saving, so a report opened and left untouched never
-  // becomes a draft. This snapshot is the form as the volunteer first saw
-  // it — autosave skips an unsaved report whose values still match it. It
-  // only moves forward with a fill-in while nothing else has changed, so a
-  // late fill-in can't swallow a real edit.
-  const pristineValuesRef = useRef<string | null>(null);
-  useEffect(() => {
-    pristineValuesRef.current = JSON.stringify(form.getValues());
-  }, [form]);
-  function withoutMarkingDirty(fill: () => void) {
-    const untouched = JSON.stringify(form.getValues()) === pristineValuesRef.current;
-    fill();
-    if (untouched) pristineValuesRef.current = JSON.stringify(form.getValues());
-  }
   const autosaveRef = useRef<() => Promise<void>>(async () => {});
 
   const catEntries = useFieldArray({ control, name: "catEntries" });
@@ -345,18 +334,16 @@ export default function ShiftReportForm({
   // nothing new or the report is already submitted. If another save is
   // running, it tries again once that one finishes.
   const autosaveAgainRef = useRef(false);
+  // Set once the server refuses to create this report because the user
+  // already has a draft; retrying would only fail again.
+  const draftConflictRef = useRef(false);
   async function autosave() {
-    if (isAlreadySubmitted || submittingRef.current) return;
+    if (isAlreadySubmitted || submittingRef.current || draftConflictRef.current) return;
     if (!dirtyRef.current) return;
     if (inFlightRef.current) {
       autosaveAgainRef.current = true;
       return;
     }
-    const isPristineNewReport =
-      reportIdRef.current === undefined &&
-      photoQueueRef.current.length === 0 &&
-      JSON.stringify(form.getValues()) === pristineValuesRef.current;
-    if (isPristineNewReport) return;
     const parsed = draftShiftReportSchema.safeParse(form.getValues());
     if (!parsed.success) return;
     setAutosaveStatus("saving");
@@ -377,7 +364,17 @@ export default function ShiftReportForm({
           queryClient.setQueryData(["shiftReports", String(saved.id)], saved);
           onDraftCreated?.(saved.id);
         }
-      } catch {
+      } catch (error) {
+        if (
+          reportIdRef.current === undefined &&
+          isAxiosError(error) &&
+          error.response?.status === 409
+        ) {
+          draftConflictRef.current = true;
+          setAutosaveStatus("idle");
+          onDraftConflict?.();
+          return;
+        }
         dirtyRef.current = true;
         setAutosaveStatus("error");
       }
@@ -510,7 +507,12 @@ export default function ShiftReportForm({
         if (group.cats.some((c) => inCareIds.has(c.id))) entries.push(groupEntry(group.id));
       }
     }
-    if (entries.length > 0) withoutMarkingDirty(() => catEntries.append(entries));
+    if (entries.length > 0) catEntries.append(entries);
+    // A new report is saved as a draft right away, pre-fill included, rather
+    // than waiting for the first edit — so it's the volunteer's draft (and
+    // the banner's "Edit Draft") from the moment it opens.
+    dirtyRef.current = true;
+    void autosaveRef.current();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot pre-fill once both lists load
   }, [cats, kennels]);
 
@@ -673,11 +675,7 @@ export default function ShiftReportForm({
         </div>
       )}
 
-      <KennelStatusList
-        form={form}
-        withoutMarkingDirty={withoutMarkingDirty}
-        kennelOptions={kennels ?? []}
-      />
+      <KennelStatusList form={form} kennelOptions={kennels ?? []} />
 
       <FormSection
         title="Food & Fecal Score"

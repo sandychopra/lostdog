@@ -8,11 +8,11 @@ import {
   LogOut,
   Megaphone,
   Menu,
-  Plus,
   UserCog,
 } from "lucide-react";
 import { Role } from "shared/constants/role.ts";
 import { authClient } from "../lib/auth-client";
+import { useReportShortcut } from "../lib/useMyDraft";
 import { cn } from "../lib/utils";
 import { useSignOut } from "./Navbar";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "./ui/sheet";
@@ -36,12 +36,14 @@ function isReportFormPath(pathname: string) {
   return pathname === "/shift-reports/new" || /^\/shift-reports\/\d+\/edit$/.test(pathname);
 }
 
-/** Phone navigation: four tabs plus a raised gold "New report" button in the middle. */
+/** Phone navigation: four tabs plus a raised gold "New Report" (or "Edit Draft") button in the middle. */
 export default function BottomNav() {
   const { data: session } = authClient.useSession();
   const { pathname } = useLocation();
   const signOut = useSignOut();
   const [moreOpen, setMoreOpen] = useState(false);
+  const reportShortcut = useReportShortcut();
+  const ReportIcon = reportShortcut.icon;
 
   if (!session) return null;
   const isAdmin = session.user.role === Role.Admin;
@@ -71,14 +73,14 @@ export default function BottomNav() {
             Cats
           </NavLink>
           <Link
-            to="/shift-reports/new"
+            to={reportShortcut.to}
             aria-current={onReportForm ? "page" : undefined}
             className={cn(tabClass, "font-bold text-navy")}
           >
             <span className="-mt-7 grid size-14 place-content-center rounded-full border-4 border-white bg-gold text-navy shadow-[0_6px_14px_-6px_rgb(0_31_112/0.6)]">
-              <Plus className="size-7" strokeWidth={2.5} />
+              <ReportIcon className="size-7" strokeWidth={2.5} />
             </span>
-            New report
+            {reportShortcut.label}
           </Link>
           <NavLink
             to="/shift-reports"

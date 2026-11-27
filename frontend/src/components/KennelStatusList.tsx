@@ -10,8 +10,6 @@ import type { ShiftReportFormApi } from "../lib/shiftReportForm";
 interface KennelStatusListProps {
   form: ShiftReportFormApi;
   kennelOptions: { id: number; number: number; state: KennelState }[];
-  /** Wraps the automatic fill-in so it isn't treated as an edit (see ShiftReportForm). */
-  withoutMarkingDirty?: (fill: () => void) => void;
 }
 
 // Every kennel gets a reported state each shift (Ready/Occupied/NeedsReset) —
@@ -21,11 +19,7 @@ interface KennelStatusListProps {
 // note required; anything worth explaining goes in the report's Other Notes
 // instead. This is purely observational — submitting
 // never changes Kennel.state or notifications.
-export default function KennelStatusList({
-  form,
-  kennelOptions,
-  withoutMarkingDirty,
-}: KennelStatusListProps) {
+export default function KennelStatusList({ form, kennelOptions }: KennelStatusListProps) {
   const { control, register, formState } = form;
   const fieldArray = useFieldArray({ control, name: "kennelsStatus" });
   const values = useWatch({ control, name: "kennelsStatus" }) ?? [];
@@ -40,15 +34,12 @@ export default function KennelStatusList({
       .filter((k) => !presentIds.has(k.id))
       .sort((a, b) => a.number - b.number);
     if (missing.length > 0) {
-      const fill = () =>
-        fieldArray.append(
-          missing.map((k) => ({
-            kennelId: k.id,
-            reportedState: toReportableKennelState(k.state),
-          })),
-        );
-      if (withoutMarkingDirty) withoutMarkingDirty(fill);
-      else fill();
+      fieldArray.append(
+        missing.map((k) => ({
+          kennelId: k.id,
+          reportedState: toReportableKennelState(k.state),
+        })),
+      );
     }
     // Only re-run when the kennel list itself changes, not on every keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -10,8 +10,9 @@ mock.module("../lib/auth-client", () => ({
     signOut: mock(async () => {}),
   },
 }));
+let myDraft: { id: number } | null = null;
 mock.module("../lib/api", () => ({
-  api: { get: mock(async () => ({ data: {} })) },
+  api: { get: mock(async () => ({ data: { shiftReport: myDraft } })) },
 }));
 
 const { default: Navbar } = await import("./Navbar");
@@ -29,12 +30,24 @@ describe("Navbar", () => {
     expect(screen.getByRole("link", { name: "Users" })).toBeInTheDocument();
   });
 
-  test("New report always opens a blank report", () => {
+  test("New Report opens a new report when there's no open draft", async () => {
     role = "Volunteer";
+    myDraft = null;
     renderWithQuery(<Navbar />);
-    expect(screen.getByRole("link", { name: "New report" })).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: "New Report" })).toHaveAttribute(
       "href",
       "/shift-reports/new",
     );
+  });
+
+  test("with an open draft it reads Edit Draft and opens that draft", async () => {
+    role = "Volunteer";
+    myDraft = { id: 42 };
+    renderWithQuery(<Navbar />);
+    expect(await screen.findByRole("link", { name: "Edit Draft" })).toHaveAttribute(
+      "href",
+      "/shift-reports/42/edit",
+    );
+    myDraft = null;
   });
 });

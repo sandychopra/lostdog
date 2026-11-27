@@ -1,7 +1,8 @@
 import { Link, NavLink, useNavigate } from "react-router";
-import { LogOut, Plus } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { Role } from "shared/constants/role.ts";
 import { authClient } from "../lib/auth-client";
+import { useReportShortcut } from "../lib/useMyDraft";
 import { cn } from "../lib/utils";
 import { buttonVariants } from "./ui/button";
 import {
@@ -42,11 +43,14 @@ const todayLabel = () =>
 /**
  * The navy banner with a gold rule, framed like the foundation's logo. On
  * phones it only identifies the app and the day (navigation is the bottom
- * bar); from md up it also carries the nav links and "New report".
+ * bar); from md up it also carries the nav links and "New Report" (or "Edit Draft" when the user has
+ * an open draft).
  */
 export default function Navbar() {
   const { data: session } = authClient.useSession();
   const signOut = useSignOut();
+  const reportShortcut = useReportShortcut();
+  const ReportIcon = reportShortcut.icon;
 
   const items = session
     ? NAV_ITEMS.filter((item) => !item.adminOnly || session.user.role === Role.Admin)
@@ -89,14 +93,14 @@ export default function Navbar() {
         <div className="ml-auto flex shrink-0 items-center gap-3">
           {session && (
             <Link
-              to="/shift-reports/new"
+              to={reportShortcut.to}
               className={cn(
                 buttonVariants(),
                 "hidden bg-gold font-bold text-navy hover:opacity-90 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none md:inline-flex",
               )}
             >
-              <Plus className="size-4" />
-              New report
+              <ReportIcon className="size-4" />
+              {reportShortcut.label}
             </Link>
           )}
           {session && (
