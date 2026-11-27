@@ -10,7 +10,6 @@ import { CatEntryType } from "shared/constants/catEntryType.ts";
 import { Role } from "shared/constants/role.ts";
 import { ShiftReportStatus } from "shared/constants/shiftReportStatus.ts";
 import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
-import { requireAdmin } from "../middleware/requireAdmin.ts";
 import { validate } from "../lib/validate.ts";
 import { prisma } from "../lib/prisma.ts";
 import { photoStorageKeys, queueStorageDeletes } from "../lib/storageDeletes.ts";
@@ -226,6 +225,19 @@ router.get("/", requireAuth, async (req, res: Response) => {
   res.json({ shiftReports, total });
 });
 
+// The signed-in user's own open draft (the most recently edited one, in case
+// older data holds more than one), or null. Each user may have only one.
+router.get("/my-draft", requireAuth, async (req, res: Response) => {
+  const authorId = (req as AuthedRequest).session.user.id;
+  const shiftReport = await prisma.shiftReport.findFirst({
+    where: { authorId, status: ShiftReportStatus.Draft },
+    include: shiftReportInclude,
+    omit: outboxOmit,
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+  });
+  res.json({ shiftReport });
+});
+
 router.get("/:id", requireAuth, async (req, res: Response) => {
   const id = Number(req.params.id);
 
@@ -253,7 +265,18 @@ router.post("/", requireAuth, async (req, res: Response) => {
 
   const authorId = (req as AuthedRequest).session.user.id;
 
-  const shiftReport = await prisma.$transaction(async (tx) => {
+  // One open draft per user: a new report can't be started while one exists.
+  // The advisory lock serializes creates per author so two tabs opening a new
+  // report at once can't both get past the check.
+  const result = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${authorId}))`;
+    const existingDraft = await tx.shiftReport.findFirst({
+      where: { authorId, status: ShiftReportStatus.Draft },
+      select: { id: true },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+    });
+    if (existingDraft) return { draftId: existingDraft.id };
+
     const created = await tx.shiftReport.create({
       data: {
         authorId,
@@ -291,14 +314,21 @@ router.post("/", requireAuth, async (req, res: Response) => {
       },
     });
 
-    return tx.shiftReport.findUniqueOrThrow({
+    const shiftReport = await tx.shiftReport.findUniqueOrThrow({
       where: { id: created.id },
       include: shiftReportInclude,
       omit: outboxOmit,
     });
+    return { shiftReport };
   });
 
-  res.status(201).json({ shiftReport });
+  if ("draftId" in result) {
+    res
+      .status(409)
+      .json({ error: "You already have a draft in progress", draftId: result.draftId });
+    return;
+  }
+  res.status(201).json({ shiftReport: result.shiftReport });
 });
 
 router.put("/:id", requireAuth, async (req, res: Response) => {
@@ -496,12 +526,24 @@ router.put("/:id", requireAuth, async (req, res: Response) => {
   res.json({ shiftReport });
 });
 
-router.delete("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
+// Admins can delete any report; an author can discard their own Draft (most
+// often one they forgot to submit), but never a Submitted report.
+router.delete("/:id", requireAuth, async (req, res: Response) => {
   const id = Number(req.params.id);
+  const session = (req as AuthedRequest).session;
 
   const existing = await prisma.shiftReport.findUnique({ where: { id } });
   if (!existing) {
     res.status(404).json({ error: "Shift report not found" });
+    return;
+  }
+  const isAdmin = session.user.role === Role.Admin;
+  const isOwnDraft =
+    existing.authorId === session.user.id && existing.status === ShiftReportStatus.Draft;
+  if (!isAdmin && !isOwnDraft) {
+    res.status(403).json({
+      error: "Only an Admin can delete this report — authors can only discard their own draft",
+    });
     return;
   }
 
