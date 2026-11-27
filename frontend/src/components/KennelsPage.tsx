@@ -50,7 +50,7 @@ export default function KennelsPage() {
     mutationFn: (id: number) => api.patch(`/api/kennel-move-requests/${id}/cancel`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["kennel-move-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["announcements"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
 

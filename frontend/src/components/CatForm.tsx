@@ -278,7 +278,7 @@ export default function CatForm({ cat, onSuccess }: CatFormProps) {
               {...form.register("dewormerDueDate")}
             />
             <p className="text-xs text-muted-foreground">
-              A reminder appears on the Announcements page on this date.
+              A reminder appears on the Notifications page on this date.
             </p>
             <ErrorMessage message={form.formState.errors.dewormerDueDate?.message} />
           </div>

@@ -47,7 +47,7 @@ export interface Cat {
   active: boolean;
   // Still needed by CatForm (editing) even though this table no longer
   // renders them itself — dewormer/probiotic are managed entirely from the
-  // Announcements page now, not the roster or the shift report.
+  // Notifications page now, not the roster or the shift report.
   dewormerStatus: DewormerStatus;
   dewormerDueDate: string | null;
   needsProbiotic: boolean;

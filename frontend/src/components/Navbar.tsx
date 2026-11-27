@@ -12,7 +12,7 @@ import {
 } from "./ui/dropdown-menu";
 
 export const NAV_ITEMS = [
-  { to: "/announcements", label: "Announcements" },
+  { to: "/notifications", label: "Notifications" },
   { to: "/shift-reports", label: "Shift Reports" },
   { to: "/cats", label: "Cats" },
   { to: "/kennels", label: "Kennels" },
@@ -56,7 +56,7 @@ export default function Navbar() {
     <header className="border-b-4 border-gold bg-navy pt-[env(safe-area-inset-top)] text-white">
       <nav className="mx-auto flex h-16 max-w-6xl items-center gap-4 pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1rem,env(safe-area-inset-left))] sm:px-6">
         <Link
-          to="/announcements"
+          to="/notifications"
           className="flex shrink-0 items-center gap-3 rounded-md focus-visible:ring-2 focus-visible:ring-gold focus-visible:outline-none"
         >
           <img src="/logo.png" alt="" className="h-11 w-11" />

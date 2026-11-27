@@ -1,5 +1,5 @@
 import { TaskState } from "shared/constants/taskState.ts";
-import { AnnouncementType } from "shared/constants/announcementType.ts";
+import { NotificationType } from "shared/constants/notificationType.ts";
 import type { Prisma } from "../generated/prisma/client.ts";
 import { isKennelOccupied, markKennelNeedsReset, markKennelOccupied } from "./kennelResets.ts";
 import { logOccupantMoved } from "./activityLog.ts";
@@ -8,7 +8,7 @@ export class InvalidKennelMoveError extends Error {}
 
 type Tx = Prisma.TransactionClient;
 
-/** Creates a KennelMoveRequest and its triggering Announcement together. */
+/** Creates a KennelMoveRequest and its triggering Notification together. */
 export async function createKennelMoveRequest(
   tx: Tx,
   args: {
@@ -20,8 +20,8 @@ export async function createKennelMoveRequest(
     requestedById: string;
   },
 ) {
-  const announcement = await tx.announcement.create({
-    data: { type: AnnouncementType.KennelMoveRequested, catId: args.catId ?? null },
+  const notification = await tx.notification.create({
+    data: { type: NotificationType.KennelMoveRequested, catId: args.catId ?? null },
   });
 
   return tx.kennelMoveRequest.create({
@@ -32,13 +32,13 @@ export async function createKennelMoveRequest(
       toKennelId: args.toKennelId,
       reason: args.reason ?? null,
       requestedById: args.requestedById,
-      announcementId: announcement.id,
+      notificationId: notification.id,
       state: TaskState.Open,
     },
   });
 }
 
-/** Performs the requested move, from the Announcements page, and resolves its Announcement. */
+/** Performs the requested move, from the Notifications page, and resolves its Notification. */
 export async function completeKennelMoveRequest(
   tx: Tx,
   args: { kennelMoveRequestId: number; actorId: string },
@@ -92,15 +92,15 @@ export async function completeKennelMoveRequest(
     },
   });
 
-  if (request.announcementId !== null) {
-    await tx.announcement.update({
-      where: { id: request.announcementId },
+  if (request.notificationId !== null) {
+    await tx.notification.update({
+      where: { id: request.notificationId },
       data: { resolved: true, resolvedAt: new Date(), resolvedById: args.actorId },
     });
   }
 }
 
-/** Cancels an open KennelMoveRequest and resolves its Announcement. */
+/** Cancels an open KennelMoveRequest and resolves its Notification. */
 export async function cancelKennelMoveRequest(
   tx: Tx,
   args: { kennelMoveRequestId: number; actorId: string },
@@ -117,9 +117,9 @@ export async function cancelKennelMoveRequest(
     data: { state: TaskState.Cancelled },
   });
 
-  if (request.announcementId !== null) {
-    await tx.announcement.update({
-      where: { id: request.announcementId },
+  if (request.notificationId !== null) {
+    await tx.notification.update({
+      where: { id: request.notificationId },
       data: { resolved: true, resolvedAt: new Date(), resolvedById: args.actorId },
     });
   }

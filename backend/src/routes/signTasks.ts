@@ -7,7 +7,7 @@ import { completeSignTask, uncompleteSignTask, SignTaskConflictError } from "../
 const router = Router();
 
 // SignTasks are still system-created only (see catStatus.ts) — no POST here —
-// but completion now happens directly from the Announcements page rather than
+// but completion now happens directly from the Notifications page rather than
 // via a ShiftReport submission.
 router.get("/", requireAuth, async (_req, res: Response) => {
   const signTasks = await prisma.signTask.findMany({

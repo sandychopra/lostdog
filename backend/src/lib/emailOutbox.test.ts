@@ -47,22 +47,22 @@ function fakeDelegate(rows: Row[], hooks: { afterFind?: () => void }) {
   };
 }
 
-const announcements: Row[] = [];
+const notifications: Row[] = [];
 const shiftReports: Row[] = [];
 const hooks: { afterFind?: () => void } = {};
 
 mock.module("./prisma.ts", () => ({
   prisma: {
-    announcement: fakeDelegate(announcements, hooks),
+    notification: fakeDelegate(notifications, hooks),
     shiftReport: fakeDelegate(shiftReports, hooks),
   },
 }));
 
-const { flushPendingEmails, MAX_EMAIL_ATTEMPTS } = await import("./notifications.ts");
+const { flushPendingEmails, MAX_EMAIL_ATTEMPTS } = await import("./emailOutbox.ts");
 
 let nextId = 1;
 
-function addAnnouncement(overrides: Partial<Row> = {}): Row {
+function addNotification(overrides: Partial<Row> = {}): Row {
   const row: Row = {
     id: nextId++,
     type: "Manual",
@@ -78,7 +78,7 @@ function addAnnouncement(overrides: Partial<Row> = {}): Row {
     emailLastError: null,
     ...overrides,
   };
-  announcements.push(row);
+  notifications.push(row);
   return row;
 }
 
@@ -126,16 +126,16 @@ const failingMailer: Mailer = {
 };
 
 beforeEach(() => {
-  announcements.length = 0;
+  notifications.length = 0;
   shiftReports.length = 0;
   hooks.afterFind = undefined;
 });
 
 describe("flushPendingEmails", () => {
-  test("emails pending announcements of emailed types and marks them sent", async () => {
-    const pending = addAnnouncement({ title: "Deep clean" });
-    const alreadySent = addAnnouncement({ title: "Old news", emailSent: true });
-    const inAppOnly = addAnnouncement({ type: "DewormerDue", title: null });
+  test("emails pending notifications of emailed types and marks them sent", async () => {
+    const pending = addNotification({ title: "Deep clean" });
+    const alreadySent = addNotification({ title: "Old news", emailSent: true });
+    const inAppOnly = addNotification({ type: "DewormerDue", title: null });
     const { mailer, sent } = recordingMailer();
 
     await flushPendingEmails(mailer);
@@ -164,14 +164,14 @@ describe("flushPendingEmails", () => {
   });
 
   test("records a failed send and retries it on the next flush", async () => {
-    const announcement = addAnnouncement();
+    const notification = addNotification();
     const report = addShiftReport();
 
     await flushPendingEmails(failingMailer);
 
-    expect(announcement.emailSent).toBe(false);
-    expect(announcement.emailAttempts).toBe(1);
-    expect(announcement.emailLastError).toBe("SendGrid down");
+    expect(notification.emailSent).toBe(false);
+    expect(notification.emailAttempts).toBe(1);
+    expect(notification.emailLastError).toBe("SendGrid down");
     expect(report.emailSentAt).toBeNull();
     expect(report.emailLastError).toBe("SendGrid down");
 
@@ -179,54 +179,54 @@ describe("flushPendingEmails", () => {
     await flushPendingEmails(mailer);
 
     expect(sent).toHaveLength(2);
-    expect(announcement.emailSent).toBe(true);
-    expect(announcement.emailAttempts).toBe(2);
-    expect(announcement.emailLastError).toBeNull();
+    expect(notification.emailSent).toBe(true);
+    expect(notification.emailAttempts).toBe(2);
+    expect(notification.emailLastError).toBeNull();
     expect(report.emailLastError).toBeNull();
   });
 
   test("gives up after MAX_EMAIL_ATTEMPTS failures", async () => {
-    const announcement = addAnnouncement();
+    const notification = addNotification();
 
     for (let i = 0; i < MAX_EMAIL_ATTEMPTS + 2; i++) await flushPendingEmails(failingMailer);
-    expect(announcement.emailAttempts).toBe(MAX_EMAIL_ATTEMPTS);
+    expect(notification.emailAttempts).toBe(MAX_EMAIL_ATTEMPTS);
 
     const { mailer, sent } = recordingMailer();
     await flushPendingEmails(mailer);
     expect(sent).toHaveLength(0);
-    expect(announcement.emailSent).toBe(false);
+    expect(notification.emailSent).toBe(false);
   });
 
   test("skips a row another process claimed after it was read", async () => {
-    const announcement = addAnnouncement();
+    const notification = addNotification();
     hooks.afterFind = () => {
       // e.g. a second backend instance claimed and sent it between our read and claim.
-      announcement.emailAttempts = 1;
-      announcement.emailSent = true;
+      notification.emailAttempts = 1;
+      notification.emailSent = true;
     };
     const { mailer, sent } = recordingMailer();
 
     await flushPendingEmails(mailer);
 
     expect(sent).toHaveLength(0);
-    expect(announcement.emailAttempts).toBe(1);
+    expect(notification.emailAttempts).toBe(1);
   });
 
   test("a flush requested mid-flush still sends rows created after the running one read", async () => {
-    addAnnouncement({ title: "First" });
+    addNotification({ title: "First" });
     let triggered = false;
     const { mailer, sent } = recordingMailer(async () => {
       if (triggered) return;
       triggered = true;
-      // A write commits a new announcement while the first email is being sent,
+      // A write commits a new notification while the first email is being sent,
       // and its route asks for a flush.
-      addAnnouncement({ title: "Second" });
+      addNotification({ title: "Second" });
       await flushPendingEmails(mailer);
     });
 
     await flushPendingEmails(mailer);
 
     expect(sent.map((m) => m.subject)).toEqual(["First", "Second"]);
-    expect(announcements.every((a) => a.emailSent)).toBe(true);
+    expect(notifications.every((a) => a.emailSent)).toBe(true);
   });
 });

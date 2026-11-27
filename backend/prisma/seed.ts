@@ -1,6 +1,6 @@
 import { hashPassword } from "better-auth/crypto";
 import {
-  AnnouncementType,
+  NotificationType,
   CatStatus,
   ChecklistActionType,
   DewormerStatus,
@@ -14,13 +14,13 @@ import {
   changeCatStatus,
   completeSignTask,
   confirmPickup,
-  createCatWithArrivalAnnouncement,
+  createCatWithArrivalNotification,
   returnCatToRcc,
 } from "../src/lib/catStatus.ts";
 import { markKennelNeedsReset } from "../src/lib/kennelResets.ts";
 import { createKennelMoveRequest } from "../src/lib/kennelMoveRequests.ts";
 import { completeChecklistAction, createChecklistTasks } from "../src/lib/kennelPrepChecklists.ts";
-import { syncDewormerAnnouncement, syncProbioticAnnouncement } from "../src/lib/medicalAlerts.ts";
+import { syncDewormerNotification, syncProbioticNotification } from "../src/lib/medicalAlerts.ts";
 
 async function seedUser(email: string, password: string, role: Role, name: string) {
   const hashedPassword = await hashPassword(password);
@@ -114,9 +114,9 @@ async function findOrCreateGroupByKennel(kennelId: number, bonded: boolean) {
 
 async function seedRoster() {
   // Empty, ready kennels — representative of open capacity. Kennel 7 starts
-  // Ready too; seedAnnouncements() flips it to NeedsReset through the real
-  // markKennelNeedsReset() helper so it also gets the announcement that state
-  // always implies (see seedAnnouncements for why that matters).
+  // Ready too; seedNotifications() flips it to NeedsReset through the real
+  // markKennelNeedsReset() helper so it also gets the notification that state
+  // always implies (see seedNotifications for why that matters).
   await Promise.all(
     [1, 5, 6, 7, 8].map((number) =>
       prisma.kennel.upsert({
@@ -155,8 +155,8 @@ async function seedRoster() {
     dewormerStatus: DewormerStatus.Given,
   });
 
-  // Seeded Available; seedAnnouncements() drives it to PendingAdoption through
-  // the real changeCatStatus() transition so it gets a proper announcement +
+  // Seeded Available; seedNotifications() drives it to PendingAdoption through
+  // the real changeCatStatus() transition so it gets a proper notification +
   // sign task instead of just a status column value.
   await findOrCreateCat({
     name: "Pepsi",
@@ -202,12 +202,12 @@ async function seedRoster() {
 }
 
 // Exercises the real business-logic helpers (changeCatStatus, returnCatToRcc,
-// etc.) rather than inserting Announcement rows directly, so the seeded data
+// etc.) rather than inserting Notification rows directly, so the seeded data
 // obeys the same invariants the app enforces at runtime (e.g. a NeedsReset
-// kennel always has a matching open announcement, or nobody could complete
+// kennel always has a matching open notification, or nobody could complete
 // its reset). Each scenario is guarded so re-running the seed doesn't
 // duplicate it.
-async function seedAnnouncements() {
+async function seedNotifications() {
   const adminEmail = process.env.SEED_ADMIN_EMAIL!;
   const volunteerEmail = process.env.SEED_VOLUNTEER_EMAIL!;
   const admin = await prisma.user.findUniqueOrThrow({ where: { email: adminEmail } });
@@ -215,17 +215,17 @@ async function seedAnnouncements() {
 
   await prisma.$transaction(async (tx) => {
     // Pending adoption: promote Pepsi (seeded Available) through the real
-    // transition. Guarded on the announcement existing, not the cat's status —
+    // transition. Guarded on the notification existing, not the cat's status —
     // a dev database seeded before this script drove the transition properly
-    // may already have Pepsi sitting at PendingAdoption with no announcement
+    // may already have Pepsi sitting at PendingAdoption with no notification
     // at all (status set directly, the old way); changeCatStatus's "already at
     // this status" branch only reschedules pickupAt and won't backfill that,
     // so force it back to Available first when that's what happened.
     const pepsi = await tx.cat.findFirstOrThrow({ where: { name: "Pepsi" } });
-    const pepsiHasAnnouncement = await tx.announcement.findFirst({
-      where: { catId: pepsi.id, type: AnnouncementType.PendingAdoption },
+    const pepsiHasNotification = await tx.notification.findFirst({
+      where: { catId: pepsi.id, type: NotificationType.PendingAdoption },
     });
-    if (!pepsiHasAnnouncement) {
+    if (!pepsiHasNotification) {
       if (pepsi.status !== CatStatus.Available) {
         await tx.cat.update({
           where: { id: pepsi.id },
@@ -242,15 +242,15 @@ async function seedAnnouncements() {
 
     // Dewormer overdue + probiotic needed: Pepsi seeds with dewormerStatus Due
     // (past due date) and needsProbiotic true, but seedRoster creates her via
-    // findOrCreateCat rather than createCatWithArrivalAnnouncement, so her
-    // DewormerDue/ProbioticNeeded announcements need to be synced explicitly
+    // findOrCreateCat rather than createCatWithArrivalNotification, so her
+    // DewormerDue/ProbioticNeeded notifications need to be synced explicitly
     // here — same "drive it through the real helper" approach as her
     // PendingAdoption transition above. Both syncs are internally guarded
     // against duplicates, so this is safe to run on every seed pass.
-    await syncDewormerAnnouncement(tx, { catId: pepsi.id, actorId: admin.id });
-    await syncProbioticAnnouncement(tx, { catId: pepsi.id, actorId: admin.id });
+    await syncDewormerNotification(tx, { catId: pepsi.id, actorId: admin.id });
+    await syncProbioticNotification(tx, { catId: pepsi.id, actorId: admin.id });
 
-    // One logged dose today, so Pepsi's ProbioticNeeded announcement has a
+    // One logged dose today, so Pepsi's ProbioticNeeded notification has a
     // non-empty dose log to render instead of always showing "Overdue" with
     // nothing underneath.
     const pepsiHasLoggedDose = await tx.probioticDose.findFirst({
@@ -263,14 +263,14 @@ async function seedAnnouncements() {
     }
 
     // Kennel needs reset: kennel 7 is seeded Ready — markKennelNeedsReset
-    // flips it and guards its own announcement against duplicates.
+    // flips it and guards its own notification against duplicates.
     const kennel7 = await tx.kennel.findUniqueOrThrow({ where: { number: 7 } });
     await markKennelNeedsReset(tx, kennel7.id);
 
     // New arrival, no kennel assigned yet — never resolves.
     const biscuit =
       (await tx.cat.findFirst({ where: { name: "Biscuit" } })) ??
-      (await createCatWithArrivalAnnouncement(tx, {
+      (await createCatWithArrivalNotification(tx, {
         name: "Biscuit",
         collarColor: "Red",
         ageYears: 0,
@@ -282,7 +282,7 @@ async function seedAnnouncements() {
         needsProbiotic: false,
       }));
 
-    // Full adopted + picked-up cycle: both driving announcements resolve
+    // Full adopted + picked-up cycle: both driving notifications resolve
     // together at pickup, each with a completed, attributed sign task.
     if (!(await tx.cat.findFirst({ where: { name: "Clementine" } }))) {
       const kennel9 = await tx.kennel.upsert({
@@ -329,7 +329,7 @@ async function seedAnnouncements() {
     }
 
     // Back available: the sign was posted, then the adoption fell through —
-    // an open "remove sign" action on its BackAvailable announcement.
+    // an open "remove sign" action on its BackAvailable notification.
     if (!(await tx.cat.findFirst({ where: { name: "Marble" } }))) {
       const kennel10 = await tx.kennel.upsert({
         where: { number: 10 },
@@ -424,13 +424,13 @@ async function seedAnnouncements() {
 
     // Manual, message-only: stays open until an Admin explicitly resolves it.
     if (
-      !(await tx.announcement.findFirst({
-        where: { type: AnnouncementType.Manual, title: "Front door lock sticking" },
+      !(await tx.notification.findFirst({
+        where: { type: NotificationType.Manual, title: "Front door lock sticking" },
       }))
     ) {
-      await tx.announcement.create({
+      await tx.notification.create({
         data: {
-          type: AnnouncementType.Manual,
+          type: NotificationType.Manual,
           title: "Front door lock sticking",
           message:
             "The front door deadbolt is sticking again — jiggle the key gently. Maintenance is scheduled for Monday.",
@@ -441,10 +441,10 @@ async function seedAnnouncements() {
 
     // Manual with an ordered, mixed-type checklist: first step done (with
     // attribution), the rest locked in order — good coverage for the
-    // Announcements page's word-wrap and collapse/expand behavior.
+    // Notifications page's word-wrap and collapse/expand behavior.
     if (
-      !(await tx.announcement.findFirst({
-        where: { type: AnnouncementType.Manual, title: "Weekend deep clean" },
+      !(await tx.notification.findFirst({
+        where: { type: NotificationType.Manual, title: "Weekend deep clean" },
       }))
     ) {
       const kennel6 = await tx.kennel.findUniqueOrThrow({ where: { number: 6 } });
@@ -461,9 +461,9 @@ async function seedAnnouncements() {
           { actionType: ChecklistActionType.MoveCat, kennelId: kennel6.id, catId: biscuit.id },
         ],
       });
-      await tx.announcement.create({
+      await tx.notification.create({
         data: {
-          type: AnnouncementType.Manual,
+          type: NotificationType.Manual,
           title: "Weekend deep clean",
           checklistId: checklist.id,
           createdById: admin.id,
@@ -476,10 +476,10 @@ async function seedAnnouncements() {
     }
   });
 
-  console.log("Seeded announcements: all 10 announcement types represented");
+  console.log("Seeded notifications: all 10 notification types represented");
 }
 
 await seedUsers();
 await seedRoster();
-await seedAnnouncements();
+await seedNotifications();
 await prisma.$disconnect();

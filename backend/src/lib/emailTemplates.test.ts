@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
-  renderAnnouncementEmail,
+  renderNotificationEmail,
   renderShiftReportEmail,
-  type AnnouncementForEmail,
+  type NotificationForEmail,
   type ShiftReportForEmail,
 } from "./emailTemplates.ts";
 import { createMailer } from "./mailer.ts";
 
-function announcement(overrides: Partial<AnnouncementForEmail>): AnnouncementForEmail {
+function notification(overrides: Partial<NotificationForEmail>): NotificationForEmail {
   return {
     id: 1,
     type: "NewArrival",
@@ -38,10 +38,10 @@ function announcement(overrides: Partial<AnnouncementForEmail>): AnnouncementFor
   };
 }
 
-describe("renderAnnouncementEmail", () => {
+describe("renderNotificationEmail", () => {
   test("picked up names the cat", () => {
-    const { subject, text } = renderAnnouncementEmail(
-      announcement({
+    const { subject, text } = renderNotificationEmail(
+      notification({
         type: "PickedUp",
         cat: { id: 1, name: "Pepsi", pickupAt: null, kennel: null },
       }),
@@ -51,15 +51,15 @@ describe("renderAnnouncementEmail", () => {
   });
 
   test("new arrival names the cat and kennel", () => {
-    const { subject, text } = renderAnnouncementEmail(announcement({}));
+    const { subject, text } = renderNotificationEmail(notification({}));
     expect(subject).toBe("New arrival: Pepsi");
     expect(text).toContain("Kennel: 3");
   });
 
   test("pending adoption includes the scheduled pickup when set", () => {
     const pickupAt = new Date("2026-10-20T15:00:00Z");
-    const { subject, text } = renderAnnouncementEmail(
-      announcement({
+    const { subject, text } = renderNotificationEmail(
+      notification({
         type: "PendingAdoption",
         cat: { id: 1, name: "Pepsi", pickupAt, kennel: { id: 3, number: 3 } },
       }),
@@ -68,9 +68,9 @@ describe("renderAnnouncementEmail", () => {
     expect(text).toContain("Scheduled pickup:");
   });
 
-  test("manual announcement lists its checklist tasks", () => {
-    const { subject, text } = renderAnnouncementEmail(
-      announcement({
+  test("manual notification lists its checklist tasks", () => {
+    const { subject, text } = renderNotificationEmail(
+      notification({
         type: "Manual",
         cat: null,
         title: "Deep clean",
@@ -92,7 +92,7 @@ describe("renderAnnouncementEmail", () => {
               description: "Restock litter",
             },
           ],
-        } as unknown as AnnouncementForEmail["checklist"],
+        } as unknown as NotificationForEmail["checklist"],
       }),
     );
     expect(subject).toBe("Deep clean");
@@ -101,7 +101,7 @@ describe("renderAnnouncementEmail", () => {
   });
 
   test("dewormer reminders have no template", () => {
-    expect(() => renderAnnouncementEmail(announcement({ type: "DewormerDue" }))).toThrow();
+    expect(() => renderNotificationEmail(notification({ type: "DewormerDue" }))).toThrow();
   });
 });
 

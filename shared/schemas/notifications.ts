@@ -30,9 +30,9 @@ const taskSchema = z.discriminatedUnion("actionType", [
 export type TaskInput = z.infer<typeof taskSchema>;
 
 // message is required only when there are no tasks — a task list can stand on
-// its own (title + steps), the same way a plain announcement stands on title +
+// its own (title + steps), the same way a plain notification stands on title +
 // message with no tasks.
-export const createManualAnnouncementSchema = z
+export const createManualNotificationSchema = z
   .object({
     title: z.string().trim().min(1, "Title is required").max(200, "Title is too long"),
     message: z.string().trim().optional(),
@@ -42,30 +42,30 @@ export const createManualAnnouncementSchema = z
     error: "Message is required when there are no tasks",
     path: ["message"],
   });
-export type CreateManualAnnouncementInput = z.infer<typeof createManualAnnouncementSchema>;
+export type CreateManualNotificationInput = z.infer<typeof createManualNotificationSchema>;
 
 // Tasks are set once at creation and aren't editable afterward (only
-// completable) — editing an announcement only ever touches title/message.
-// message stays optional here too: an announcement created with tasks and no
+// completable) — editing an notification only ever touches title/message.
+// message stays optional here too: an notification created with tasks and no
 // message must still be editable by title alone. The route enforces that a
-// task-less announcement can't be edited down to an empty message.
-export const updateManualAnnouncementSchema = z.object({
+// task-less notification can't be edited down to an empty message.
+export const updateManualNotificationSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200, "Title is too long"),
   message: z.string().trim().optional(),
 });
-export type UpdateManualAnnouncementInput = z.infer<typeof updateManualAnnouncementSchema>;
+export type UpdateManualNotificationInput = z.infer<typeof updateManualNotificationSchema>;
 
-// Any Volunteer or Admin can leave one free-text note on any announcement type —
+// Any Volunteer or Admin can leave one free-text note on any notification type —
 // not gated like the Manual-only create/edit/delete/resolve actions above. An
 // empty string clears the comment.
-export const announcementCommentSchema = z.object({
+export const notificationCommentSchema = z.object({
   comment: z.string().trim().max(2000, "Comment is too long"),
 });
-export type AnnouncementCommentInput = z.infer<typeof announcementCommentSchema>;
+export type NotificationCommentInput = z.infer<typeof notificationCommentSchema>;
 
-// Any signed-in user can mark an announcement "Not relevant" (closed without
+// Any signed-in user can mark an notification "Not relevant" (closed without
 // being done), with an optional short note explaining why.
-export const dismissAnnouncementSchema = z.object({
+export const dismissNotificationSchema = z.object({
   note: z
     .string()
     .trim()
@@ -73,4 +73,4 @@ export const dismissAnnouncementSchema = z.object({
     .optional()
     .transform((note) => (note ? note : undefined)),
 });
-export type DismissAnnouncementInput = z.infer<typeof dismissAnnouncementSchema>;
+export type DismissNotificationInput = z.infer<typeof dismissNotificationSchema>;

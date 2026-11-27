@@ -13,7 +13,7 @@ import type { Cat, Prisma } from "../generated/prisma/client.ts";
 import {
   changeCatStatus,
   confirmPickup,
-  createCatWithArrivalAnnouncement,
+  createCatWithArrivalNotification,
   InvalidCatStatusTransitionError,
   InvalidPickupError,
   returnCatToRcc,
@@ -21,8 +21,8 @@ import {
 import { isKennelOccupied, markKennelNeedsReset, markKennelOccupied } from "../lib/kennelResets.ts";
 import { describeChanges, logActivity } from "../lib/activityLog.ts";
 import {
-  syncDewormerAnnouncement,
-  syncProbioticAnnouncement,
+  syncDewormerNotification,
+  syncProbioticNotification,
   logProbioticDose,
 } from "../lib/medicalAlerts.ts";
 
@@ -174,7 +174,7 @@ router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
   const actorId = (req as AuthedRequest).session.user.id;
 
   const cat = await prisma.$transaction(async (tx) => {
-    const created = await createCatWithArrivalAnnouncement(tx, data, { actorId });
+    const created = await createCatWithArrivalNotification(tx, data, { actorId });
     await logActivity(tx, {
       entityType: ActivityEntityType.Cat,
       entityId: created.id,
@@ -209,8 +209,8 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
     const cat = await prisma.$transaction(async (tx) => {
       const updated = await tx.cat.update({ where: { id }, data, include: catInclude });
       await logCatEdit(tx, existing, updated, actorId);
-      await syncDewormerAnnouncement(tx, { catId: id, actorId, previous: existing });
-      await syncProbioticAnnouncement(tx, { catId: id, actorId, previous: existing });
+      await syncDewormerNotification(tx, { catId: id, actorId, previous: existing });
+      await syncProbioticNotification(tx, { catId: id, actorId, previous: existing });
       return updated;
     });
     res.json({ cat });
@@ -244,8 +244,8 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
     if (kennelChanged && existing.kennelId !== null) {
       await markKennelNeedsReset(tx, existing.kennelId, actorId);
     }
-    await syncDewormerAnnouncement(tx, { catId: id, actorId, previous: existing });
-    await syncProbioticAnnouncement(tx, { catId: id, actorId, previous: existing });
+    await syncDewormerNotification(tx, { catId: id, actorId, previous: existing });
+    await syncProbioticNotification(tx, { catId: id, actorId, previous: existing });
     return updated;
   });
 
@@ -293,7 +293,7 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
   }
 
   await prisma.$transaction(async (tx) => {
-    // SignTask.catId is a required FK with ON DELETE RESTRICT (unlike Announcement's,
+    // SignTask.catId is a required FK with ON DELETE RESTRICT (unlike Notification's,
     // which is SET NULL) — a hard delete has to clear these explicitly first.
     await tx.signTask.deleteMany({ where: { catId: id } });
     await tx.cat.delete({ where: { id } });
@@ -335,7 +335,7 @@ router.patch("/:id/dewormer", requireAuth, async (req, res: Response) => {
       actorId,
       description: "Dewormer marked as given",
     });
-    await syncDewormerAnnouncement(tx, { catId: id, actorId });
+    await syncDewormerNotification(tx, { catId: id, actorId });
     return updated;
   });
 
@@ -422,7 +422,7 @@ router.patch("/:id/returned-to-rcc", requireAuth, requireAdmin, async (req, res:
   res.json({ cat });
 });
 
-// Completed directly from the Announcements page — any authenticated user.
+// Completed directly from the Notifications page — any authenticated user.
 router.patch("/:id/confirm-pickup", requireAuth, async (req, res: Response) => {
   const id = Number(req.params.id);
   const actorId = (req as AuthedRequest).session.user.id;

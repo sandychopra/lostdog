@@ -157,26 +157,26 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
     return;
   }
 
-  // Open work tied to this kennel would be stranded on the Announcements page
+  // Open work tied to this kennel would be stranded on the Notifications page
   // once the kennel disappears from the roster, so it has to be finished first.
-  const [openSignTasks, openMoveRequests, openAnnouncements, openChecklistActions] =
+  const [openSignTasks, openMoveRequests, openNotifications, openChecklistActions] =
     await Promise.all([
       prisma.signTask.count({ where: { kennelId: id, state: TaskState.Open } }),
       prisma.kennelMoveRequest.count({
         where: { state: TaskState.Open, OR: [{ fromKennelId: id }, { toKennelId: id }] },
       }),
-      prisma.announcement.count({ where: { kennelId: id, resolved: false } }),
+      prisma.notification.count({ where: { kennelId: id, resolved: false } }),
       prisma.checklistAction.count({ where: { kennelId: id, completed: false } }),
     ]);
   const openItems = [
     openSignTasks > 0 && "sign tasks",
     openMoveRequests > 0 && "kennel move requests",
-    openAnnouncements > 0 && "announcements",
+    openNotifications > 0 && "notifications",
     openChecklistActions > 0 && "checklist steps",
   ].filter(Boolean);
   if (openItems.length > 0) {
     res.status(409).json({
-      error: `Kennel ${kennel.number} still has open ${openItems.join(", ")}. Complete or cancel them on the Announcements page first.`,
+      error: `Kennel ${kennel.number} still has open ${openItems.join(", ")}. Complete or cancel them on the Notifications page first.`,
     });
     return;
   }
@@ -196,7 +196,7 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
   res.json({ message: "Kennel deleted" });
 });
 
-// Completed directly from the Announcements page — any authenticated user.
+// Completed directly from the Notifications page — any authenticated user.
 router.patch("/:id/complete-reset", requireAuth, async (req, res: Response) => {
   const id = Number(req.params.id);
   const actorId = (req as AuthedRequest).session.user.id;

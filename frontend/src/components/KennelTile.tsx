@@ -12,7 +12,7 @@ interface KennelTileProps {
   number: number | null | undefined;
   /** Colors the tile by kennel state (Kennels page). */
   state?: KennelState;
-  /** Gold "needs attention" tile, e.g. an overdue announcement. */
+  /** Gold "needs attention" tile, e.g. an overdue notification. */
   attention?: boolean;
   size?: "md" | "lg";
   className?: string;

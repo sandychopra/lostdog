@@ -6,7 +6,7 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { toNodeHandler } from "better-auth/node";
 import { auth } from "./lib/auth.ts";
 import { prisma } from "./lib/prisma.ts";
-import { notifyPending, startEmailRetryLoop } from "./lib/notifications.ts";
+import { notifyPending, startEmailRetryLoop } from "./lib/emailOutbox.ts";
 import { flushPendingDeletes, startStorageDeleteLoop } from "./lib/storageDeletes.ts";
 import { contentSecurityPolicyDirectives, serveFrontend } from "./lib/frontendHosting.ts";
 import { requireAuth, type AuthedRequest } from "./middleware/requireAuth.ts";
@@ -17,7 +17,7 @@ import groupsRouter from "./routes/groups.ts";
 import littersRouter from "./routes/litters.ts";
 import shiftReportsRouter from "./routes/shiftReports.ts";
 import photosRouter from "./routes/photos.ts";
-import announcementsRouter from "./routes/announcements.ts";
+import notificationsRouter from "./routes/notifications.ts";
 import signTasksRouter from "./routes/signTasks.ts";
 import kennelMoveRequestsRouter from "./routes/kennelMoveRequests.ts";
 import kennelPrepChecklistsRouter from "./routes/kennelPrepChecklists.ts";
@@ -74,7 +74,7 @@ app.all("/api/auth/*splat", toNodeHandler(auth));
 
 app.use(express.json());
 
-// Any successful write may have created an Announcement, submitted a shift
+// Any successful write may have created a Notification, submitted a shift
 // report, or queued storage deletes; drain those outboxes once the response is out.
 app.use((req, res, next) => {
   if (req.method !== "GET") {
@@ -99,7 +99,7 @@ app.use("/api/litters", littersRouter);
 app.use("/api/shift-reports", shiftReportsRouter);
 app.use("/api/activity-log", activityLogRouter);
 app.use("/api/photos", photosRouter);
-app.use("/api/announcements", announcementsRouter);
+app.use("/api/notifications", notificationsRouter);
 app.use("/api/sign-tasks", signTasksRouter);
 app.use("/api/kennel-move-requests", kennelMoveRequestsRouter);
 app.use("/api/kennel-prep-checklists", kennelPrepChecklistsRouter);

@@ -1,12 +1,12 @@
 import { Router, type Response } from "express";
-import { AnnouncementType } from "shared/constants/announcementType.ts";
+import { NotificationType } from "shared/constants/notificationType.ts";
 import { ChecklistActionType } from "shared/constants/checklistActionType.ts";
 import {
-  createManualAnnouncementSchema,
-  updateManualAnnouncementSchema,
-  announcementCommentSchema,
-  dismissAnnouncementSchema,
-} from "shared/schemas/announcements.ts";
+  createManualNotificationSchema,
+  updateManualNotificationSchema,
+  notificationCommentSchema,
+  dismissNotificationSchema,
+} from "shared/schemas/notifications.ts";
 import { TaskState } from "shared/constants/taskState.ts";
 import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.ts";
 import { requireAdmin } from "../middleware/requireAdmin.ts";
@@ -21,7 +21,7 @@ const router = Router();
 // never sent to clients.
 const outboxOmit = { emailAttempts: true, emailLastError: true } as const;
 
-const announcementInclude = {
+const notificationInclude = {
   cat: {
     select: {
       id: true,
@@ -33,6 +33,7 @@ const announcementInclude = {
       dewormerDueDate: true,
       needsProbiotic: true,
       collarColor: true,
+      active: true,
       kennel: { select: { id: true, number: true } },
     },
   },
@@ -84,42 +85,42 @@ router.get("/", requireAuth, async (req, res: Response) => {
   const from = typeof req.query.from === "string" ? new Date(req.query.from) : undefined;
   const to = typeof req.query.to === "string" ? new Date(req.query.to) : undefined;
 
-  const announcements = await prisma.announcement.findMany({
+  const notifications = await prisma.notification.findMany({
     where: {
       ...(activeOnly ? { resolved: false } : {}),
       ...(from || to ? { createdAt: { ...(from && { gte: from }), ...(to && { lte: to }) } } : {}),
     },
-    include: announcementInclude,
+    include: notificationInclude,
     omit: outboxOmit,
     orderBy: { createdAt: "desc" },
   });
 
   // ProbioticNeeded rows carry a visible dose log — every probiotic-given entry
-  // logged since this episode's announcement was created (or, if resolved,
+  // logged since this episode's notification was created (or, if resolved,
   // until it was) — plus the precise last-dose timestamp the Overdue badge
   // needs, scoped the same way: per project-scope, "if no dose has ever been
   // logged since the flag was set, it's overdue from the moment the flag was
   // set," not from some earlier episode.
   const withDoseLogs = await Promise.all(
-    announcements.map(async (announcement) => {
-      if (announcement.type !== AnnouncementType.ProbioticNeeded || announcement.catId === null) {
-        return { ...announcement, doses: [], lastProbioticGivenAt: null as Date | null };
+    notifications.map(async (notification) => {
+      if (notification.type !== NotificationType.ProbioticNeeded || notification.catId === null) {
+        return { ...notification, doses: [], lastProbioticGivenAt: null as Date | null };
       }
       const doses = await getProbioticDoseLog(prisma, {
-        catId: announcement.catId,
-        since: announcement.createdAt,
-        until: announcement.resolvedAt ?? undefined,
+        catId: notification.catId,
+        since: notification.createdAt,
+        until: notification.resolvedAt ?? undefined,
       });
       const lastProbioticGivenAt = doses[0]?.loggedAt ?? null;
-      return { ...announcement, doses, lastProbioticGivenAt };
+      return { ...notification, doses, lastProbioticGivenAt };
     }),
   );
 
-  res.json({ announcements: withDoseLogs });
+  res.json({ notifications: withDoseLogs });
 });
 
 router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
-  const data = validate(createManualAnnouncementSchema, req.body, res);
+  const data = validate(createManualNotificationSchema, req.body, res);
   if (!data) return;
 
   const kennelIds = [
@@ -166,42 +167,42 @@ router.post("/", requireAuth, requireAdmin, async (req, res: Response) => {
 
   const createdById = (req as AuthedRequest).session.user.id;
 
-  const announcement = await prisma.$transaction(async (tx) => {
+  const notification = await prisma.$transaction(async (tx) => {
     let checklistId: number | undefined;
     if (data.tasks.length > 0) {
       const checklist = await createChecklistTasks(tx, { actions: data.tasks, createdById });
       checklistId = checklist.id;
     }
-    return tx.announcement.create({
+    return tx.notification.create({
       data: {
-        type: AnnouncementType.Manual,
+        type: NotificationType.Manual,
         title: data.title,
         message: data.message ?? null,
         createdById,
         checklistId,
       },
-      include: announcementInclude,
+      include: notificationInclude,
       omit: outboxOmit,
     });
   });
 
-  res.status(201).json({ announcement });
+  res.status(201).json({ notification });
 });
 
 router.put("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
   const id = Number(req.params.id);
 
-  const existing = await prisma.announcement.findUnique({ where: { id } });
+  const existing = await prisma.notification.findUnique({ where: { id } });
   if (!existing) {
-    res.status(404).json({ error: "Announcement not found" });
+    res.status(404).json({ error: "Notification not found" });
     return;
   }
-  if (existing.type !== AnnouncementType.Manual) {
-    res.status(409).json({ error: "Only manual announcements can be edited" });
+  if (existing.type !== NotificationType.Manual) {
+    res.status(409).json({ error: "Only manual notifications can be edited" });
     return;
   }
 
-  const data = validate(updateManualAnnouncementSchema, req.body, res);
+  const data = validate(updateManualNotificationSchema, req.body, res);
   if (!data) return;
 
   if (existing.checklistId === null && !data.message) {
@@ -209,96 +210,96 @@ router.put("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
     return;
   }
 
-  const announcement = await prisma.announcement.update({
+  const notification = await prisma.notification.update({
     where: { id },
     data: { title: data.title, message: data.message ?? null },
-    include: announcementInclude,
+    include: notificationInclude,
     omit: outboxOmit,
   });
 
-  res.json({ announcement });
+  res.json({ notification });
 });
 
 router.delete("/:id", requireAuth, requireAdmin, async (req, res: Response) => {
   const id = Number(req.params.id);
 
-  const existing = await prisma.announcement.findUnique({ where: { id } });
+  const existing = await prisma.notification.findUnique({ where: { id } });
   if (!existing) {
-    res.status(404).json({ error: "Announcement not found" });
+    res.status(404).json({ error: "Notification not found" });
     return;
   }
-  if (existing.type !== AnnouncementType.Manual) {
-    res.status(409).json({ error: "Only manual announcements can be deleted" });
+  if (existing.type !== NotificationType.Manual) {
+    res.status(409).json({ error: "Only manual notifications can be deleted" });
     return;
   }
 
-  await prisma.announcement.delete({ where: { id } });
+  await prisma.notification.delete({ where: { id } });
 
-  res.json({ message: "Announcement deleted" });
+  res.json({ message: "Notification deleted" });
 });
 
 router.patch("/:id/resolve", requireAuth, requireAdmin, async (req, res: Response) => {
   const id = Number(req.params.id);
 
-  const existing = await prisma.announcement.findUnique({ where: { id } });
+  const existing = await prisma.notification.findUnique({ where: { id } });
   if (!existing) {
-    res.status(404).json({ error: "Announcement not found" });
+    res.status(404).json({ error: "Notification not found" });
     return;
   }
-  if (existing.type !== AnnouncementType.Manual) {
-    res.status(409).json({ error: "Only manual announcements can be manually resolved" });
+  if (existing.type !== NotificationType.Manual) {
+    res.status(409).json({ error: "Only manual notifications can be manually resolved" });
     return;
   }
   if (existing.resolved) {
-    res.status(409).json({ error: "Announcement is already resolved" });
+    res.status(409).json({ error: "Notification is already resolved" });
     return;
   }
 
   const resolvedById = (req as AuthedRequest).session.user.id;
 
-  const announcement = await prisma.announcement.update({
+  const notification = await prisma.notification.update({
     where: { id },
     data: { resolved: true, resolvedAt: new Date(), resolvedById },
-    include: announcementInclude,
+    include: notificationInclude,
     omit: outboxOmit,
   });
 
-  res.json({ announcement });
+  res.json({ notification });
 });
 
-// "Not relevant": any Volunteer or Admin can close any open announcement
+// "Not relevant": any Volunteer or Admin can close any open notification
 // without doing it, with an optional note. Its open sign tasks and kennel move
 // request are cancelled with it; the cat/kennel itself is left unchanged
 // (dewormer/probiotic flags, status, kennel state).
 router.patch("/:id/dismiss", requireAuth, async (req, res: Response) => {
   const id = Number(req.params.id);
 
-  const existing = await prisma.announcement.findUnique({ where: { id } });
+  const existing = await prisma.notification.findUnique({ where: { id } });
   if (!existing) {
-    res.status(404).json({ error: "Announcement not found" });
+    res.status(404).json({ error: "Notification not found" });
     return;
   }
 
-  const data = validate(dismissAnnouncementSchema, req.body ?? {}, res);
+  const data = validate(dismissNotificationSchema, req.body ?? {}, res);
   if (!data) return;
 
   if (existing.resolved) {
-    res.status(409).json({ error: "Announcement is already resolved" });
+    res.status(409).json({ error: "Notification is already resolved" });
     return;
   }
 
   const actorId = (req as AuthedRequest).session.user.id;
 
-  const announcement = await prisma.$transaction(async (tx) => {
+  const notification = await prisma.$transaction(async (tx) => {
     await tx.signTask.updateMany({
-      where: { announcementId: id, state: TaskState.Open },
+      where: { notificationId: id, state: TaskState.Open },
       data: { state: TaskState.Cancelled },
     });
     await tx.kennelMoveRequest.updateMany({
-      where: { announcementId: id, state: TaskState.Open },
+      where: { notificationId: id, state: TaskState.Open },
       data: { state: TaskState.Cancelled },
     });
-    return tx.announcement.update({
+    return tx.notification.update({
       where: { id },
       data: {
         resolved: true,
@@ -307,12 +308,12 @@ router.patch("/:id/dismiss", requireAuth, async (req, res: Response) => {
         dismissed: true,
         dismissNote: data.note ?? null,
       },
-      include: announcementInclude,
+      include: notificationInclude,
       omit: outboxOmit,
     });
   });
 
-  res.json({ announcement });
+  res.json({ notification });
 });
 
 // Admin-only undo of "Not relevant". Cancelled sign tasks / move requests are
@@ -320,17 +321,17 @@ router.patch("/:id/dismiss", requireAuth, async (req, res: Response) => {
 router.patch("/:id/reopen", requireAuth, requireAdmin, async (req, res: Response) => {
   const id = Number(req.params.id);
 
-  const existing = await prisma.announcement.findUnique({ where: { id } });
+  const existing = await prisma.notification.findUnique({ where: { id } });
   if (!existing) {
-    res.status(404).json({ error: "Announcement not found" });
+    res.status(404).json({ error: "Notification not found" });
     return;
   }
   if (!existing.dismissed) {
-    res.status(409).json({ error: "Only announcements marked not relevant can be reopened" });
+    res.status(409).json({ error: "Only notifications marked not relevant can be reopened" });
     return;
   }
 
-  const announcement = await prisma.announcement.update({
+  const notification = await prisma.notification.update({
     where: { id },
     data: {
       resolved: false,
@@ -339,39 +340,39 @@ router.patch("/:id/reopen", requireAuth, requireAdmin, async (req, res: Response
       dismissed: false,
       dismissNote: null,
     },
-    include: announcementInclude,
+    include: notificationInclude,
     omit: outboxOmit,
   });
 
-  res.json({ announcement });
+  res.json({ notification });
 });
 
-// Any Volunteer or Admin can leave a note on any announcement type.
+// Any Volunteer or Admin can leave a note on any notification type.
 router.patch("/:id/comment", requireAuth, async (req, res: Response) => {
   const id = Number(req.params.id);
 
-  const existing = await prisma.announcement.findUnique({ where: { id } });
+  const existing = await prisma.notification.findUnique({ where: { id } });
   if (!existing) {
-    res.status(404).json({ error: "Announcement not found" });
+    res.status(404).json({ error: "Notification not found" });
     return;
   }
 
-  const data = validate(announcementCommentSchema, req.body, res);
+  const data = validate(notificationCommentSchema, req.body, res);
   if (!data) return;
 
   const cleared = data.comment.length === 0;
   const commentedById = (req as AuthedRequest).session.user.id;
 
-  const announcement = await prisma.announcement.update({
+  const notification = await prisma.notification.update({
     where: { id },
     data: cleared
       ? { comment: null, commentedAt: null, commentedById: null }
       : { comment: data.comment, commentedAt: new Date(), commentedById },
-    include: announcementInclude,
+    include: notificationInclude,
     omit: outboxOmit,
   });
 
-  res.json({ announcement });
+  res.json({ notification });
 });
 
 export default router;

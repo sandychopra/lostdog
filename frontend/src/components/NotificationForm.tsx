@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { Trash2, Plus } from "lucide-react";
 import { ChecklistActionType } from "shared/constants/checklistActionType.ts";
-import { updateManualAnnouncementSchema } from "shared/schemas/announcements.ts";
+import { updateManualNotificationSchema } from "shared/schemas/notifications.ts";
 import { api } from "../lib/api";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -24,13 +24,13 @@ interface TaskFormValues {
   occupant: string;
 }
 
-interface AnnouncementFormValues {
+interface NotificationFormValues {
   title: string;
   message: string;
   tasks: TaskFormValues[];
 }
 
-// A separate, form-shaped schema from shared/schemas/announcements.ts's wire
+// A separate, form-shaped schema from shared/schemas/notifications.ts's wire
 // schema: this validates the editing shape (a combined "occupant" select,
 // string kennelId) before it's split into catId/groupId and coerced to
 // numbers for the API payload in the mutation below.
@@ -56,7 +56,7 @@ const taskFormSchema = z
     }
   });
 
-const createAnnouncementFormSchema = z
+const createNotificationFormSchema = z
   .object({
     title: z.string().trim().min(1, "Title is required").max(200, "Title is too long"),
     message: z.string(),
@@ -73,7 +73,7 @@ interface Occupant {
 }
 
 interface TaskFieldsProps {
-  form: UseFormReturn<AnnouncementFormValues>;
+  form: UseFormReturn<NotificationFormValues>;
   index: number;
   kennels: Kennel[];
   occupants: Occupant[];
@@ -172,19 +172,19 @@ function TaskFields({ form, index, kennels, occupants, onRemove }: TaskFieldsPro
   );
 }
 
-interface AnnouncementData {
+interface NotificationData {
   id: number;
   title: string | null;
   message: string | null;
 }
 
-interface AnnouncementFormProps {
-  announcement?: AnnouncementData;
+interface NotificationFormProps {
+  notification?: NotificationData;
   onSuccess: () => void;
 }
 
-export default function AnnouncementForm({ announcement, onSuccess }: AnnouncementFormProps) {
-  const isEdit = !!announcement;
+export default function NotificationForm({ notification, onSuccess }: NotificationFormProps) {
+  const isEdit = !!notification;
   const queryClient = useQueryClient();
 
   const { data: kennels } = useQuery({
@@ -215,18 +215,18 @@ export default function AnnouncementForm({ announcement, onSuccess }: Announceme
     })),
   ];
 
-  const form = useForm<AnnouncementFormValues>({
+  const form = useForm<NotificationFormValues>({
     // Typed against the create schema (the full form shape). In edit mode the
     // update schema validates only title/message — the edit branch of the
     // mutation below never reads `tasks`.
     resolver: zodResolver(
       (isEdit
-        ? updateManualAnnouncementSchema
-        : createAnnouncementFormSchema) as typeof createAnnouncementFormSchema,
+        ? updateManualNotificationSchema
+        : createNotificationFormSchema) as typeof createNotificationFormSchema,
     ),
     defaultValues: {
-      title: announcement?.title ?? "",
-      message: announcement?.message ?? "",
+      title: notification?.title ?? "",
+      message: notification?.message ?? "",
       tasks: [],
     },
   });
@@ -234,13 +234,13 @@ export default function AnnouncementForm({ announcement, onSuccess }: Announceme
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "tasks" });
 
   const mutation = useMutation({
-    mutationFn: async (values: AnnouncementFormValues) => {
+    mutationFn: async (values: NotificationFormValues) => {
       if (isEdit) {
-        const { data } = await api.put(`/api/announcements/${announcement.id}`, {
+        const { data } = await api.put(`/api/notifications/${notification.id}`, {
           title: values.title,
           message: values.message,
         });
-        return data.announcement;
+        return data.notification;
       }
       const payload = {
         title: values.title,
@@ -262,11 +262,11 @@ export default function AnnouncementForm({ announcement, onSuccess }: Announceme
           };
         }),
       };
-      const { data } = await api.post("/api/announcements", payload);
-      return data.announcement;
+      const { data } = await api.post("/api/notifications", payload);
+      return data.notification;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["announcements"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
       form.reset();
       mutation.reset();
       onSuccess();
@@ -336,7 +336,7 @@ export default function AnnouncementForm({ announcement, onSuccess }: Announceme
         {mutation.error && (
           <ErrorAlert
             error={mutation.error}
-            fallback={`Failed to ${isEdit ? "update" : "create"} announcement`}
+            fallback={`Failed to ${isEdit ? "update" : "create"} notification`}
           />
         )}
         <div className="flex justify-end">

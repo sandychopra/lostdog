@@ -90,7 +90,7 @@ export default function CatStatusForm({ cat, onSuccess }: CatStatusFormProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cats"] });
       queryClient.invalidateQueries({ queryKey: ["kennels"] });
-      queryClient.invalidateQueries({ queryKey: ["announcements"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
       queryClient.invalidateQueries({ queryKey: ["sign-tasks"] });
       mutation.reset();
       onSuccess();

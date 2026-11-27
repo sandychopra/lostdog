@@ -1,4 +1,4 @@
-export const AnnouncementType = {
+export const NotificationType = {
   NewArrival: "NewArrival",
   PendingAdoption: "PendingAdoption",
   Adopted: "Adopted",
@@ -12,4 +12,4 @@ export const AnnouncementType = {
   Manual: "Manual",
 } as const;
 
-export type AnnouncementType = (typeof AnnouncementType)[keyof typeof AnnouncementType];
+export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType];

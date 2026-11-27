@@ -14,8 +14,8 @@ const checklistActionInclude = {
 
 const router = Router();
 
-// Checklist creation happens via POST /api/announcements (an ad-hoc Manual
-// announcement can carry a task list) — this router only completes tasks.
+// Checklist creation happens via POST /api/notifications (an ad-hoc Manual
+// notification can carry a task list) — this router only completes tasks.
 router.patch("/actions/:id/complete", requireAuth, async (req, res: Response) => {
   const id = Number(req.params.id);
   const actorId = (req as AuthedRequest).session.user.id;

@@ -1,5 +1,5 @@
 import { KennelState } from "shared/constants/kennelState.ts";
-import { AnnouncementType } from "shared/constants/announcementType.ts";
+import { NotificationType } from "shared/constants/notificationType.ts";
 import { ActivityAction, ActivityEntityType } from "shared/constants/activityLog.ts";
 import type { Prisma } from "../generated/prisma/client.ts";
 import { logActivity } from "./activityLog.ts";
@@ -21,9 +21,9 @@ export async function isKennelOccupied(db: Tx, kennelId: number): Promise<boolea
 
 /**
  * Flips a kennel to NeedsReset and ensures exactly one open KennelNeedsReset
- * announcement exists for it. Every place in the app that sets a kennel to
+ * notification exists for it. Every place in the app that sets a kennel to
  * NeedsReset must go through this (rather than a raw kennel.update) so the
- * kennel always has a completable action on the Announcements page — there's
+ * kennel always has a completable action on the Notifications page — there's
  * no other way to bring a kennel back to Ready now that the shift report's
  * generic "Kennels reset this shift" checklist is gone.
  */
@@ -42,25 +42,25 @@ export async function markKennelNeedsReset(
     description: `State changed from ${before.state} to ${KennelState.NeedsReset}`,
   });
 
-  const alreadyOpen = await tx.announcement.findFirst({
-    where: { type: AnnouncementType.KennelNeedsReset, kennelId, resolved: false },
+  const alreadyOpen = await tx.notification.findFirst({
+    where: { type: NotificationType.KennelNeedsReset, kennelId, resolved: false },
   });
   if (alreadyOpen) return;
 
-  await tx.announcement.create({ data: { type: AnnouncementType.KennelNeedsReset, kennelId } });
+  await tx.notification.create({ data: { type: NotificationType.KennelNeedsReset, kennelId } });
 }
 
-/** Completes a kennel's reset from the Announcements page: flips it back to
- * Ready and resolves its open KennelNeedsReset announcement. */
+/** Completes a kennel's reset from the Notifications page: flips it back to
+ * Ready and resolves its open KennelNeedsReset notification. */
 export async function completeKennelReset(
   tx: Tx,
   args: { kennelId: number; actorId: string },
 ): Promise<void> {
-  const announcement = await tx.announcement.findFirst({
-    where: { type: AnnouncementType.KennelNeedsReset, kennelId: args.kennelId, resolved: false },
+  const notification = await tx.notification.findFirst({
+    where: { type: NotificationType.KennelNeedsReset, kennelId: args.kennelId, resolved: false },
   });
-  if (!announcement) {
-    throw new KennelResetNotFoundError(`No open reset announcement for kennel ${args.kennelId}`);
+  if (!notification) {
+    throw new KennelResetNotFoundError(`No open reset notification for kennel ${args.kennelId}`);
   }
 
   await tx.kennel.update({ where: { id: args.kennelId }, data: { state: KennelState.Ready } });
@@ -71,14 +71,14 @@ export async function completeKennelReset(
     actorId: args.actorId,
     description: `State changed from ${KennelState.NeedsReset} to ${KennelState.Ready} (reset completed)`,
   });
-  await tx.announcement.update({
-    where: { id: announcement.id },
+  await tx.notification.update({
+    where: { id: notification.id },
     data: { resolved: true, resolvedAt: new Date(), resolvedById: args.actorId },
   });
 }
 
 /** Reverts a completed kennel reset: flips the kennel back to NeedsReset and
- * reopens the announcement completeKennelReset resolved. */
+ * reopens the notification completeKennelReset resolved. */
 export async function uncompleteKennelReset(
   tx: Tx,
   args: { kennelId: number; actorId: string },
@@ -90,13 +90,13 @@ export async function uncompleteKennelReset(
     );
   }
 
-  const announcement = await tx.announcement.findFirst({
-    where: { type: AnnouncementType.KennelNeedsReset, kennelId: args.kennelId, resolved: true },
+  const notification = await tx.notification.findFirst({
+    where: { type: NotificationType.KennelNeedsReset, kennelId: args.kennelId, resolved: true },
     orderBy: [{ resolvedAt: "desc" }, { id: "desc" }],
   });
-  if (!announcement) {
+  if (!notification) {
     throw new KennelResetNotFoundError(
-      `No resolved reset announcement for kennel ${args.kennelId}`,
+      `No resolved reset notification for kennel ${args.kennelId}`,
     );
   }
 
@@ -108,8 +108,8 @@ export async function uncompleteKennelReset(
     actorId: args.actorId,
     description: `State changed from ${KennelState.Ready} to ${KennelState.NeedsReset} (reset undone)`,
   });
-  await tx.announcement.update({
-    where: { id: announcement.id },
+  await tx.notification.update({
+    where: { id: notification.id },
     data: { resolved: false, resolvedAt: null, resolvedById: null },
   });
 }
