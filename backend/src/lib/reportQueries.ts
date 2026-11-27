@@ -31,7 +31,9 @@ export function parseDateParam(raw: unknown): Date | undefined | null {
   if (raw === undefined || raw === "") return undefined;
   if (typeof raw !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
   const d = new Date(`${raw}T00:00:00.000Z`);
-  return Number.isNaN(d.getTime()) ? null : d;
+  // Reject days that don't exist (2026-02-31 would otherwise roll over to March 3).
+  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== raw) return null;
+  return d;
 }
 
 /** limit/offset with a default of 50 and a cap of 200. */

@@ -69,20 +69,26 @@ async function cancelOpenSignTasks(tx: Tx, catId: number): Promise<void> {
   });
 }
 
-// "Was a sign actually posted" — the most recent SignTask for this (catId, action)
-// reached Done. If it's still Open (never checked off) or Cancelled, there's
-// nothing physical to remove. SignTask has no createdAt column, so `id desc` is
-// used as a safe recency proxy (autoincrement ids are monotonic with insertion).
-async function wasSignPosted(
+// Which adoption sign is physically on the kennel right now, if any: the most
+// recent SignTask for this cat that reached Done. A Done Post* means that sign
+// is up (posting Adopted replaces Pending, so only the latest one counts); a
+// Done Remove* means it came down. Open/Cancelled tasks never happened
+// physically, so they're skipped — e.g. Pending posted, then an Adopted task
+// that was never checked off, leaves the Pending sign up. SignTask has no
+// createdAt column, so `id desc` is the recency proxy (autoincrement ids are
+// monotonic with insertion).
+async function currentlyPostedSign(
   tx: Tx,
   catId: number,
-  action: (typeof SignAction)["PostPending" | "PostAdopted"],
-): Promise<boolean> {
+): Promise<(typeof SignAction)["PostPending" | "PostAdopted"] | null> {
   const last = await tx.signTask.findFirst({
-    where: { catId, action },
+    where: { catId, state: TaskState.Done },
     orderBy: { id: "desc" },
   });
-  return last?.state === TaskState.Done;
+  if (last?.action === SignAction.PostPending || last?.action === SignAction.PostAdopted) {
+    return last.action;
+  }
+  return null;
 }
 
 async function resolveDrivingNotification(tx: Tx, catId: number, actorId: string): Promise<void> {
@@ -90,17 +96,6 @@ async function resolveDrivingNotification(tx: Tx, catId: number, actorId: string
     where: { catId, type: { in: DRIVING_NOTIFICATION_TYPES }, resolved: false },
     data: { resolved: true, resolvedAt: new Date(), resolvedById: actorId },
   });
-}
-
-// The sign action a cat's *current* status implies is posted, if any — used by
-// both a fallthrough-to-Available transition and Returned to RCC, so "was it
-// actually posted" always checks the sign tied to the status being left.
-function priorSignActionFor(
-  status: CatStatus,
-): (typeof SignAction)["PostPending" | "PostAdopted"] | null {
-  if (status === CatStatus.PendingAdoption) return SignAction.PostPending;
-  if (status === CatStatus.Adopted) return SignAction.PostAdopted;
-  return null;
 }
 
 function removeActionFor(
@@ -111,27 +106,22 @@ function removeActionFor(
     : SignAction.RemoveAdopted;
 }
 
-// Creates a remove-sign SignTask attached to `notificationId`, but only if the
-// corresponding Post* sign was actually posted (see wasSignPosted) — shared by
-// the Available fallthrough and Returned to RCC, which use identical logic.
+// Creates a remove-sign SignTask attached to `notificationId` for whichever sign
+// is actually up (see currentlyPostedSign), if any — shared by the Available
+// fallthrough and Returned to RCC, which use identical logic.
 async function maybeCreateRemoveSignTask(
   tx: Tx,
-  args: {
-    catId: number;
-    kennelId: number | null;
-    departingStatus: CatStatus;
-    notificationId: number;
-  },
+  args: { catId: number; kennelId: number | null; notificationId: number },
 ): Promise<void> {
-  const priorAction = priorSignActionFor(args.departingStatus);
-  if (!priorAction || args.kennelId === null) return;
-  if (!(await wasSignPosted(tx, args.catId, priorAction))) return;
+  if (args.kennelId === null) return;
+  const posted = await currentlyPostedSign(tx, args.catId);
+  if (!posted) return;
 
   await tx.signTask.create({
     data: {
       catId: args.catId,
       kennelId: args.kennelId,
-      action: removeActionFor(priorAction),
+      action: removeActionFor(posted),
       notificationId: args.notificationId,
       state: TaskState.Open,
     },
@@ -158,7 +148,8 @@ export async function changeCatStatus(
     await logCatActivity(tx, args.catId, args.actorId, "Pickup time rescheduled");
     return tx.cat.update({
       where: { id: args.catId },
-      data: { pickupAt: args.pickupAt ?? cat.pickupAt },
+      // undefined = not provided (keep it); an explicit null clears it.
+      data: { pickupAt: args.pickupAt === undefined ? cat.pickupAt : args.pickupAt },
     });
   }
 
@@ -227,7 +218,6 @@ export async function changeCatStatus(
   await maybeCreateRemoveSignTask(tx, {
     catId: args.catId,
     kennelId,
-    departingStatus: cat.status,
     notificationId: notification.id,
   });
 
@@ -257,7 +247,7 @@ export async function confirmPickup(tx: Tx, args: { catId: number; actorId: stri
 
   const kennelId = await effectiveKennelId(tx, cat);
   // Checked before cancelOpenSignTasks, which doesn't touch Done tasks anyway.
-  const adoptedSignPosted = await wasSignPosted(tx, args.catId, SignAction.PostAdopted);
+  const postedSign = await currentlyPostedSign(tx, args.catId);
 
   await cancelOpenSignTasks(tx, args.catId);
 
@@ -279,9 +269,10 @@ export async function confirmPickup(tx: Tx, args: { catId: number; actorId: stri
   );
 
   // Leaving the kennel: a solo cat empties it, so it needs a reset (which also
-  // covers taking the Adopted sign down). A cat leaving a group leaves its
-  // kennel-mates behind — no reset, but the Adopted sign still has to come
-  // down, tracked as its own task on the PickedUp card.
+  // covers taking the sign down). A cat leaving a group leaves its kennel-mates
+  // behind — no reset, but whichever sign is still up (Adopted, or Pending if
+  // the Adopted one never went up) has to come down, tracked as its own task
+  // on the PickedUp card.
   let kennelNowEmpty = true;
   if (cat.groupId !== null) {
     const result = await removeCatFromGroup(tx, {
@@ -296,12 +287,12 @@ export async function confirmPickup(tx: Tx, args: { catId: number; actorId: stri
   if (kennelId !== null) {
     if (kennelNowEmpty) {
       await markKennelNeedsReset(tx, kennelId, args.actorId);
-    } else if (adoptedSignPosted) {
+    } else if (postedSign) {
       await tx.signTask.create({
         data: {
           catId: args.catId,
           kennelId,
-          action: SignAction.RemoveAdopted,
+          action: removeActionFor(postedSign),
           notificationId: pickedUp.id,
           state: TaskState.Open,
         },
@@ -341,7 +332,6 @@ export async function returnCatToRcc(
   await maybeCreateRemoveSignTask(tx, {
     catId: args.catId,
     kennelId: cat.kennelId,
-    departingStatus: cat.status,
     notificationId: notification.id,
   });
 
@@ -416,7 +406,7 @@ export async function uncompleteSignTask(tx: Tx, args: { signTaskId: number; act
 
   // A newer SignTask row for this cat (any state) means the cat has gone
   // through a further status transition since — undoing now would misrepresent
-  // reality (mirrors the cancelOpenSignTasks/wasSignPosted invariant above).
+  // reality (mirrors the cancelOpenSignTasks/currentlyPostedSign invariant above).
   const newer = await tx.signTask.findFirst({
     where: { catId: task.catId, id: { gt: task.id } },
     select: { id: true },
@@ -425,6 +415,21 @@ export async function uncompleteSignTask(tx: Tx, args: { signTaskId: number; act
     throw new SignTaskConflictError(
       `Cannot undo — cat ${task.catId} has had further sign activity since this task was completed`,
     );
+  }
+
+  // Confirm Pickup for a cat housed alone creates no newer SignTask (the kennel
+  // reset covers taking the sign down), so the check above misses it. A sign
+  // that was posted for a cat who has since gone home can't be "un-posted".
+  if (task.action === SignAction.PostPending || task.action === SignAction.PostAdopted) {
+    const cat = await tx.cat.findUniqueOrThrow({
+      where: { id: task.catId },
+      select: { status: true },
+    });
+    if (cat.status === CatStatus.PickedUp) {
+      throw new SignTaskConflictError(
+        `Cannot undo — cat ${task.catId} has been picked up since this task was completed`,
+      );
+    }
   }
 
   const updated = await tx.signTask.update({

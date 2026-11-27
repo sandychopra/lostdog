@@ -42,7 +42,7 @@ async function retireGroup(tx: Tx, groupId: number, actorId: string): Promise<vo
     tx.kennelMoveRequest.count({ where: { groupId } }),
   ]);
   if (entries + checklistSteps + moves > 0) {
-    await tx.group.update({ where: { id: groupId }, data: { kennelId: null } });
+    await tx.group.update({ where: { id: groupId }, data: { kennelId: null, bonded: false } });
   } else {
     await tx.group.delete({ where: { id: groupId } });
   }
