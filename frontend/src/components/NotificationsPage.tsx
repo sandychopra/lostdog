@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AnnouncementType } from "shared/constants/announcementType.ts";
+import { NotificationType } from "shared/constants/notificationType.ts";
 import { SignAction } from "shared/constants/signAction.ts";
 import { ChecklistActionType } from "shared/constants/checklistActionType.ts";
 import { TaskState } from "shared/constants/taskState.ts";
@@ -28,7 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./ui/alert-dialog";
-import AnnouncementForm from "./AnnouncementForm";
+import NotificationForm from "./NotificationForm";
 import AppLayout from "./AppLayout";
 import { Card } from "./ui/card";
 import CollarDot from "./CollarDot";
@@ -36,7 +36,7 @@ import KennelTile from "./KennelTile";
 import { NativeSelect, NativeSelectOption } from "./ui/native-select";
 import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Megaphone } from "lucide-react";
 
-interface AnnouncementCat {
+interface NotificationCat {
   id: number;
   name: string;
   status: string;
@@ -67,7 +67,7 @@ interface ChecklistActionItem {
   group: { id: number; cats: { id: number; name: string }[] } | null;
 }
 
-interface AnnouncementSignTask {
+interface NotificationSignTask {
   id: number;
   action: SignAction;
   state: TaskState;
@@ -77,7 +77,7 @@ interface AnnouncementSignTask {
   kennel: { id: number; number: number };
 }
 
-interface AnnouncementKennelMoveRequest {
+interface NotificationKennelMoveRequest {
   id: number;
   state: TaskState;
   completedAt: string | null;
@@ -88,16 +88,16 @@ interface AnnouncementKennelMoveRequest {
   toKennel: { id: number; number: number };
 }
 
-interface Announcement {
+interface Notification {
   id: number;
-  type: AnnouncementType;
+  type: NotificationType;
   title: string | null;
   message: string | null;
-  cat: AnnouncementCat | null;
+  cat: NotificationCat | null;
   kennel: { id: number; number: number } | null;
   checklist: { id: number; actions: ChecklistActionItem[] } | null;
-  signTasks: AnnouncementSignTask[];
-  kennelMoveRequests: AnnouncementKennelMoveRequest[];
+  signTasks: NotificationSignTask[];
+  kennelMoveRequests: NotificationKennelMoveRequest[];
   doses: ProbioticDose[];
   lastProbioticGivenAt: string | null;
   resolved: boolean;
@@ -112,18 +112,18 @@ interface Announcement {
   createdAt: string;
 }
 
-const ANNOUNCEMENT_TYPE_LABELS: Record<AnnouncementType, string> = {
-  [AnnouncementType.NewArrival]: "New Arrival",
-  [AnnouncementType.PendingAdoption]: "Pending Adoption",
-  [AnnouncementType.Adopted]: "Adopted",
-  [AnnouncementType.BackAvailable]: "Back Available",
-  [AnnouncementType.ReturnedToRcc]: "Returned to RCC",
-  [AnnouncementType.KennelMoveRequested]: "Kennel Move Requested",
-  [AnnouncementType.KennelNeedsReset]: "Kennel Needs Reset",
-  [AnnouncementType.DewormerDue]: "Dewormer",
-  [AnnouncementType.ProbioticNeeded]: "Probiotic",
-  [AnnouncementType.PickedUp]: "Picked Up",
-  [AnnouncementType.Manual]: "Announcement",
+const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
+  [NotificationType.NewArrival]: "New Arrival",
+  [NotificationType.PendingAdoption]: "Pending Adoption",
+  [NotificationType.Adopted]: "Adopted",
+  [NotificationType.BackAvailable]: "Back Available",
+  [NotificationType.ReturnedToRcc]: "Returned to RCC",
+  [NotificationType.KennelMoveRequested]: "Kennel Move Requested",
+  [NotificationType.KennelNeedsReset]: "Kennel Needs Reset",
+  [NotificationType.DewormerDue]: "Dewormer",
+  [NotificationType.ProbioticNeeded]: "Probiotic",
+  [NotificationType.PickedUp]: "Picked Up",
+  [NotificationType.Manual]: "Announcement",
 };
 
 const SIGN_ACTION_LABELS: Record<SignAction, string> = {
@@ -162,7 +162,7 @@ function localToday(): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-function dueDateKey(cat: AnnouncementCat): string | null {
+function dueDateKey(cat: NotificationCat): string | null {
   return cat.dewormerDueDate ? cat.dewormerDueDate.slice(0, 10) : null;
 }
 
@@ -172,33 +172,33 @@ function formatDateOnly(key: string): string {
 }
 
 // A cat still Due after its due date shows as Overdue.
-function isDewormerOverdue(cat: AnnouncementCat): boolean {
+function isDewormerOverdue(cat: NotificationCat): boolean {
   const due = dueDateKey(cat);
   if (cat.dewormerStatus !== DewormerStatus.Due || !due) return false;
   return due < localToday();
 }
 
 // An open DewormerDue card stays hidden until its due date arrives.
-function isNotYetDue(announcement: Announcement): boolean {
-  if (announcement.type !== AnnouncementType.DewormerDue || announcement.resolved) return false;
-  const due = announcement.cat ? dueDateKey(announcement.cat) : null;
+function isNotYetDue(notification: Notification): boolean {
+  if (notification.type !== NotificationType.DewormerDue || notification.resolved) return false;
+  const due = notification.cat ? dueDateKey(notification.cat) : null;
   return due !== null && due > localToday();
 }
 
 // Same 24h-since-last-dose rule as before, now scoped to the current
 // ProbioticNeeded episode (lastProbioticGivenAt is null if no dose has been
-// logged since the announcement — i.e. since the flag was set — per
+// logged since the notification — i.e. since the flag was set — per
 // project-scope: overdue from the moment the flag was set in that case).
-function isProbioticOverdue(announcement: Announcement): boolean {
-  if (!announcement.lastProbioticGivenAt) return true;
-  return Date.now() - new Date(announcement.lastProbioticGivenAt).getTime() > 24 * 60 * 60 * 1000;
+function isProbioticOverdue(notification: Notification): boolean {
+  if (!notification.lastProbioticGivenAt) return true;
+  return Date.now() - new Date(notification.lastProbioticGivenAt).getTime() > 24 * 60 * 60 * 1000;
 }
 
-function getSubActions(announcement: Announcement): SubAction[] {
-  // Any Manual announcement carrying a checklist (an ad-hoc post with tasks)
+function getSubActions(notification: Notification): SubAction[] {
+  // Any Manual notification carrying a checklist (an ad-hoc post with tasks)
   // renders the same ordered-task UI.
-  if (announcement.checklist) {
-    const actions = [...announcement.checklist.actions].sort((a, b) => a.order - b.order);
+  if (notification.checklist) {
+    const actions = [...notification.checklist.actions].sort((a, b) => a.order - b.order);
     const firstIncompleteIndex = actions.findIndex((a) => !a.completed);
     return actions.map((action, index) => ({
       kind: "checklistAction",
@@ -216,11 +216,11 @@ function getSubActions(announcement: Announcement): SubAction[] {
     }));
   }
 
-  switch (announcement.type) {
-    case AnnouncementType.PendingAdoption:
-    case AnnouncementType.Adopted: {
+  switch (notification.type) {
+    case NotificationType.PendingAdoption:
+    case NotificationType.Adopted: {
       const actions: SubAction[] = [];
-      const task = announcement.signTasks[0];
+      const task = notification.signTasks[0];
       if (task) {
         actions.push({
           kind: "signTask",
@@ -237,7 +237,7 @@ function getSubActions(announcement: Announcement): SubAction[] {
           enabled: true,
         });
       }
-      const cat = announcement.cat;
+      const cat = notification.cat;
       if (cat && cat.status === "Adopted" && cat.pickupAt !== null && cat.pickedUpAt === null) {
         actions.push({
           kind: "confirmPickup",
@@ -249,10 +249,10 @@ function getSubActions(announcement: Announcement): SubAction[] {
       }
       return actions;
     }
-    case AnnouncementType.BackAvailable:
-    case AnnouncementType.ReturnedToRcc:
-    case AnnouncementType.PickedUp: {
-      const task = announcement.signTasks[0];
+    case NotificationType.BackAvailable:
+    case NotificationType.ReturnedToRcc:
+    case NotificationType.PickedUp: {
+      const task = notification.signTasks[0];
       if (!task) return [];
       return [
         {
@@ -271,8 +271,8 @@ function getSubActions(announcement: Announcement): SubAction[] {
         },
       ];
     }
-    case AnnouncementType.KennelMoveRequested: {
-      const request = announcement.kennelMoveRequests[0];
+    case NotificationType.KennelMoveRequested: {
+      const request = notification.kennelMoveRequests[0];
       if (!request) return [];
       return [
         {
@@ -291,35 +291,35 @@ function getSubActions(announcement: Announcement): SubAction[] {
         },
       ];
     }
-    case AnnouncementType.KennelNeedsReset: {
-      if (!announcement.kennel) return [];
+    case NotificationType.KennelNeedsReset: {
+      if (!notification.kennel) return [];
       return [
         {
           kind: "kennelReset",
-          id: announcement.kennel.id,
-          label: `Reset kennel #${announcement.kennel.number}`,
-          status: announcement.resolved ? "done" : "open",
-          completedByName: announcement.resolvedBy?.name,
-          completedAt: announcement.resolvedAt,
+          id: notification.kennel.id,
+          label: `Reset kennel #${notification.kennel.number}`,
+          status: notification.resolved ? "done" : "open",
+          completedByName: notification.resolvedBy?.name,
+          completedAt: notification.resolvedAt,
           enabled: true,
         },
       ];
     }
-    case AnnouncementType.DewormerDue: {
-      if (!announcement.cat) return [];
-      const overdue = isDewormerOverdue(announcement.cat);
-      const dueKey = dueDateKey(announcement.cat);
+    case NotificationType.DewormerDue: {
+      if (!notification.cat) return [];
+      const overdue = isDewormerOverdue(notification.cat);
+      const dueKey = dueDateKey(notification.cat);
       const dueDate = dueKey ? formatDateOnly(dueKey) : null;
       return [
         {
           kind: "dewormerGiven",
-          id: announcement.cat.id,
+          id: notification.cat.id,
           label:
             "Mark dewormer given" +
             (dueDate ? (overdue ? ` — Overdue since ${dueDate}` : ` — due ${dueDate}`) : ""),
-          status: announcement.resolved ? "done" : "open",
-          completedByName: announcement.resolvedBy?.name,
-          completedAt: announcement.resolvedAt,
+          status: notification.resolved ? "done" : "open",
+          completedByName: notification.resolvedBy?.name,
+          completedAt: notification.resolvedAt,
           enabled: true,
         },
       ];
@@ -392,21 +392,21 @@ function ActionRow({
 }
 
 function ProbioticStatus({
-  announcement,
+  notification,
   collapsed,
   onToggle,
   onLogDose,
   isLoggingDose,
   logDoseError,
 }: {
-  announcement: Announcement;
+  notification: Notification;
   collapsed: boolean;
   onToggle: () => void;
   onLogDose: () => void;
   isLoggingDose: boolean;
   logDoseError: unknown;
 }) {
-  const overdue = isProbioticOverdue(announcement);
+  const overdue = isProbioticOverdue(notification);
   return (
     <div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -414,8 +414,8 @@ function ProbioticStatus({
           Log dose
         </Button>
         <span className="text-sm text-muted-foreground">
-          {announcement.lastProbioticGivenAt
-            ? `Last dose ${new Date(announcement.lastProbioticGivenAt).toLocaleString()}`
+          {notification.lastProbioticGivenAt
+            ? `Last dose ${new Date(notification.lastProbioticGivenAt).toLocaleString()}`
             : "No dose logged yet"}
           {overdue && " (more than 24 hours ago)"}
         </span>
@@ -425,7 +425,7 @@ function ProbioticStatus({
           <ErrorAlert error={logDoseError} />
         </div>
       )}
-      {announcement.doses.length > 0 && (
+      {notification.doses.length > 0 && (
         <Collapsible open={!collapsed} onOpenChange={onToggle} className="mt-2">
           <CollapsibleTrigger className="flex items-center gap-1 text-sm font-medium">
             {collapsed ? (
@@ -433,11 +433,11 @@ function ProbioticStatus({
             ) : (
               <ChevronDown className="h-3.5 w-3.5" />
             )}
-            {announcement.doses.length} dose{announcement.doses.length === 1 ? "" : "s"} logged
+            {notification.doses.length} dose{notification.doses.length === 1 ? "" : "s"} logged
           </CollapsibleTrigger>
           <CollapsibleContent asChild>
             <ul className="mt-1 flex flex-col gap-0.5 text-xs text-muted-foreground">
-              {announcement.doses.map((dose, index) => (
+              {notification.doses.map((dose, index) => (
                 <li key={index}>
                   {new Date(dose.loggedAt).toLocaleString()} — {dose.loggedBy}
                 </li>
@@ -452,31 +452,31 @@ function ProbioticStatus({
 
 // Overdue dewormer or probiotic: the card's kennel tile turns gold and its
 // status reads Overdue.
-function isOverdue(announcement: Announcement): boolean {
-  if (announcement.resolved || !announcement.cat) return false;
-  if (announcement.type === AnnouncementType.DewormerDue)
-    return isDewormerOverdue(announcement.cat);
-  if (announcement.type === AnnouncementType.ProbioticNeeded)
-    return isProbioticOverdue(announcement);
+function isOverdue(notification: Notification): boolean {
+  if (notification.resolved || !notification.cat) return false;
+  if (notification.type === NotificationType.DewormerDue)
+    return isDewormerOverdue(notification.cat);
+  if (notification.type === NotificationType.ProbioticNeeded)
+    return isProbioticOverdue(notification);
   return false;
 }
 
-function statusBadge(announcement: Announcement): {
+function statusBadge(notification: Notification): {
   label: string;
   variant: "secondary" | "warning" | "destructive";
 } {
-  if (announcement.dismissed) return { label: "Not relevant", variant: "secondary" };
-  if (announcement.resolved) return { label: "Resolved", variant: "secondary" };
-  if (isOverdue(announcement)) return { label: "Overdue", variant: "destructive" };
-  if (announcement.type === AnnouncementType.ProbioticNeeded)
+  if (notification.dismissed) return { label: "Not relevant", variant: "secondary" };
+  if (notification.resolved) return { label: "Resolved", variant: "secondary" };
+  if (isOverdue(notification)) return { label: "Overdue", variant: "destructive" };
+  if (notification.type === NotificationType.ProbioticNeeded)
     return { label: "Open", variant: "warning" };
-  if (getSubActions(announcement).length === 0)
+  if (getSubActions(notification).length === 0)
     return { label: "Informational", variant: "secondary" };
   return { label: "Open", variant: "warning" };
 }
 
-function kennelNumberOf(announcement: Announcement): number | null {
-  return announcement.cat?.kennel?.number ?? announcement.kennel?.number ?? null;
+function kennelNumberOf(notification: Notification): number | null {
+  return notification.cat?.kennel?.number ?? notification.kennel?.number ?? null;
 }
 
 type SortColumn = "type" | "cat" | "kennel" | "created" | "status";
@@ -489,18 +489,18 @@ const SORT_COLUMNS: [SortColumn, string][] = [
   ["status", "Status"],
 ];
 
-function sortValue(announcement: Announcement, column: SortColumn): string | number {
+function sortValue(notification: Notification, column: SortColumn): string | number {
   switch (column) {
     case "type":
-      return ANNOUNCEMENT_TYPE_LABELS[announcement.type];
+      return NOTIFICATION_TYPE_LABELS[notification.type];
     case "cat":
-      return announcement.cat?.name ?? "";
+      return notification.cat?.name ?? "";
     case "kennel":
-      return announcement.cat?.kennel?.number ?? announcement.kennel?.number ?? -1;
+      return notification.cat?.kennel?.number ?? notification.kennel?.number ?? -1;
     case "created":
-      return new Date(announcement.createdAt).getTime();
+      return new Date(notification.createdAt).getTime();
     case "status":
-      return statusBadge(announcement).label;
+      return statusBadge(notification).label;
   }
 }
 
@@ -515,15 +515,15 @@ function defaultDateRange(): { from: string; to: string } {
   return { from: isoDateOnly(from), to: isoDateOnly(to) };
 }
 
-interface EditingAnnouncement {
+interface EditingNotification {
   id: number;
   title: string | null;
   message: string | null;
 }
 
-type DialogState = { mode: "create" } | { mode: "edit"; announcement: EditingAnnouncement } | null;
+type DialogState = { mode: "create" } | { mode: "edit"; notification: EditingNotification } | null;
 
-export default function AnnouncementsPage() {
+export default function NotificationsPage() {
   const { data: session } = authClient.useSession();
   const isAdmin = session?.user.role === Role.Admin;
   const queryClient = useQueryClient();
@@ -540,7 +540,7 @@ export default function AnnouncementsPage() {
   const [commentDraft, setCommentDraft] = useState("");
   const [collapsedIds, setCollapsedIds] = useState<Set<number>>(new Set());
   const [dialog, setDialog] = useState<DialogState>(null);
-  const [deletingAnnouncement, setDeletingAnnouncement] = useState<{
+  const [deletingNotification, setDeletingNotification] = useState<{
     id: number;
     title: string | null;
   } | null>(null);
@@ -548,26 +548,26 @@ export default function AnnouncementsPage() {
   const [dismissNote, setDismissNote] = useState("");
 
   const {
-    data: announcements,
+    data: notifications,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["announcements", activeOnly, dateFrom, dateTo],
+    queryKey: ["notifications", activeOnly, dateFrom, dateTo],
     queryFn: async () => {
-      const { data } = await api.get<{ announcements: Announcement[] }>("/api/announcements", {
+      const { data } = await api.get<{ notifications: Notification[] }>("/api/notifications", {
         params: {
           ...(activeOnly ? { activeOnly: "true" } : {}),
           ...(dateFrom ? { from: `${dateFrom}T00:00:00.000` } : {}),
           ...(dateTo ? { to: `${dateTo}T23:59:59.999` } : {}),
         },
       });
-      return data.announcements;
+      return data.notifications;
     },
   });
 
   const sorted = useMemo(() => {
-    if (!announcements) return [];
-    const list = announcements.filter((announcement) => !isNotYetDue(announcement));
+    if (!notifications) return [];
+    const list = notifications.filter((notification) => !isNotYetDue(notification));
     list.sort((a, b) => {
       const av = sortValue(a, sort.column);
       const bv = sortValue(b, sort.column);
@@ -575,7 +575,7 @@ export default function AnnouncementsPage() {
       return sort.direction === "asc" ? cmp : -cmp;
     });
     return list;
-  }, [announcements, sort]);
+  }, [notifications, sort]);
 
   function toggleCollapsed(id: number) {
     setCollapsedIds((prev) => {
@@ -590,12 +590,12 @@ export default function AnnouncementsPage() {
   }
 
   const invalidateAll = () => {
-    queryClient.invalidateQueries({ queryKey: ["announcements"] });
+    queryClient.invalidateQueries({ queryKey: ["notifications"] });
   };
 
   const dismiss = useMutation({
     mutationFn: (args: { id: number; note: string }) =>
-      api.patch(`/api/announcements/${args.id}/dismiss`, { note: args.note }),
+      api.patch(`/api/notifications/${args.id}/dismiss`, { note: args.note }),
     onSuccess: () => {
       invalidateAll();
       queryClient.invalidateQueries({ queryKey: ["kennels"] });
@@ -603,7 +603,7 @@ export default function AnnouncementsPage() {
     },
   });
   const reopen = useMutation({
-    mutationFn: (id: number) => api.patch(`/api/announcements/${id}/reopen`),
+    mutationFn: (id: number) => api.patch(`/api/notifications/${id}/reopen`),
     onSuccess: invalidateAll,
   });
 
@@ -664,19 +664,19 @@ export default function AnnouncementsPage() {
     },
   });
   const resolveManual = useMutation({
-    mutationFn: (id: number) => api.patch(`/api/announcements/${id}/resolve`),
+    mutationFn: (id: number) => api.patch(`/api/notifications/${id}/resolve`),
     onSuccess: invalidateAll,
   });
   const deleteManual = useMutation({
-    mutationFn: (id: number) => api.delete(`/api/announcements/${id}`),
+    mutationFn: (id: number) => api.delete(`/api/notifications/${id}`),
     onSuccess: () => {
       invalidateAll();
-      setDeletingAnnouncement(null);
+      setDeletingNotification(null);
     },
   });
   const saveComment = useMutation({
     mutationFn: (args: { id: number; comment: string }) =>
-      api.patch(`/api/announcements/${args.id}/comment`, { comment: args.comment }),
+      api.patch(`/api/notifications/${args.id}/comment`, { comment: args.comment }),
     onSuccess: () => {
       invalidateAll();
       setCommentEditingId(null);
@@ -763,44 +763,44 @@ export default function AnnouncementsPage() {
   }
 
   // The card's big line: who or what it's about. The type goes above it.
-  function announcementHeadline(announcement: Announcement): string {
-    if (announcement.type === AnnouncementType.Manual) return announcement.title ?? "Announcement";
-    if (announcement.cat) return announcement.cat.name;
-    const kennelNumber = kennelNumberOf(announcement);
+  function notificationHeadline(notification: Notification): string {
+    if (notification.type === NotificationType.Manual) return notification.title ?? "Announcement";
+    if (notification.cat) return notification.cat.name;
+    const kennelNumber = kennelNumberOf(notification);
     if (kennelNumber !== null) return `Kennel ${kennelNumber}`;
-    return ANNOUNCEMENT_TYPE_LABELS[announcement.type];
+    return NOTIFICATION_TYPE_LABELS[notification.type];
   }
 
   // Cell contents shared by the desktop table and the phone cards.
-  function renderActions(announcement: Announcement) {
+  function renderActions(notification: Notification) {
     // A card marked "Not relevant" keeps its message but drops its actions.
-    const subActions = announcement.dismissed ? [] : getSubActions(announcement);
+    const subActions = notification.dismissed ? [] : getSubActions(notification);
     return (
       <>
-        {announcement.type === AnnouncementType.Manual && announcement.message && (
-          <p className="text-muted-foreground">{announcement.message}</p>
+        {notification.type === NotificationType.Manual && notification.message && (
+          <p className="text-muted-foreground">{notification.message}</p>
         )}
-        {announcement.dismissed ? null : announcement.type === AnnouncementType.ProbioticNeeded ? (
+        {notification.dismissed ? null : notification.type === NotificationType.ProbioticNeeded ? (
           <ProbioticStatus
-            announcement={announcement}
-            collapsed={collapsedIds.has(announcement.id)}
-            onToggle={() => toggleCollapsed(announcement.id)}
-            onLogDose={() => logProbioticDose.mutate(announcement.cat!.id)}
+            notification={notification}
+            collapsed={collapsedIds.has(notification.id)}
+            onToggle={() => toggleCollapsed(notification.id)}
+            onLogDose={() => logProbioticDose.mutate(notification.cat!.id)}
             isLoggingDose={
-              logProbioticDose.isPending && logProbioticDose.variables === announcement.cat?.id
+              logProbioticDose.isPending && logProbioticDose.variables === notification.cat?.id
             }
             logDoseError={
-              logProbioticDose.isError && logProbioticDose.variables === announcement.cat?.id
+              logProbioticDose.isError && logProbioticDose.variables === notification.cat?.id
                 ? logProbioticDose.error
                 : undefined
             }
           />
-        ) : subActions.length === 0 ? null : announcement.checklist && subActions.length > 1 ? (
+        ) : subActions.length === 0 ? null : notification.checklist && subActions.length > 1 ? (
           (() => {
-            const collapsed = collapsedIds.has(announcement.id);
+            const collapsed = collapsedIds.has(notification.id);
             const doneCount = subActions.filter((a) => a.status === "done").length;
             return (
-              <Collapsible open={!collapsed} onOpenChange={() => toggleCollapsed(announcement.id)}>
+              <Collapsible open={!collapsed} onOpenChange={() => toggleCollapsed(notification.id)}>
                 <CollapsibleTrigger className="flex items-center gap-1 text-sm font-medium">
                   {collapsed ? (
                     <ChevronRight className="h-3.5 w-3.5" />
@@ -842,27 +842,27 @@ export default function AnnouncementsPage() {
     );
   }
 
-  function renderResolution(announcement: Announcement) {
-    if (announcement.dismissed) {
+  function renderResolution(notification: Notification) {
+    if (notification.dismissed) {
       return (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="min-w-0 text-xs text-muted-foreground">
             Not relevant
-            {announcement.dismissNote && `: ${announcement.dismissNote}`}
-            {announcement.resolvedBy && ` — ${announcement.resolvedBy.name}`}
-            {announcement.resolvedAt && `, ${new Date(announcement.resolvedAt).toLocaleString()}`}
+            {notification.dismissNote && `: ${notification.dismissNote}`}
+            {notification.resolvedBy && ` — ${notification.resolvedBy.name}`}
+            {notification.resolvedAt && `, ${new Date(notification.resolvedAt).toLocaleString()}`}
           </p>
           {isAdmin && (
             <Button
               variant="outline"
               size="sm"
-              disabled={reopen.isPending && reopen.variables === announcement.id}
-              onClick={() => reopen.mutate(announcement.id)}
+              disabled={reopen.isPending && reopen.variables === notification.id}
+              onClick={() => reopen.mutate(notification.id)}
             >
               Reopen
             </Button>
           )}
-          {reopen.isError && reopen.variables === announcement.id && (
+          {reopen.isError && reopen.variables === notification.id && (
             <div className="w-full">
               <ErrorAlert error={reopen.error} />
             </div>
@@ -870,22 +870,22 @@ export default function AnnouncementsPage() {
         </div>
       );
     }
-    if (announcement.resolvedAt) {
+    if (notification.resolvedAt) {
       return (
         <p className="text-xs text-muted-foreground">
-          Resolved {new Date(announcement.resolvedAt).toLocaleString()}
-          {announcement.resolvedBy && ` by ${announcement.resolvedBy.name}`}
+          Resolved {new Date(notification.resolvedAt).toLocaleString()}
+          {notification.resolvedBy && ` by ${notification.resolvedBy.name}`}
         </p>
       );
     }
     return (
       <div className="flex flex-wrap items-center gap-2">
-        {announcement.type === AnnouncementType.Manual && isAdmin && (
+        {notification.type === NotificationType.Manual && isAdmin && (
           <Button
             variant="outline"
             size="sm"
             disabled={resolveManual.isPending}
-            onClick={() => resolveManual.mutate(announcement.id)}
+            onClick={() => resolveManual.mutate(notification.id)}
           >
             Mark resolved
           </Button>
@@ -897,7 +897,7 @@ export default function AnnouncementsPage() {
           onClick={() => {
             dismiss.reset();
             setDismissNote("");
-            setDismissing({ id: announcement.id, headline: announcementHeadline(announcement) });
+            setDismissing({ id: notification.id, headline: notificationHeadline(notification) });
           }}
         >
           Not relevant
@@ -906,20 +906,20 @@ export default function AnnouncementsPage() {
     );
   }
 
-  function renderCard(announcement: Announcement) {
-    const status = statusBadge(announcement);
-    const typeLabel = ANNOUNCEMENT_TYPE_LABELS[announcement.type];
-    const headline = announcementHeadline(announcement);
+  function renderCard(notification: Notification) {
+    const status = statusBadge(notification);
+    const typeLabel = NOTIFICATION_TYPE_LABELS[notification.type];
+    const headline = notificationHeadline(notification);
     return (
       <Card className="flex-row items-start gap-3 px-3 sm:gap-4 sm:px-5">
-        {kennelNumberOf(announcement) === null ? (
-          // Not about a kennel (e.g. a general post): a plain announcement mark
+        {kennelNumberOf(notification) === null ? (
+          // Not about a kennel (e.g. a general post): a plain notification mark
           // instead of an empty kennel tile.
           <div className="grid h-14 w-13 shrink-0 place-content-center rounded-lg bg-secondary text-navy">
             <Megaphone className="size-6" aria-hidden="true" />
           </div>
         ) : (
-          <KennelTile number={kennelNumberOf(announcement)} attention={isOverdue(announcement)} />
+          <KennelTile number={kennelNumberOf(notification)} attention={isOverdue(notification)} />
         )}
         <div className="min-w-0 flex-1 space-y-3">
           <div>
@@ -931,28 +931,28 @@ export default function AnnouncementsPage() {
             </div>
             {headline !== typeLabel && (
               <h2 className="mt-0.5 flex items-center gap-2 text-lg leading-snug font-semibold">
-                <CollarDot color={announcement.cat?.collarColor} />
+                <CollarDot color={notification.cat?.collarColor} />
                 <span className="min-w-0 break-words">{headline}</span>
               </h2>
             )}
             <p className="text-xs text-muted-foreground">
-              Posted {new Date(announcement.createdAt).toLocaleString()}
-              {announcement.createdBy && ` by ${announcement.createdBy.name}`}
+              Posted {new Date(notification.createdAt).toLocaleString()}
+              {notification.createdBy && ` by ${notification.createdBy.name}`}
             </p>
           </div>
-          <div className="space-y-2 text-sm">{renderActions(announcement)}</div>
-          {renderResolution(announcement)}
+          <div className="space-y-2 text-sm">{renderActions(notification)}</div>
+          {renderResolution(notification)}
           <div className="flex items-start justify-between gap-2 border-t pt-2">
-            <div className="min-w-0 flex-1">{renderComment(announcement)}</div>
-            {isAdmin && <div className="-mr-2 shrink-0">{renderAdminActions(announcement)}</div>}
+            <div className="min-w-0 flex-1">{renderComment(notification)}</div>
+            {isAdmin && <div className="-mr-2 shrink-0">{renderAdminActions(notification)}</div>}
           </div>
         </div>
       </Card>
     );
   }
 
-  function renderComment(announcement: Announcement) {
-    const isCommenting = commentEditingId === announcement.id;
+  function renderComment(notification: Notification) {
+    const isCommenting = commentEditingId === notification.id;
     return (
       <>
         {isCommenting ? (
@@ -968,7 +968,7 @@ export default function AnnouncementsPage() {
                 disabled={saveComment.isPending}
                 onClick={() =>
                   saveComment.mutate({
-                    id: announcement.id,
+                    id: notification.id,
                     comment: commentDraft,
                   })
                 }
@@ -982,15 +982,15 @@ export default function AnnouncementsPage() {
           </div>
         ) : (
           <div className="space-y-1 text-sm">
-            {announcement.comment && (
+            {notification.comment && (
               <p>
-                {announcement.comment}
-                {announcement.commentedBy && (
+                {notification.comment}
+                {notification.commentedBy && (
                   <span className="text-muted-foreground">
                     {" "}
-                    — {announcement.commentedBy.name}
-                    {announcement.commentedAt
-                      ? `, ${new Date(announcement.commentedAt).toLocaleString()}`
+                    — {notification.commentedBy.name}
+                    {notification.commentedAt
+                      ? `, ${new Date(notification.commentedAt).toLocaleString()}`
                       : ""}
                   </span>
                 )}
@@ -1001,11 +1001,11 @@ export default function AnnouncementsPage() {
               size="sm"
               className="-ml-3"
               onClick={() => {
-                setCommentEditingId(announcement.id);
-                setCommentDraft(announcement.comment ?? "");
+                setCommentEditingId(notification.id);
+                setCommentDraft(notification.comment ?? "");
               }}
             >
-              {announcement.comment ? "Edit comment" : "Add comment"}
+              {notification.comment ? "Edit comment" : "Add comment"}
             </Button>
           </div>
         )}
@@ -1013,10 +1013,10 @@ export default function AnnouncementsPage() {
     );
   }
 
-  function renderAdminActions(announcement: Announcement) {
+  function renderAdminActions(notification: Notification) {
     return (
       <>
-        {announcement.type === AnnouncementType.Manual && (
+        {notification.type === NotificationType.Manual && (
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
@@ -1025,10 +1025,10 @@ export default function AnnouncementsPage() {
               onClick={() =>
                 setDialog({
                   mode: "edit",
-                  announcement: {
-                    id: announcement.id,
-                    title: announcement.title,
-                    message: announcement.message,
+                  notification: {
+                    id: notification.id,
+                    title: notification.title,
+                    message: notification.message,
                   },
                 })
               }
@@ -1040,9 +1040,9 @@ export default function AnnouncementsPage() {
               size="icon"
               aria-label="Delete announcement"
               onClick={() =>
-                setDeletingAnnouncement({
-                  id: announcement.id,
-                  title: announcement.title,
+                setDeletingNotification({
+                  id: notification.id,
+                  title: notification.title,
                 })
               }
             >
@@ -1059,7 +1059,7 @@ export default function AnnouncementsPage() {
   return (
     <AppLayout width="3xl">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold">Announcements</h1>
+        <h1 className="text-3xl font-bold">Notifications</h1>
         {isAdmin && (
           <Button onClick={() => setDialog({ mode: "create" })}>
             <Plus className="mr-1 h-4 w-4" />
@@ -1130,7 +1130,7 @@ export default function AnnouncementsPage() {
       </div>
 
       {error ? (
-        <ErrorAlert message="Failed to fetch announcements" />
+        <ErrorAlert message="Failed to fetch notifications" />
       ) : isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -1142,14 +1142,14 @@ export default function AnnouncementsPage() {
           <p className="font-display text-lg font-semibold text-navy">Nothing to do here</p>
           <p className="text-sm text-muted-foreground">
             {activeOnly
-              ? "No open announcements in these dates. Clear Active only to see resolved ones."
-              : "No announcements in these dates. Widen the date range to see older ones."}
+              ? "No open notifications in these dates. Clear Active only to see resolved ones."
+              : "No notifications in these dates. Widen the date range to see older ones."}
           </p>
         </Card>
       ) : (
         <ul className="space-y-3">
-          {sorted.map((announcement) => (
-            <li key={announcement.id}>{renderCard(announcement)}</li>
+          {sorted.map((notification) => (
+            <li key={notification.id}>{renderCard(notification)}</li>
           ))}
         </ul>
       )}
@@ -1166,9 +1166,9 @@ export default function AnnouncementsPage() {
               {dialog?.mode === "edit" ? "Edit Announcement" : "New Announcement"}
             </DialogTitle>
           </DialogHeader>
-          <AnnouncementForm
-            key={dialog?.mode === "edit" ? dialog.announcement.id : "create"}
-            announcement={dialog?.mode === "edit" ? dialog.announcement : undefined}
+          <NotificationForm
+            key={dialog?.mode === "edit" ? dialog.notification.id : "create"}
+            notification={dialog?.mode === "edit" ? dialog.notification : undefined}
             onSuccess={close}
           />
         </DialogContent>
@@ -1218,10 +1218,10 @@ export default function AnnouncementsPage() {
       </Dialog>
 
       <AlertDialog
-        open={deletingAnnouncement !== null}
+        open={deletingNotification !== null}
         onOpenChange={(open) => {
           if (!open) {
-            setDeletingAnnouncement(null);
+            setDeletingNotification(null);
             deleteManual.reset();
           }
         }}
@@ -1231,7 +1231,7 @@ export default function AnnouncementsPage() {
             <AlertDialogTitle>Delete Announcement</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete &ldquo;
-              {deletingAnnouncement?.title ?? "this announcement"}
+              {deletingNotification?.title ?? "this announcement"}
               &rdquo;? This can&apos;t be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1239,7 +1239,7 @@ export default function AnnouncementsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deletingAnnouncement && deleteManual.mutate(deletingAnnouncement.id)}
+              onClick={() => deletingNotification && deleteManual.mutate(deletingNotification.id)}
             >
               Confirm
             </AlertDialogAction>

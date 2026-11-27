@@ -51,7 +51,7 @@ const optionalKennelIdField = {
 
 const catFields = { ...catFieldsBase, ...kennelIdField };
 
-// A Due dewormer only means something with a date: the DewormerDue announcement
+// A Due dewormer only means something with a date: the DewormerDue notification
 // appears on that date, so without one there would be nothing to schedule.
 function requireDewormerDueDate(data: {
   dewormerStatus: DewormerStatus;

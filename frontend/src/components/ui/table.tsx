@@ -37,7 +37,7 @@ interface SortableTableHeadProps extends ThHTMLAttributes<HTMLTableCellElement> 
 }
 
 // No table library in this repo — a small client-side sortable header, used by
-// AnnouncementsPage, that flips asc/desc on click and shows which column (if
+// NotificationsPage, that flips asc/desc on click and shows which column (if
 // any) the currently-loaded rows are sorted by.
 export function SortableTableHead({
   active,

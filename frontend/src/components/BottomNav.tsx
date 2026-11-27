@@ -57,7 +57,7 @@ export default function BottomNav() {
       >
         <div className="mx-auto grid max-w-md grid-cols-5 items-end px-1 pt-1 pb-1">
           <NavLink
-            to="/announcements"
+            to="/notifications"
             className={({ isActive }) => cn(tabClass, isActive && activeTabClass)}
           >
             <Megaphone className="size-6" />

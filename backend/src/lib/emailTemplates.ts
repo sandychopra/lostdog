@@ -1,5 +1,5 @@
 import { formatFecalScore } from "shared/constants/fecalScore.ts";
-import { AnnouncementType } from "shared/constants/announcementType.ts";
+import { NotificationType } from "shared/constants/notificationType.ts";
 import { ChecklistActionType } from "shared/constants/checklistActionType.ts";
 import { CatEntryType } from "shared/constants/catEntryType.ts";
 import type { Prisma } from "../generated/prisma/client.ts";
@@ -8,7 +8,7 @@ import type { EmailMessage } from "./mailer.ts";
 const catSelect = { select: { id: true, name: true } } as const;
 const kennelSelect = { select: { id: true, number: true } } as const;
 
-export const announcementEmailInclude = {
+export const notificationEmailInclude = {
   cat: { select: { id: true, name: true, pickupAt: true, kennel: kennelSelect } },
   kennel: kennelSelect,
   createdBy: { select: { name: true } },
@@ -33,7 +33,7 @@ export const announcementEmailInclude = {
       requestedBy: { select: { name: true } },
     },
   },
-} satisfies Prisma.AnnouncementInclude;
+} satisfies Prisma.NotificationInclude;
 
 export const shiftReportEmailInclude = {
   author: { select: { name: true } },
@@ -51,24 +51,24 @@ export const shiftReportEmailInclude = {
   kennelsStatus: { include: { kennel: kennelSelect } },
 } satisfies Prisma.ShiftReportInclude;
 
-export type AnnouncementForEmail = Prisma.AnnouncementGetPayload<{
-  include: typeof announcementEmailInclude;
+export type NotificationForEmail = Prisma.NotificationGetPayload<{
+  include: typeof notificationEmailInclude;
 }>;
 export type ShiftReportForEmail = Prisma.ShiftReportGetPayload<{
   include: typeof shiftReportEmailInclude;
 }>;
 
 // dewormer/probiotic reminders are in-app only.
-export const EMAILED_ANNOUNCEMENT_TYPES = [
-  AnnouncementType.NewArrival,
-  AnnouncementType.PendingAdoption,
-  AnnouncementType.Adopted,
-  AnnouncementType.BackAvailable,
-  AnnouncementType.ReturnedToRcc,
-  AnnouncementType.PickedUp,
-  AnnouncementType.KennelMoveRequested,
-  AnnouncementType.KennelNeedsReset,
-  AnnouncementType.Manual,
+export const EMAILED_NOTIFICATION_TYPES = [
+  NotificationType.NewArrival,
+  NotificationType.PendingAdoption,
+  NotificationType.Adopted,
+  NotificationType.BackAvailable,
+  NotificationType.ReturnedToRcc,
+  NotificationType.PickedUp,
+  NotificationType.KennelMoveRequested,
+  NotificationType.KennelNeedsReset,
+  NotificationType.Manual,
 ] as const;
 
 const SHIFT_LABELS: Record<string, string> = {
@@ -94,7 +94,7 @@ function names(cats: { name: string }[]): string {
 }
 
 function checklistLine(
-  action: NonNullable<AnnouncementForEmail["checklist"]>["actions"][number],
+  action: NonNullable<NotificationForEmail["checklist"]>["actions"][number],
   index: number,
 ): string {
   const prefix = `${index + 1}. `;
@@ -110,48 +110,48 @@ function checklistLine(
   }
 }
 
-export function renderAnnouncementEmail(announcement: AnnouncementForEmail): EmailMessage {
-  const catName = announcement.cat?.name ?? "A cat";
-  const kennelNumber = announcement.cat?.kennel?.number ?? announcement.kennel?.number;
+export function renderNotificationEmail(notification: NotificationForEmail): EmailMessage {
+  const catName = notification.cat?.name ?? "A cat";
+  const kennelNumber = notification.cat?.kennel?.number ?? notification.kennel?.number;
   const lines: string[] = [];
   let subject: string;
 
-  switch (announcement.type) {
-    case AnnouncementType.NewArrival:
+  switch (notification.type) {
+    case NotificationType.NewArrival:
       subject = `New arrival: ${catName}`;
       lines.push(`${catName} has arrived.`);
       if (kennelNumber !== undefined) lines.push(`Kennel: ${kennelNumber}`);
       break;
-    case AnnouncementType.PendingAdoption:
-    case AnnouncementType.Adopted: {
-      const label = announcement.type === AnnouncementType.Adopted ? "adopted" : "pending adoption";
+    case NotificationType.PendingAdoption:
+    case NotificationType.Adopted: {
+      const label = notification.type === NotificationType.Adopted ? "adopted" : "pending adoption";
       subject = `${catName} is ${label}`;
       lines.push(`${catName} is now ${label}.`);
       if (kennelNumber !== undefined) lines.push(`Kennel: ${kennelNumber}`);
-      if (announcement.cat?.pickupAt) {
-        lines.push(`Scheduled pickup: ${formatDateTime(announcement.cat.pickupAt)}`);
+      if (notification.cat?.pickupAt) {
+        lines.push(`Scheduled pickup: ${formatDateTime(notification.cat.pickupAt)}`);
       }
       break;
     }
-    case AnnouncementType.BackAvailable:
+    case NotificationType.BackAvailable:
       subject = `${catName} is available again`;
       lines.push(`${catName} is back available for adoption.`);
       if (kennelNumber !== undefined) lines.push(`Kennel: ${kennelNumber}`);
       break;
-    case AnnouncementType.ReturnedToRcc:
+    case NotificationType.ReturnedToRcc:
       subject = `${catName} returned to RCC`;
       lines.push(`${catName} is returning to the RCC and is no longer at this location.`);
       break;
-    case AnnouncementType.PickedUp:
+    case NotificationType.PickedUp:
       subject = `${catName} has been picked up`;
       lines.push(`${catName} has been picked up by their adopter and has left the shelter.`);
       break;
-    case AnnouncementType.KennelNeedsReset:
-      subject = `Kennel ${announcement.kennel?.number} needs reset`;
-      lines.push(`Kennel ${announcement.kennel?.number} needs to be reset.`);
+    case NotificationType.KennelNeedsReset:
+      subject = `Kennel ${notification.kennel?.number} needs reset`;
+      lines.push(`Kennel ${notification.kennel?.number} needs to be reset.`);
       break;
-    case AnnouncementType.KennelMoveRequested: {
-      const move = announcement.kennelMoveRequests[0];
+    case NotificationType.KennelMoveRequested: {
+      const move = notification.kennelMoveRequests[0];
       const who = move?.cat?.name ?? names(move?.group?.cats ?? []);
       subject = `Kennel move requested: ${who || catName}`;
       lines.push(
@@ -161,19 +161,19 @@ export function renderAnnouncementEmail(announcement: AnnouncementForEmail): Ema
       if (move) lines.push(`Requested by: ${move.requestedBy.name}`);
       break;
     }
-    case AnnouncementType.Manual:
-      subject = announcement.title ?? "Announcement";
-      if (announcement.message) lines.push(announcement.message);
-      if (announcement.createdBy) lines.push(`Posted by: ${announcement.createdBy.name}`);
-      if (announcement.checklist && announcement.checklist.actions.length > 0) {
-        lines.push("", "Tasks:", ...announcement.checklist.actions.map(checklistLine));
+    case NotificationType.Manual:
+      subject = notification.title ?? "Announcement";
+      if (notification.message) lines.push(notification.message);
+      if (notification.createdBy) lines.push(`Posted by: ${notification.createdBy.name}`);
+      if (notification.checklist && notification.checklist.actions.length > 0) {
+        lines.push("", "Tasks:", ...notification.checklist.actions.map(checklistLine));
       }
       break;
     default:
-      throw new Error(`No email template for announcement type ${announcement.type}`);
+      throw new Error(`No email template for notification type ${notification.type}`);
   }
 
-  lines.push("", `View in the app: ${appLink("/announcements")}`);
+  lines.push("", `View in the app: ${appLink("/notifications")}`);
   return { subject, text: lines.join("\n") };
 }
 

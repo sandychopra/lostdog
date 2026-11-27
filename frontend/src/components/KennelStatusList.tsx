@@ -20,7 +20,7 @@ interface KennelStatusListProps {
 // kennel's current state is just logged as-is, same as any other value — no
 // note required; anything worth explaining goes in the report's Other Notes
 // instead. This is purely observational — submitting
-// never changes Kennel.state or announcements.
+// never changes Kennel.state or notifications.
 export default function KennelStatusList({
   form,
   kennelOptions,

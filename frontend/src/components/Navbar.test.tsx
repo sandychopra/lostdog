@@ -20,7 +20,7 @@ describe("Navbar", () => {
   test("shows Users only to Admins", () => {
     role = "Volunteer";
     const { unmount } = renderWithQuery(<Navbar />);
-    expect(screen.getByRole("link", { name: "Announcements" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Notifications" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Users" })).not.toBeInTheDocument();
     unmount();
 

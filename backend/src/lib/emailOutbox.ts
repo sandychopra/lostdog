@@ -2,9 +2,9 @@ import { ShiftReportStatus } from "shared/constants/shiftReportStatus.ts";
 import { prisma } from "./prisma.ts";
 import { mailer as defaultMailer, type EmailMessage, type Mailer } from "./mailer.ts";
 import {
-  EMAILED_ANNOUNCEMENT_TYPES,
-  announcementEmailInclude,
-  renderAnnouncementEmail,
+  EMAILED_NOTIFICATION_TYPES,
+  notificationEmailInclude,
+  renderNotificationEmail,
   renderShiftReportEmail,
   shiftReportEmailInclude,
 } from "./emailTemplates.ts";
@@ -22,7 +22,7 @@ function describeError(error: unknown): string {
 }
 
 /**
- * Sends every notification email not yet sent. Announcements are created inside
+ * Sends every notification email not yet sent. Notifications are created inside
  * many different transactions, so rather than emailing from each of them (and
  * mailing for work that later rolls back) routes call this after the commit and
  * it picks up whatever rows are still pending. Never throws: a failed send is
@@ -42,7 +42,7 @@ export async function flushPendingEmails(mailer: Mailer = defaultMailer): Promis
     do {
       rerunRequested = false;
       try {
-        await flushAnnouncements(mailer);
+        await flushNotifications(mailer);
         await flushShiftReports(mailer);
       } catch (error) {
         console.error("[notifications] flush failed:", error);
@@ -71,37 +71,37 @@ async function attempt(
   await onSent();
 }
 
-async function flushAnnouncements(mailer: Mailer) {
-  const pending = await prisma.announcement.findMany({
+async function flushNotifications(mailer: Mailer) {
+  const pending = await prisma.notification.findMany({
     where: {
       emailSent: false,
       emailAttempts: { lt: MAX_EMAIL_ATTEMPTS },
-      type: { in: [...EMAILED_ANNOUNCEMENT_TYPES] },
+      type: { in: [...EMAILED_NOTIFICATION_TYPES] },
     },
-    include: announcementEmailInclude,
+    include: notificationEmailInclude,
     orderBy: { id: "asc" },
   });
 
-  for (const announcement of pending) {
+  for (const notification of pending) {
     // Claim by bumping the attempt count first, so a crash mid-send can't loop forever.
-    const claimed = await prisma.announcement.updateMany({
-      where: { id: announcement.id, emailSent: false, emailAttempts: announcement.emailAttempts },
+    const claimed = await prisma.notification.updateMany({
+      where: { id: notification.id, emailSent: false, emailAttempts: notification.emailAttempts },
       data: { emailAttempts: { increment: 1 } },
     });
     if (claimed.count === 0) continue;
 
     await attempt(
       mailer,
-      `announcement ${announcement.id}`,
-      renderAnnouncementEmail(announcement),
+      `notification ${notification.id}`,
+      renderNotificationEmail(notification),
       () =>
-        prisma.announcement.update({
-          where: { id: announcement.id },
+        prisma.notification.update({
+          where: { id: notification.id },
           data: { emailSent: true, emailLastError: null },
         }),
       (error) =>
-        prisma.announcement.update({
-          where: { id: announcement.id },
+        prisma.notification.update({
+          where: { id: notification.id },
           data: { emailLastError: error },
         }),
     );

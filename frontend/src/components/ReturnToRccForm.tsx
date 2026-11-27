@@ -30,7 +30,7 @@ export default function ReturnToRccForm({ cat, onSuccess }: ReturnToRccFormProps
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cats"] });
       queryClient.invalidateQueries({ queryKey: ["kennels"] });
-      queryClient.invalidateQueries({ queryKey: ["announcements"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
       mutation.reset();
       onSuccess();
     },

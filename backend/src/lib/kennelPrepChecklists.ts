@@ -15,8 +15,8 @@ interface TaskInput {
   groupId?: number;
 }
 
-/** Creates a KennelPrepChecklist with its ordered tasks — no Announcement of
- * its own; the caller (an ad-hoc Manual announcement) owns that. */
+/** Creates a KennelPrepChecklist with its ordered tasks — no Notification of
+ * its own; the caller (an ad-hoc Manual notification) owns that. */
 export async function createChecklistTasks(
   tx: Tx,
   args: { actions: TaskInput[]; createdById: string },
@@ -43,7 +43,7 @@ export async function createChecklistTasks(
   });
 }
 
-/** Completes the next-in-order ChecklistAction, from the Announcements page. */
+/** Completes the next-in-order ChecklistAction, from the Notifications page. */
 export async function completeChecklistAction(
   tx: Tx,
   args: { checklistActionId: number; actorId: string },
@@ -104,7 +104,7 @@ export async function completeChecklistAction(
     where: { checklistId: action.checklistId, completed: false },
   });
   if (remainingIncomplete === 0) {
-    await tx.announcement.updateMany({
+    await tx.notification.updateMany({
       where: { checklistId: action.checklistId },
       data: { resolved: true, resolvedAt: new Date(), resolvedById: args.actorId },
     });

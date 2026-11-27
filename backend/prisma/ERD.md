@@ -241,9 +241,9 @@ erDiagram
     }
   
 
-  "announcement" {
+  "notification" {
     Int id "🗝️"
-    AnnouncementType type 
+    NotificationType type 
     Int cat_id "❓"
     Int checklist_id "❓"
     Int kennel_id "❓"
@@ -270,7 +270,7 @@ erDiagram
     Int cat_id 
     Int kennel_id 
     SignAction action 
-    Int announcement_id 
+    Int notification_id 
     TaskState state 
     String completed_by_id "❓"
     DateTime completed_at "❓"
@@ -288,7 +288,7 @@ erDiagram
     TaskState state 
     String completed_by_id "❓"
     DateTime completed_at "❓"
-    Int announcement_id "❓"
+    Int notification_id "❓"
     DateTime created_at 
     }
   
@@ -346,15 +346,15 @@ erDiagram
     "checklist_action" }o--|o "cat" : "cat"
     "checklist_action" }o--|o "group" : "group"
     "checklist_action" }o--|o "user" : "completedBy"
-    "announcement" }o--|o "cat" : "cat"
-    "announcement" }o--|o "kennel_prep_checklist" : "checklist"
-    "announcement" }o--|o "kennel" : "kennel"
-    "announcement" }o--|o "user" : "resolvedBy"
-    "announcement" }o--|o "user" : "createdBy"
-    "announcement" }o--|o "user" : "commentedBy"
+    "notification" }o--|o "cat" : "cat"
+    "notification" }o--|o "kennel_prep_checklist" : "checklist"
+    "notification" }o--|o "kennel" : "kennel"
+    "notification" }o--|o "user" : "resolvedBy"
+    "notification" }o--|o "user" : "createdBy"
+    "notification" }o--|o "user" : "commentedBy"
     "sign_task" }o--|| "cat" : "cat"
     "sign_task" }o--|| "kennel" : "kennel"
-    "sign_task" }o--|| "announcement" : "announcement"
+    "sign_task" }o--|| "notification" : "notification"
     "sign_task" }o--|o "user" : "completedBy"
     "kennel_move_request" }o--|o "cat" : "cat"
     "kennel_move_request" }o--|o "group" : "group"
@@ -362,7 +362,7 @@ erDiagram
     "kennel_move_request" }o--|| "kennel" : "toKennel"
     "kennel_move_request" }o--|| "user" : "requestedBy"
     "kennel_move_request" }o--|o "user" : "completedBy"
-    "kennel_move_request" }o--|o "announcement" : "announcement"
+    "kennel_move_request" }o--|o "notification" : "notification"
     "activity_log" }o--|o "user" : "actor"
     "medical_note" }o--|| "shift_report" : "shiftReport"
     "medical_note" }o--|| "cat" : "cat"

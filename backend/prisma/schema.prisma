@@ -87,7 +87,7 @@ enum SignAction {
   RemoveAdopted
 }
 
-enum AnnouncementType {
+enum NotificationType {
   NewArrival
   PendingAdoption
   Adopted
@@ -141,9 +141,9 @@ model User {
   requestedKennelMoves      KennelMoveRequest[]   @relation("KennelMoveRequestRequestedBy")
   completedKennelMoves      KennelMoveRequest[]   @relation("KennelMoveRequestCompletedBy")
   pickedUpCats              Cat[]                 @relation("CatPickedUpBy")
-  resolvedAnnouncements     Announcement[]        @relation("AnnouncementResolvedBy")
-  createdAnnouncements      Announcement[]        @relation("AnnouncementCreatedBy")
-  commentedAnnouncements    Announcement[]        @relation("AnnouncementCommentedBy")
+  resolvedNotifications     Notification[]        @relation("NotificationResolvedBy")
+  createdNotifications      Notification[]        @relation("NotificationCreatedBy")
+  commentedNotifications    Notification[]        @relation("NotificationCommentedBy")
   loggedProbioticDoses      ProbioticDose[]
   activityLogs              ActivityLog[]
 
@@ -235,7 +235,7 @@ model Cat {
   meetAndGreetTags   MeetAndGreetCat[]
   playGroupTags      PlayGroupCat[]
   medicalNotes       MedicalNote[]
-  announcements      Announcement[]
+  notifications      Notification[]
   signTasks          SignTask[]
   checklistActions   ChecklistAction[]
   kennelMoveRequests KennelMoveRequest[]
@@ -292,7 +292,7 @@ model Kennel {
   kennelMoveRequestsFrom KennelMoveRequest[]       @relation("KennelMoveRequestFromKennel")
   kennelMoveRequestsTo   KennelMoveRequest[]       @relation("KennelMoveRequestToKennel")
   kennelsStatus          ShiftReportKennelStatus[]
-  announcements          Announcement[]
+  notifications          Notification[]
 
   @@map("kennel")
 }
@@ -333,7 +333,7 @@ model ShiftReport {
 // Replaces ShiftReportKennelDiscrepancy: every kennel gets a reported state
 // each shift (Ready/Occupied/NeedsReset — never Planned, which stays admin-
 // only), not just ones a volunteer flags. Purely observational — reporting a
-// state here never touches Kennel.state or creates/resolves an Announcement,
+// state here never touches Kennel.state or creates/resolves an Notification,
 // unlike every other place in the app that sets a kennel's state. No note
 // field — a reportedState that conflicts with the kennel's actual state is
 // just logged as-is; anything worth explaining goes in the report's Other
@@ -407,7 +407,7 @@ model GroupEntryCatDetail {
 }
 
 // Replaces the old CatEntry/GroupEntryCatDetail probiotic-given checkboxes —
-// probiotic dosing is managed entirely from the Probiotic announcement now
+// probiotic dosing is managed entirely from the Probiotic notification now
 // (see medicalAlerts.ts), not tied to a shift report.
 model ProbioticDose {
   id         Int      @id @default(autoincrement())
@@ -518,7 +518,7 @@ model PlayGroupCat {
   @@map("play_group_cat")
 }
 
-// --- Status & announcements ---
+// --- Status & notifications ---
 
 model KennelPrepChecklist {
   id          Int      @id @default(autoincrement())
@@ -527,7 +527,7 @@ model KennelPrepChecklist {
   createdAt   DateTime @default(now()) @map("created_at")
 
   actions       ChecklistAction[]
-  announcements Announcement[]
+  notifications Notification[]
 
   @@map("kennel_prep_checklist")
 }
@@ -535,7 +535,7 @@ model KennelPrepChecklist {
 // A CHECK constraint (added by hand to the generated migration) enforces, per
 // actionType: ResetKennel needs kennelId only; MoveCat needs kennelId plus
 // exactly one of catId/groupId; FreeText needs description only (no kennel/
-// cat/group) — used for ad-hoc, non-kennel tasks on a Manual announcement.
+// cat/group) — used for ad-hoc, non-kennel tasks on a Manual notification.
 model ChecklistAction {
   id            Int                 @id @default(autoincrement())
   checklistId   Int                 @map("checklist_id")
@@ -559,13 +559,13 @@ model ChecklistAction {
 }
 
 // kennelId is only set for KennelNeedsReset; title/message are only set for
-// Manual (ad-hoc) announcements — every other type resolves to a Cat or a
+// Manual (ad-hoc) notifications — every other type resolves to a Cat or a
 // Checklist (or transitively a KennelMoveRequest via its own relation).
 // comment/commentedAt/commentedBy is a single free-text note any Volunteer or
-// Admin can add to any announcement — not a threaded log, just overwritten.
-model Announcement {
+// Admin can add to any notification — not a threaded log, just overwritten.
+model Notification {
   id             Int                  @id @default(autoincrement())
-  type           AnnouncementType
+  type           NotificationType
   catId          Int?                 @map("cat_id")
   cat            Cat?                 @relation(fields: [catId], references: [id])
   checklistId    Int?                 @map("checklist_id")
@@ -577,16 +577,16 @@ model Announcement {
   resolved       Boolean              @default(false)
   resolvedAt     DateTime?            @map("resolved_at")
   resolvedById   String?              @map("resolved_by_id")
-  resolvedBy     User?                @relation("AnnouncementResolvedBy", fields: [resolvedById], references: [id])
+  resolvedBy     User?                @relation("NotificationResolvedBy", fields: [resolvedById], references: [id])
   // "Not relevant": closed without being done. Also sets resolved/resolvedAt/resolvedById.
   dismissed      Boolean              @default(false)
   dismissNote    String?              @map("dismiss_note")
   createdById    String?              @map("created_by_id")
-  createdBy      User?                @relation("AnnouncementCreatedBy", fields: [createdById], references: [id])
+  createdBy      User?                @relation("NotificationCreatedBy", fields: [createdById], references: [id])
   comment        String?
   commentedAt    DateTime?            @map("commented_at")
   commentedById  String?              @map("commented_by_id")
-  commentedBy    User?                @relation("AnnouncementCommentedBy", fields: [commentedById], references: [id])
+  commentedBy    User?                @relation("NotificationCommentedBy", fields: [commentedById], references: [id])
   emailSent      Boolean              @default(false) @map("email_sent")
   emailAttempts  Int                  @default(0) @map("email_attempts")
   emailLastError String?              @map("email_last_error")
@@ -598,7 +598,7 @@ model Announcement {
   @@index([catId])
   @@index([checklistId])
   @@index([kennelId])
-  @@map("announcement")
+  @@map("notification")
 }
 
 model SignTask {
@@ -608,15 +608,15 @@ model SignTask {
   kennelId       Int          @map("kennel_id")
   kennel         Kennel       @relation(fields: [kennelId], references: [id])
   action         SignAction
-  announcementId Int          @map("announcement_id")
-  announcement   Announcement @relation(fields: [announcementId], references: [id])
+  notificationId Int          @map("notification_id")
+  notification   Notification @relation(fields: [notificationId], references: [id])
   state          TaskState    @default(Open)
   completedById  String?      @map("completed_by_id")
   completedBy    User?        @relation(fields: [completedById], references: [id])
   completedAt    DateTime?    @map("completed_at")
 
   @@index([catId])
-  @@index([announcementId])
+  @@index([notificationId])
   @@map("sign_task")
 }
 
@@ -639,8 +639,8 @@ model KennelMoveRequest {
   completedById  String?       @map("completed_by_id")
   completedBy    User?         @relation("KennelMoveRequestCompletedBy", fields: [completedById], references: [id])
   completedAt    DateTime?     @map("completed_at")
-  announcementId Int?          @map("announcement_id")
-  announcement   Announcement? @relation(fields: [announcementId], references: [id])
+  notificationId Int?          @map("notification_id")
+  notification   Notification? @relation(fields: [notificationId], references: [id])
   createdAt      DateTime      @default(now()) @map("created_at")
 
   @@index([catId])

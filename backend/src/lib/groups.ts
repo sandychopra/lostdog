@@ -28,9 +28,9 @@ async function retireGroup(tx: Tx, groupId: number, actorId: string): Promise<vo
       where: { id: move.id },
       data: { state: TaskState.Cancelled },
     });
-    if (move.announcementId !== null) {
-      await tx.announcement.update({
-        where: { id: move.announcementId },
+    if (move.notificationId !== null) {
+      await tx.notification.update({
+        where: { id: move.notificationId },
         data: { resolved: true, resolvedAt: new Date(), resolvedById: actorId },
       });
     }

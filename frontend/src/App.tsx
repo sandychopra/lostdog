@@ -10,7 +10,7 @@ import ShiftReportDetailPage from "./components/ShiftReportDetailPage";
 import CatDetailPage from "./components/CatDetailPage";
 import KennelDetailPage from "./components/KennelDetailPage";
 import PhotosPage from "./components/PhotosPage";
-import AnnouncementsPage from "./components/AnnouncementsPage";
+import NotificationsPage from "./components/NotificationsPage";
 import RequireAuth from "./components/RequireAuth";
 import RequireAdmin from "./components/RequireAdmin";
 import ReloadPrompt from "./components/ReloadPrompt";
@@ -28,7 +28,7 @@ export default function App() {
           path="/"
           element={
             <RequireAuth>
-              <Navigate to="/announcements" replace />
+              <Navigate to="/notifications" replace />
             </RequireAuth>
           }
         />
@@ -105,10 +105,10 @@ export default function App() {
           }
         />
         <Route
-          path="/announcements"
+          path="/notifications"
           element={
             <RequireAuth>
-              <AnnouncementsPage />
+              <NotificationsPage />
             </RequireAuth>
           }
         />

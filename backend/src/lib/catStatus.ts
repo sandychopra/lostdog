@@ -1,6 +1,6 @@
 import { CatStatus } from "shared/constants/catStatus.ts";
 import { SignAction } from "shared/constants/signAction.ts";
-import { AnnouncementType } from "shared/constants/announcementType.ts";
+import { NotificationType } from "shared/constants/notificationType.ts";
 import { TaskState } from "shared/constants/taskState.ts";
 import { VALID_STATUS_TRANSITIONS } from "shared/constants/catStatusTransitions.ts";
 import type { CreateCatInput } from "shared/schemas/cats.ts";
@@ -8,7 +8,7 @@ import type { Prisma } from "../generated/prisma/client.ts";
 import { ActivityAction, ActivityEntityType } from "shared/constants/activityLog.ts";
 import { logActivity } from "./activityLog.ts";
 import { markKennelNeedsReset } from "./kennelResets.ts";
-import { syncDewormerAnnouncement, syncProbioticAnnouncement } from "./medicalAlerts.ts";
+import { syncDewormerNotification, syncProbioticNotification } from "./medicalAlerts.ts";
 import { removeCatFromGroup } from "./groups.ts";
 
 export class InvalidCatStatusTransitionError extends Error {}
@@ -27,12 +27,12 @@ function logCatActivity(tx: Tx, catId: number, actorId: string, description: str
   });
 }
 
-// The Announcement types that a Cat's status directly drives — a new status
+// The Notification types that a Cat's status directly drives — a new status
 // change (or Returned to RCC) always supersedes whichever of these is still open.
-const DRIVING_ANNOUNCEMENT_TYPES = [
-  AnnouncementType.PendingAdoption,
-  AnnouncementType.Adopted,
-  AnnouncementType.BackAvailable,
+const DRIVING_NOTIFICATION_TYPES = [
+  NotificationType.PendingAdoption,
+  NotificationType.Adopted,
+  NotificationType.BackAvailable,
 ];
 
 // A grouped cat has no kennelId of its own — it lives in its group's kennel.
@@ -47,16 +47,16 @@ async function effectiveKennelId(
 
 /**
  * A cat leaving the shelter (picked up or returned to RCC) closes out
- * everything still open about it: every unresolved cat announcement and any
+ * everything still open about it: every unresolved cat notification and any
  * open kennel move request for the cat. Sign tasks are handled separately by
  * cancelOpenSignTasks.
  */
-async function closeOpenCatAnnouncements(tx: Tx, catId: number, actorId: string): Promise<void> {
+async function closeOpenCatNotifications(tx: Tx, catId: number, actorId: string): Promise<void> {
   await tx.kennelMoveRequest.updateMany({
     where: { catId, state: TaskState.Open },
     data: { state: TaskState.Cancelled },
   });
-  await tx.announcement.updateMany({
+  await tx.notification.updateMany({
     where: { catId, resolved: false },
     data: { resolved: true, resolvedAt: new Date(), resolvedById: actorId },
   });
@@ -85,9 +85,9 @@ async function wasSignPosted(
   return last?.state === TaskState.Done;
 }
 
-async function resolveDrivingAnnouncement(tx: Tx, catId: number, actorId: string): Promise<void> {
-  await tx.announcement.updateMany({
-    where: { catId, type: { in: DRIVING_ANNOUNCEMENT_TYPES }, resolved: false },
+async function resolveDrivingNotification(tx: Tx, catId: number, actorId: string): Promise<void> {
+  await tx.notification.updateMany({
+    where: { catId, type: { in: DRIVING_NOTIFICATION_TYPES }, resolved: false },
     data: { resolved: true, resolvedAt: new Date(), resolvedById: actorId },
   });
 }
@@ -111,7 +111,7 @@ function removeActionFor(
     : SignAction.RemoveAdopted;
 }
 
-// Creates a remove-sign SignTask attached to `announcementId`, but only if the
+// Creates a remove-sign SignTask attached to `notificationId`, but only if the
 // corresponding Post* sign was actually posted (see wasSignPosted) — shared by
 // the Available fallthrough and Returned to RCC, which use identical logic.
 async function maybeCreateRemoveSignTask(
@@ -120,7 +120,7 @@ async function maybeCreateRemoveSignTask(
     catId: number;
     kennelId: number | null;
     departingStatus: CatStatus;
-    announcementId: number;
+    notificationId: number;
   },
 ): Promise<void> {
   const priorAction = priorSignActionFor(args.departingStatus);
@@ -132,7 +132,7 @@ async function maybeCreateRemoveSignTask(
       catId: args.catId,
       kennelId: args.kennelId,
       action: removeActionFor(priorAction),
-      announcementId: args.announcementId,
+      notificationId: args.notificationId,
       state: TaskState.Open,
     },
   });
@@ -173,28 +173,28 @@ export async function changeCatStatus(
   const kennelId = await effectiveKennelId(tx, cat);
 
   // PendingAdoption -> Adopted is forward progress within the same adoption
-  // attempt, not a new one — per FR-85, both announcements stay open together
+  // attempt, not a new one — per FR-85, both notifications stay open together
   // until pickup resolves them jointly (see confirmPickup). Every other
   // transition here (entering Pending/Adopted fresh from Available, or falling
   // through to Available) closes out whatever was still open for this cat.
   const isPendingToAdoptedForwardStep =
     cat.status === CatStatus.PendingAdoption && args.targetStatus === CatStatus.Adopted;
   if (!isPendingToAdoptedForwardStep) {
-    await resolveDrivingAnnouncement(tx, args.catId, args.actorId);
+    await resolveDrivingNotification(tx, args.catId, args.actorId);
   }
 
   if (args.targetStatus === CatStatus.PendingAdoption || args.targetStatus === CatStatus.Adopted) {
-    const announcementType =
+    const notificationType =
       args.targetStatus === CatStatus.PendingAdoption
-        ? AnnouncementType.PendingAdoption
-        : AnnouncementType.Adopted;
+        ? NotificationType.PendingAdoption
+        : NotificationType.Adopted;
     const signAction =
       args.targetStatus === CatStatus.PendingAdoption
         ? SignAction.PostPending
         : SignAction.PostAdopted;
 
-    const announcement = await tx.announcement.create({
-      data: { type: announcementType, catId: args.catId },
+    const notification = await tx.notification.create({
+      data: { type: notificationType, catId: args.catId },
     });
     if (kennelId !== null) {
       await tx.signTask.create({
@@ -202,7 +202,7 @@ export async function changeCatStatus(
           catId: args.catId,
           kennelId,
           action: signAction,
-          announcementId: announcement.id,
+          notificationId: notification.id,
           state: TaskState.Open,
         },
       });
@@ -221,14 +221,14 @@ export async function changeCatStatus(
   }
 
   // targetStatus === Available: fallthrough from PendingAdoption or (per amendment) Adopted.
-  const announcement = await tx.announcement.create({
-    data: { type: AnnouncementType.BackAvailable, catId: args.catId },
+  const notification = await tx.notification.create({
+    data: { type: NotificationType.BackAvailable, catId: args.catId },
   });
   await maybeCreateRemoveSignTask(tx, {
     catId: args.catId,
     kennelId,
     departingStatus: cat.status,
-    announcementId: announcement.id,
+    notificationId: notification.id,
   });
 
   await logCatActivity(
@@ -245,9 +245,9 @@ export async function changeCatStatus(
 
 /**
  * The one Volunteer-triggerable transition (adopted -> picked up), completed
- * directly from the Announcements page. The cat leaves the shelter: it becomes
+ * directly from the Notifications page. The cat leaves the shelter: it becomes
  * inactive (off the Cats page), leaves its kennel and group, everything still
- * open about it is closed, and a single PickedUp announcement replaces it.
+ * open about it is closed, and a single PickedUp notification replaces it.
  */
 export async function confirmPickup(tx: Tx, args: { catId: number; actorId: string }) {
   const cat = await tx.cat.findUniqueOrThrow({ where: { id: args.catId } });
@@ -261,14 +261,14 @@ export async function confirmPickup(tx: Tx, args: { catId: number; actorId: stri
 
   await cancelOpenSignTasks(tx, args.catId);
 
-  // Closes the PendingAdoption/Adopted announcement(s) — FR-85's 3-condition
+  // Closes the PendingAdoption/Adopted notification(s) — FR-85's 3-condition
   // rule (picked up + kennel reset/sign removal + no open sign task) is
   // satisfied right here — along with every other open item about this cat
   // (New Arrival, dewormer, probiotic, move requests).
-  await closeOpenCatAnnouncements(tx, args.catId, args.actorId);
+  await closeOpenCatNotifications(tx, args.catId, args.actorId);
 
-  const pickedUp = await tx.announcement.create({
-    data: { type: AnnouncementType.PickedUp, catId: args.catId },
+  const pickedUp = await tx.notification.create({
+    data: { type: NotificationType.PickedUp, catId: args.catId },
   });
 
   await logCatActivity(
@@ -302,7 +302,7 @@ export async function confirmPickup(tx: Tx, args: { catId: number; actorId: stri
           catId: args.catId,
           kennelId,
           action: SignAction.RemoveAdopted,
-          announcementId: pickedUp.id,
+          notificationId: pickedUp.id,
           state: TaskState.Open,
         },
       });
@@ -322,7 +322,7 @@ export async function confirmPickup(tx: Tx, args: { catId: number; actorId: stri
   });
 }
 
-/** Returns a Cat to the RCC: deactivates it and mirrors the same sign-task/announcement rules as a status change. */
+/** Returns a Cat to the RCC: deactivates it and mirrors the same sign-task/notification rules as a status change. */
 export async function returnCatToRcc(
   tx: Tx,
   args: { catId: number; reason?: string; actorId: string },
@@ -333,16 +333,16 @@ export async function returnCatToRcc(
   // Leaving the active roster closes everything still open about this cat
   // (status, dewormer/probiotic reminders, move requests) — without touching
   // the underlying dewormerStatus/needsProbiotic flags themselves.
-  await closeOpenCatAnnouncements(tx, args.catId, args.actorId);
+  await closeOpenCatNotifications(tx, args.catId, args.actorId);
 
-  const announcement = await tx.announcement.create({
-    data: { type: AnnouncementType.ReturnedToRcc, catId: args.catId },
+  const notification = await tx.notification.create({
+    data: { type: NotificationType.ReturnedToRcc, catId: args.catId },
   });
   await maybeCreateRemoveSignTask(tx, {
     catId: args.catId,
     kennelId: cat.kennelId,
     departingStatus: cat.status,
-    announcementId: announcement.id,
+    notificationId: notification.id,
   });
 
   if (cat.kennelId !== null) {
@@ -362,21 +362,21 @@ export async function returnCatToRcc(
   });
 }
 
-/** Creates a new Cat (always `Available`) and its NewArrival Announcement together,
- * plus a DewormerDue/ProbioticNeeded announcement if it arrives already needing either. */
-export async function createCatWithArrivalAnnouncement(
+/** Creates a new Cat (always `Available`) and its NewArrival Notification together,
+ * plus a DewormerDue/ProbioticNeeded notification if it arrives already needing either. */
+export async function createCatWithArrivalNotification(
   tx: Tx,
   data: CreateCatInput,
   args?: { actorId?: string },
 ) {
   const cat = await tx.cat.create({ data });
-  await tx.announcement.create({ data: { type: AnnouncementType.NewArrival, catId: cat.id } });
-  await syncDewormerAnnouncement(tx, { catId: cat.id, actorId: args?.actorId });
-  await syncProbioticAnnouncement(tx, { catId: cat.id, actorId: args?.actorId });
+  await tx.notification.create({ data: { type: NotificationType.NewArrival, catId: cat.id } });
+  await syncDewormerNotification(tx, { catId: cat.id, actorId: args?.actorId });
+  await syncProbioticNotification(tx, { catId: cat.id, actorId: args?.actorId });
   return cat;
 }
 
-/** Completes an open SignTask, from the Announcements page. */
+/** Completes an open SignTask, from the Notifications page. */
 export async function completeSignTask(tx: Tx, args: { signTaskId: number; actorId: string }) {
   const task = await tx.signTask.findUniqueOrThrow({ where: { id: args.signTaskId } });
   if (task.state !== TaskState.Open) {
@@ -393,12 +393,12 @@ export async function completeSignTask(tx: Tx, args: { signTaskId: number; actor
   });
 
   // A RemovePending/RemoveAdopted task completing is exactly what "the sign has
-  // come down" means for a BackAvailable (or ReturnedToRcc) announcement (FR-88's
+  // come down" means for a BackAvailable (or ReturnedToRcc) notification (FR-88's
   // one remaining resolution condition) — flip it here since this is the only
   // place that happens, rather than re-deriving it at read time.
   if (updated.action === SignAction.RemovePending || updated.action === SignAction.RemoveAdopted) {
-    await tx.announcement.update({
-      where: { id: updated.announcementId },
+    await tx.notification.update({
+      where: { id: updated.notificationId },
       data: { resolved: true, resolvedAt: new Date(), resolvedById: args.actorId },
     });
   }
@@ -434,8 +434,8 @@ export async function uncompleteSignTask(tx: Tx, args: { signTaskId: number; act
 
   // Mirror image of completeSignTask's resolution side effect.
   if (updated.action === SignAction.RemovePending || updated.action === SignAction.RemoveAdopted) {
-    await tx.announcement.update({
-      where: { id: updated.announcementId },
+    await tx.notification.update({
+      where: { id: updated.notificationId },
       data: { resolved: false, resolvedAt: null, resolvedById: null },
     });
   }

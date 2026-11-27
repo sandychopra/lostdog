@@ -103,7 +103,7 @@ router.patch("/:id/cancel", requireAuth, requireAdmin, async (req, res: Response
   res.json({ message: "Kennel move request cancelled" });
 });
 
-// Completed directly from the Announcements page — any authenticated user, same as a Sign Task.
+// Completed directly from the Notifications page — any authenticated user, same as a Sign Task.
 router.patch("/:id/complete", requireAuth, async (req, res: Response) => {
   const id = Number(req.params.id);
   const actorId = (req as AuthedRequest).session.user.id;

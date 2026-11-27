@@ -22,7 +22,7 @@ describe("BottomNav", () => {
     role = "Volunteer";
     renderWithQuery(<BottomNav />);
     const nav = within(screen.getByRole("navigation", { name: "Main" }));
-    expect(nav.getByRole("link", { name: "Updates" })).toHaveAttribute("href", "/announcements");
+    expect(nav.getByRole("link", { name: "Updates" })).toHaveAttribute("href", "/notifications");
     expect(nav.getByRole("link", { name: "Cats" })).toBeInTheDocument();
     expect(nav.getByRole("link", { name: "New report" })).toHaveAttribute(
       "href",

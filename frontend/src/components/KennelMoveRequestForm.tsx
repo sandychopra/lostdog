@@ -56,7 +56,7 @@ export default function KennelMoveRequestForm({ kennel, onSuccess }: KennelMoveR
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["kennels"] });
       queryClient.invalidateQueries({ queryKey: ["kennel-move-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["announcements"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
       form.reset();
       mutation.reset();
       onSuccess();
